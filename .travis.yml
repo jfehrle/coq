@@ -27,7 +27,7 @@ addons:
 
 env:
   global:
-  - NJOBS=2
+  - NJOBS=1
   # system is == 4.02.3
   - COMPILER="system"
   - COMPILER_BE="4.06.0"
