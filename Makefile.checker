@@ -75,9 +75,12 @@ checker/%.cmx: checker/%.ml
 
 md5chk:
 	$(SHOW)'MD5SUM cic.mli'
-	cat checker/values.ml
-	echo sed "`sed -n -e 's/\r//' -e '/^/p' checker/cic.mli | $(MD5SUM)`"
-	$(HIDE)v=`sed -n -e 's/\r//' -e '/^/p' checker/cic.mli | $(MD5SUM) | sed -n -e 's/ .*/ checker\/cic.mli/' -e '/^/p'`; echo $$v; \
+	od -c checker/cic.mli
+	tr -d "\r" < checker/cic.mli > after_tr
+	diff checker/cic.mli after_tr
+	ls -l checker/cic.mli after_tr
+	$(MD5SUM) checker/cic.mli
+	$(HIDE)v=`tr -d "\r" < checker/cic.mli | sed -n -e '/^/p' | $(MD5SUM) | sed -n -e 's/ .*/ checker\/cic.mli/' -e '/^/p'`; \
 	       if grep -q "$$v" checker/values.ml; \
 	       then true; else echo "Error: outdated checker/values.ml: $$v"; false; fi
 
