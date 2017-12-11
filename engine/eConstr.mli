@@ -187,9 +187,9 @@ val whd_evar : Evd.evar_map -> constr -> constr
 
 val eq_constr : Evd.evar_map -> t -> t -> bool
 val eq_constr_nounivs : Evd.evar_map -> t -> t -> bool
-val eq_constr_universes : Evd.evar_map -> t -> t -> Universes.universe_constraints option
-val leq_constr_universes : Evd.evar_map -> t -> t -> Universes.universe_constraints option
-val eq_constr_universes_proj : Environ.env -> Evd.evar_map -> t -> t -> Universes.universe_constraints option
+val eq_constr_universes : Evd.evar_map -> t -> t -> Universes.Constraints.t option
+val leq_constr_universes : Evd.evar_map -> t -> t -> Universes.Constraints.t option
+val eq_constr_universes_proj : Environ.env -> Evd.evar_map -> t -> t -> Universes.Constraints.t option
 val compare_constr : Evd.evar_map -> (t -> t -> bool) -> t -> t -> bool
 
 (** {6 Iterators} *)
@@ -203,7 +203,7 @@ val fold : Evd.evar_map -> ('a -> t -> 'a) -> 'a -> t -> 'a
 
 (** Gather the universes transitively used in the term, including in the
    type of evars appearing in it. *)
-val universes_of_constr : Evd.evar_map -> t -> Univ.LSet.t
+val universes_of_constr : Environ.env -> Evd.evar_map -> t -> Univ.LSet.t
 
 (** {6 Substitutions} *)
 
