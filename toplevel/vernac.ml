@@ -114,12 +114,25 @@ let interp_vernac ~check ~interactive ~state ({CAst.loc;_} as com) =
         | Some _ -> info
       end in iraise (reraise, info)
 
+(* todo: following 3 lets duplicated in coqloop.ml, should move to Proof_global.ml? *)
+let pequal cmp1 cmp2 (a1,a2) (b1,b2) = cmp1 a1 b1 && cmp2 a2 b2
+let evleq e1 e2 = CList.equal Evar.equal e1 e2
+let cproof p1 p2 =
+  let (a1,a2,a3,a4,_),(b1,b2,b3,b4,_) = Proof.proof p1, Proof.proof p2 in
+  evleq a1 b1 &&
+  CList.equal (pequal evleq evleq) a2 b2 &&
+  CList.equal Evar.equal a3 b3 &&
+  CList.equal Evar.equal a4 b4
+
 (* Load a vernac file. CErrors are annotated with file and location *)
 let load_vernac_core ~echo ~check ~interactive ~state file =
   (* Keep in sync *)
   let in_chan = open_utf8_file_in file in
   let in_echo = if echo then Some (open_utf8_file_in file) else None in
-  let input_cleanup () = close_in in_chan; Option.iter close_in in_echo in
+  let input_cleanup () =
+    close_in in_chan;
+    Option.iter close_in in_echo;
+    Proof_diffs_html.close_diff_files () in
 
   let in_pa   = Pcoq.Gram.parsable ~file:(Loc.InFile file) (Stream.of_channel in_chan) in
   let rstate  = ref state in
@@ -155,6 +168,10 @@ let load_vernac_core ~echo ~check ~interactive ~state file =
 
       checknav_simple ast;
       let state = Flags.silently (interp_vernac ~check ~interactive ~state:!rstate) ast in
+      let proof_changed = not (Option.equal cproof !rstate.proof state.proof) in
+      if proof_changed && Proof_global.there_are_pending_proofs () &&
+          !Proof_diffs_html.html_diffs && !Flags.quiet then
+        Proof_diffs_html.write_html_diffs !rstate.proof state.proof loc;
       rids := state.sid :: !rids;
       rstate := state;
     done;

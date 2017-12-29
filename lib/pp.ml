@@ -139,7 +139,7 @@ let v   n s = Ppcmd_box(Pp_vbox n,s)
 let hv  n s = Ppcmd_box(Pp_hvbox n,s)
 let hov n s = Ppcmd_box(Pp_hovbox n,s)
 
-(* Opening and closed of tags *)
+(* Opening and closing of tags *)
 let tag t s = Ppcmd_tag(t,s)
 
 (* In new syntax only double quote char is escaped by repeating it *)
@@ -167,8 +167,42 @@ let rec pr_com ft s =
       Some s2 -> Format.pp_force_newline ft (); pr_com ft s2
     | None -> ()
 
+let start_pfx = "start."
+let end_pfx = "end."
+
+let split_pfx pfx str =
+  let (str_len, pfx_len) = (String.length str, String.length pfx) in
+  if str_len >= pfx_len && (String.sub str 0 pfx_len) = pfx then
+    (pfx, String.sub str pfx_len (str_len - pfx_len)) else ("", str);;
+
+let split_tag tag =
+  let (pfx, ttag) = split_pfx start_pfx tag in
+  if pfx <> "" then (pfx, ttag) else
+    let (pfx, ttag) = split_pfx end_pfx tag in
+    (pfx, ttag);;
+
+(* escape HTML reserved characters *)
+let maybe_escape str html =
+  if html then
+    let buf = Buffer.create 16 in
+    let lim = String.length str - 1 in
+    for i = 0 to lim do
+      let c = str.[i] in
+      Buffer.add_string buf (match c with
+        | '&' -> "&amp;"
+        | '<' -> "&lt;"
+        | '>' -> "&gt;"
+        | '\"' -> "&quot;"
+        | '\'' -> "&apos;"
+        | ch -> String.make 1 ch)
+    done;
+    Buffer.contents buf
+  else
+    str;;
+
 (* pretty printing functions *)
-let pp_with ft pp =
+(* todo: better to pass in escape function, but couldn't get it to compile *)
+let pp_with2 html ft pp =
   let cpp_open_box = function
     | Pp_hbox n   -> Format.pp_open_hbox ft ()
     | Pp_vbox n   -> Format.pp_open_vbox ft n
@@ -179,14 +213,14 @@ let pp_with ft pp =
     | Ppcmd_empty             -> ()
     | Ppcmd_glue sl           -> List.iter pp_cmd sl
     | Ppcmd_string str        -> let n = utf8_length str in
-                                 pp_print_as ft n str
+                                 pp_print_as ft n (maybe_escape str html)
     | Ppcmd_box(bty,ss)       -> cpp_open_box bty ;
                                  if not (over_max_boxes ()) then pp_cmd ss;
                                  pp_close_box ft ()
     | Ppcmd_print_break(m,n)  -> pp_print_break ft m n
     | Ppcmd_force_newline     -> pp_force_newline ft ()
     | Ppcmd_comment coms      -> List.iter (pr_com ft) coms
-    | Ppcmd_tag(tag, s)       -> pp_open_tag  ft tag;
+    | Ppcmd_tag(tag, s)       -> pp_open_tag ft tag;
                                  pp_cmd s;
                                  pp_close_tag ft ()
   in
@@ -195,6 +229,8 @@ let pp_with ft pp =
     let reraise = Backtrace.add_backtrace reraise in
     let () = Format.pp_print_flush ft () in
     Exninfo.iraise reraise
+
+let pp_with ft pp = pp_with2 false ft pp;;
 
 (* If mixing some output and a goal display, please use msg_warning,
    so that interfaces (proofgeneral for example) can easily dispatch
@@ -297,3 +333,57 @@ let prvect_with_sep sep elem v = prvecti_with_sep sep (fun _ -> elem) v
 let prvect elem v = prvect_with_sep mt elem v
 
 let surround p = hov 1 (str"(" ++ p ++ str")")
+
+(*** DEBUG code ***)
+
+let db_string_of_pp pp =
+  let buf = Buffer.create 16 in
+  let block_type btype =
+    let (bt, v) =
+      match btype with
+      | Pp_hbox v -> ("Pp_hbox", v)
+      | Pp_vbox v -> ("Pp_vbox", v)
+      | Pp_hvbox v -> ("Pp_hvbox", v)
+      | Pp_hovbox v -> ("Pp_hovbox", v)
+    in
+    Printf.sprintf "%s %d" bt v
+  in
+  let rec db_string_of_pp_r pp indent =
+    let ind () = Buffer.add_string buf (String.make (2 * indent) ' ') in
+    ind();
+    match pp with
+    | Ppcmd_empty
+      -> Printf.bprintf buf "Ppcmd_empty\n"
+    | Ppcmd_string str
+      -> Printf.bprintf buf "Ppcmd_string '%s'\n" str
+    | Ppcmd_glue list
+      -> Printf.bprintf buf "Ppcmd_glue (\n"; List.iter (fun x -> db_string_of_pp_r (repr x) (indent + 1)) list; ind ();
+      Printf.bprintf buf") Ppcmd_glue\n"
+    | Ppcmd_box (block, pp)
+      -> Printf.bprintf buf "Ppcmd_box %s\n" (block_type block); (fun x -> db_string_of_pp_r (repr x) (indent + 1)) pp
+    | Ppcmd_tag (tag, pp)
+      -> Printf.bprintf buf "Ppcmd_tag %s (\n" tag; db_string_of_pp_r (repr pp) (indent + 1); ind ();
+      Printf.bprintf buf ") Ppcmd_tag\n"
+    | Ppcmd_print_break (i, j)
+      -> Printf.bprintf buf "Ppcmd_print_break %d %d\n" i j
+    | Ppcmd_force_newline
+      -> Printf.bprintf buf "Ppcmd_force_newline\n"
+    | Ppcmd_comment list
+      -> Printf.bprintf buf "Ppcmd_comment(\n"; List.iter print_string list; ind ();
+      Printf.bprintf buf ") Ppcmd_comment\n"
+  in
+  db_string_of_pp_r pp 0;
+  Buffer.contents buf
+
+(* todo: move into test code? the repr/unrep causes problems *)
+let rec flatten pp =
+  match pp with
+  | Ppcmd_glue l -> Ppcmd_glue (List.concat (List.map
+      (fun x -> let x = flatten x in
+                  match x with
+                  | Ppcmd_glue l2 -> l2
+                  | p -> [p])
+      l))
+  | Ppcmd_box (block, pp) -> Ppcmd_box (block, flatten pp)
+  | Ppcmd_tag (tag, pp) -> Ppcmd_tag (tag, flatten pp)
+  | p -> p

@@ -1,0 +1,71 @@
+Todo: move this info somewhere else and probably reformat
+
+This PR adds the ability to highlight the differences in the output
+of successive proof steps in coqtop and CoqIDE.  Proof General needs
+minor changes to make the diffs visible, but this PR should not break the
+existing version of PG.  There is also an option to generate diffs
+in an HTML file.
+
+Diffs are computed for the hypotheses and conclusion of the first goal
+between the old and new proofs.  It uses the Myers diff algorithm.
+(Code is from https://github.com/leque/ocaml-diff.git.)
+
+Strings are diffed by breaking them into tokens using the Coq lexer, then
+the list of token is diffed using the Myers algorithm.  The code applies a
+fixup routine (Proof_diffs.shorten_diff_span) to the diff result to in some
+cases shorten the span of the changes.  See comments there.
+
+Diffs are enabled with the Diffs option, e.g. "Set Diffs xx." in the GUI,
+or "-diffs xx" in the coqtop command line, where "xx" is "on", "off" or
+"removed".  The "on" option shows only the new item with added text, while
+"removed" shows each modified item twice--once with the old value showing
+removed text and once with the new value showing added text.
+
+Colors.  The highlights use 4 tags to specify the color and underline/strikeout.
+These are are "diffs.added", "diffs.removed", "diffs.added.bg" and "diffs.removed.bg".
+The first two are for added or removed text; the last two are for
+unmodified parts of a modified item.  In CoqIDE, colors and highlights can be
+set in the Edit/Preferences/Tags panel.  For coqtop, these can be set through
+the COQ_COLORS environment variable.
+(see https://coq.inria.fr/distrib/current/refman/practical-tools/coq-commands.html#by-environment-variables)
+
+To generate HTML diffs, pass "-Xhtmldiffs" to coqtop in non-interactive mode
+(i.e., with -compile).  The HTML for xyz.v will be saved in xyz.v.html.  The
+HTML diffs were very useful during development but may not be useful to general
+users, so the option doesn't appear in the usage information.
+
+To do diffs for other purposes in Coq, call Proof_diffs.diff_pp.  Note that the
+inputs have to be acceptable to the lexer.  If that can't be guaranteed, break the
+strings into lists of tokens and use diff_strs, then add_diff_info with a Pp.t that
+matches the input lists of strings.
+
+Limitations/Possible enhancements:
+
+- If you go back to a prior proof step, diffs are not shown on the new current
+step.  Diffs will be shown again once you do another proof step.
+
+- Diffs are done between the first active goal in the old and new proofs.
+If, for example, the proof step completed a goal, then the new goal is a
+different goal, not a transformation of the old goal, so a diff is probably
+not appropriate.  (There's currently no way to tell when this happens or to
+accurately match goals across old and new proofs.)  This is also why only the
+first goal is diffed.
+
+- "Set Diffs xx." should reprint the current goal using the new option.
+
+- coqtop colors were chosen for white text on a black background.  They're
+not the greatest.  I didn't want to change the existing green highlight.
+Suggestions welcome.
+
+- coqtop underlines removed text because (per Wikipedia) the ANSI escape code
+for strikeout is not commonly supported (it didn't work on mine).  CoqIDE and
+the HTML use strikeout on removed text.
+
+Todo: unit tests.
+
+THINGS TO REVIEW
+
+This is the first thing I've written in OCaml.  I appreciate review comments on:
+- indentation (are there guidelines/a standard anywhere?)
+- (lack of) functional style and useful OCaml idioms
+- general approach/interfacing to Coq

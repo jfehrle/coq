@@ -188,4 +188,22 @@ val pr_vertical_list : ('b -> t) -> 'b list -> t
 (** [pp_with fmt pp] Print [pp] to [fmt] and don't flush [fmt]  *)
 val pp_with          : Format.formatter -> t -> unit
 
+(** [pp_with2 html fmt pp] Print [pp] to [fmt] and don't flush [fmt] .
+    If html is true, apply HTML escape sequences to strings. *)
+val pp_with2         : bool -> Format.formatter -> t -> unit
+
 val string_of_ppcmds : t -> string
+
+
+(** Tag refix to start a multi-token diff span *)
+val start_pfx : string
+
+(** Tag refix to end a multi-token diff span *)
+val end_pfx : string
+
+(** Split a tag into prefix and base tag *)
+val split_tag : string -> string * string
+
+(** Print the Pp in tree form for debugging *)
+val db_string_of_pp : t -> string
+val flatten : t -> t

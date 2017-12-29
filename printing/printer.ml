@@ -810,12 +810,11 @@ let pr_open_subgoals2  ?(quiet=false) ?diffs ~proof () =
             ++ pr_subgoals ~pr_first:false None bsigma ~seeds ~shelf:[] ~stack:[] ~unfocused:[] ~goals:shelf
 	  | _ , _, _ ->
             let cmd = if quiet then None else
-              let end_cmd =
-                str "This subproof is complete, but there are some unfocused goals." ++
+              Some
+                (str "This subproof is complete, but there are some unfocused goals." ++
                 (let s = Proof_bullet.suggest p in
                  if Pp.ismt s then s else fnl () ++ s) ++
-                fnl () in
-              Some end_cmd
+                fnl ())
             in
             pr_subgoals ~pr_first:false cmd bsigma ~seeds ~shelf ~stack:[] ~unfocused:[] ~goals:bgoals
 	  end
