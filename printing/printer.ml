@@ -695,7 +695,7 @@ let print_dependent_evars gl sigma seeds =
 (* spiwack: [seeds] is for printing dependent evars in emacs mode. *)
 (* spiwack: [pr_first] is true when the first goal must be singled out
    and printed in its entirety. *)
-let pr_subgoals ?(pr_first=true)
+let pr_subgoals ?(pr_first=true) ?diffs
                         close_cmd sigma ~seeds ~shelf ~stack ~unfocused ~goals =
   (** Printing functions for the extra informations. *)
   let rec print_stack a = function
@@ -729,7 +729,7 @@ let pr_subgoals ?(pr_first=true)
     if needed then str" focused "
     else str" " (* non-breakable space *)
   in
-  (** Main function *)
+
   let rec pr_rec n = function
     | [] -> (mt ())
     | g::rest ->
@@ -739,7 +739,11 @@ let pr_subgoals ?(pr_first=true)
   in
   let print_multiple_goals g l =
     if pr_first then
-      pr_goal { it = g ; sigma = sigma; }
+      let goal = match diffs with
+        | Some pp -> str "  " ++ v 0 pp
+        | None -> pr_goal { it = g ; sigma = sigma }
+      in
+      goal
       ++ (if l=[] then mt () else cut ())
       ++ pr_rec 2 l
     else 
@@ -751,6 +755,8 @@ let pr_subgoals ?(pr_first=true)
     | Some cmd -> Feedback.msg_info cmd
     | None -> ()
   in
+
+  (** Main function *)
   match goals with
   | [] ->
       begin
@@ -780,7 +786,7 @@ let pr_subgoals ?(pr_first=true)
 	++ print_dependent_evars (Some g1) sigma seeds
       )
 
-let pr_open_subgoals ~proof =
+let pr_open_subgoals2  ?(quiet=false) ?diffs ~proof () =
   (* spiwack: it shouldn't be the job of the printer to look up stuff
      in the [evar_map], I did stuff that way because it was more
      straightforward, but seriously, [Proof.proof] should return
@@ -803,20 +809,30 @@ let pr_open_subgoals ~proof =
 	    fnl ()
             ++ pr_subgoals ~pr_first:false None bsigma ~seeds ~shelf:[] ~stack:[] ~unfocused:[] ~goals:shelf
 	  | _ , _, _ ->
-            let end_cmd =
-              str "This subproof is complete, but there are some unfocused goals." ++
-              (let s = Proof_bullet.suggest p in
-               if Pp.ismt s then s else fnl () ++ s) ++
-              fnl ()
+            let cmd = if quiet then None else
+              let end_cmd =
+                str "This subproof is complete, but there are some unfocused goals." ++
+                (let s = Proof_bullet.suggest p in
+                 if Pp.ismt s then s else fnl () ++ s) ++
+                fnl () in
+              Some end_cmd
             in
-            pr_subgoals ~pr_first:false (Some end_cmd) bsigma ~seeds ~shelf ~stack:[] ~unfocused:[] ~goals:bgoals
+            pr_subgoals ~pr_first:false cmd bsigma ~seeds ~shelf ~stack:[] ~unfocused:[] ~goals:bgoals
 	  end
   | _ -> 
      let { Evd.it = bgoals ; sigma = bsigma } = Proof.V82.background_subgoals p in
      let bgoals_focused, bgoals_unfocused = List.partition (fun x -> List.mem x goals) bgoals in
      let unfocused_if_needed = if should_unfoc() then bgoals_unfocused else [] in
-     pr_subgoals ~pr_first:true None bsigma ~seeds ~shelf ~stack:[] ~unfocused:unfocused_if_needed ~goals:bgoals_focused
+     (* todo: ICK, HELP this is why I had ?(diffs=None) in the argument declaration above *)
+     match diffs with
+     | Some d ->
+       pr_subgoals ~pr_first:true ~diffs:d None bsigma ~seeds ~shelf ~stack:[] ~unfocused:unfocused_if_needed ~goals:bgoals_focused
+     | None ->
+       pr_subgoals ~pr_first:true None bsigma ~seeds ~shelf ~stack:[] ~unfocused:unfocused_if_needed ~goals:bgoals_focused
   end
+
+let pr_open_subgoals ~proof =
+  pr_open_subgoals2 ~proof ()
 
 let pr_nth_open_subgoal ~proof n =
   let gls,_,_,_,sigma = Proof.proof proof in

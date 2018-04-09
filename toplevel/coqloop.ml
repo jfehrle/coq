@@ -321,7 +321,7 @@ let loop_flush_all () =
 let pr_open_cur_subgoals () =
   try
     let proof = Proof_global.give_me_the_proof () in
-    Printer.pr_open_subgoals ~proof
+    Printer.pr_open_subgoals ~proof ()
   with Proof_global.NoCurrentProof -> Pp.str ""
 
 (* Goal equality heuristic. *)
