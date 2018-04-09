@@ -189,3 +189,19 @@ val pr_vertical_list : ('b -> t) -> 'b list -> t
 val pp_with          : Format.formatter -> t -> unit
 
 val string_of_ppcmds : t -> string
+
+
+(** Tag refix to start a multi-token diff span *)
+val start_pfx : string
+
+(** Tag refix to end a multi-token diff span *)
+val end_pfx : string
+
+(** Split a tag into prefix and base tag *)
+val split_tag : string -> string * string
+
+(** Print the Pp in tree form for debugging *)
+val db_string_of_pp : t -> string
+
+(** Combine nested Ppcmd_glues *)
+val flatten : t -> t
