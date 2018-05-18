@@ -10,3 +10,6 @@ val mk_bool_test : string -> string -> bool -> OUnit.test
    containing the tests; use __FILE__ for that purpose.
  *)
 val run_tests : string -> OUnit.test list -> unit
+
+(** output channel for the test log file *)
+val log_out_ch : out_channel option ref
