@@ -20,6 +20,11 @@ val diff_pp : Pp.t -> Pp.t -> Pp.t * Pp.t
 the highlighted hypotheses and conclusion *)
 val diff_first_goal : Proof.t option -> Proof.t option -> Pp.t list * Pp.t
 
+open Evd
+open Proof_type
+
+val diff_goals : ?prev_gs:(goal sigma) -> goal sigma option -> Pp.t
+
 val print_and_diff : Proof.t option -> Proof.t option -> unit
 val diff_pr_open_subgoals : ?quiet:bool -> Proof.t option -> Proof.t option -> Pp.t
 

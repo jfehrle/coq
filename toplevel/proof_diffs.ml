@@ -489,7 +489,9 @@ let process_goal sigma g : Constr.t reified_goal =
   { name; ty; hyps; env; sigma };;
 
 let pp_of_type env sigma ty =
-  Printer.pr_goal_concl_style_env env sigma EConstr.(of_constr ty);;
+(* todo: fake *)
+  (*Printer.pr_goal_concl_style_env env sigma EConstr.(of_constr ty);;*)
+  Pp.mt ()
 
 (* fetch info from a goal, returning (idents, map, concl_pp) where
 idents is a list with one entry for each hypothesis, each entry is the list of
@@ -569,6 +571,7 @@ let hyp_list_to_pp hyps =
   | h :: tl -> List.fold_left (fun x y -> x ++ cut () ++ y) h tl
   | [] -> mt ();;
 
+(* todo: remove *)
 let diff_first_goal o_proof n_proof =
   let first_goal_info proof =
     match proof with
@@ -581,10 +584,30 @@ let diff_first_goal o_proof n_proof =
   in
   diff_goal_info (first_goal_info o_proof) (first_goal_info n_proof);;
 
+(* remove circular dependency on Printer *)
+let diff_goals ?prev_gs n_gs =
+  let unwrap gs =
+    match gs with
+    | Some gs ->
+      let goal = Evd.sig_it gs in
+      let sigma = Refiner.project gs in
+      goal_info goal sigma
+    | None -> ([], StringMap.empty, Pp.mt ())
+  in
+  let (hyps_pp_list, concl_pp) = diff_goal_info (unwrap prev_gs) (unwrap n_gs) in
+  let open Pp in
+  v 0 (
+    (hyp_list_to_pp hyps_pp_list) ++ cut () ++
+    str "============================" ++ cut () ++
+    concl_pp);;
+
 exception Diff_Failure of Pp.t (* e.g., input can't be lexed *)
 
 (* do diffs on the first goal returning a Pp.t *)
+(* todo: remove *)
 let diff_pr_open_subgoals ?(quiet=false) o_proof n_proof =
+  Pp.mt ()
+(*
   match n_proof with
   | None -> Pp.mt ()
   | Some proof ->
@@ -595,11 +618,14 @@ let diff_pr_open_subgoals ?(quiet=false) o_proof n_proof =
         (hyp_list_to_pp hyps_pp_list) ++ cut () ++
         str "============================" ++ cut () ++
         concl_pp) in
-      Printer.pr_open_subgoals2 ~quiet ~proof ~diffs ()
+      Printer.pr_open_subgoals2 ~quiet ~proof ()
     with _ -> raise (Diff_Failure (Printer.pr_open_subgoals2 ~quiet ~proof ()));;
+*)
 
 (* print the proof step, possibly with diffs highlighted, *)
 let print_and_diff oldp newp =
+  ()
+(*
   match newp with
   | None -> ()
   | Some proof ->
@@ -614,3 +640,4 @@ let print_and_diff oldp newp =
       else
         Printer.pr_open_subgoals2 ~proof () in
     Feedback.msg_notice output;;
+*)

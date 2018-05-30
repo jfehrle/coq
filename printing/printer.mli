@@ -171,24 +171,25 @@ val pr_transparent_state   : transparent_state -> Pp.t
 
 (** Proofs, these functions obey [Hyps Limit] and [Compact contexts]. *)
 
-val pr_goal                : goal sigma -> Pp.t
+val pr_goal                : ?prev_gs:(goal sigma) -> goal sigma -> Pp.t
 
-(** [pr_subgoals ~pr_first ~diffs pp sigma seeds shelf focus_stack unfocused goals]
+(** [pr_subgoals ~pr_first ~prev_proof pp sigma seeds shelf focus_stack unfocused goals]
    prints the goals of the list [goals] followed by the goals in
    [unfocused], in a short way (typically only the conclusion) except
-   for the first goal if [pr_first] is true. Also, if [diffs] is not None
-   and [pr_first] is true, then use [diffs] as the printed form of the
-   first goal. This function prints only the
+   for the first goal if [pr_first] is true. Also, if [prev] is not None
+   and [pr_first] is true, then highlight diffs relative to [prev] in the
+   output for first goal. This function prints only the
    focused goals unless the conrresponding option
    [enable_unfocused_goal_printing] is set. [seeds] is for printing
    dependent evars (mainly for emacs proof tree mode). *)
-val pr_subgoals            : ?pr_first:bool -> ?diffs:Pp.t -> Pp.t option -> evar_map -> seeds:goal list -> shelf:goal list -> stack:int list
+val pr_subgoals            : ?pr_first:bool -> ?prev: (goal list * evar_map) -> Pp.t option -> evar_map -> seeds:goal list -> shelf:goal list -> stack:int list
                              -> unfocused: goal list -> goals:goal list -> Pp.t
 
 val pr_subgoal             : int -> evar_map -> goal list -> Pp.t
-val pr_concl               : int -> evar_map -> goal -> Pp.t
+val pr_concl               : int ->
+ evar_map -> goal -> Pp.t
 
-val pr_open_subgoals2      : ?quiet:bool -> ?diffs:Pp.t -> proof:Proof.t -> unit -> Pp.t
+val pr_open_subgoals2      : ?quiet:bool -> ?prev_proof:Proof.t -> proof:Proof.t -> unit -> Pp.t
 val pr_open_subgoals       : proof:Proof.t -> Pp.t
 [@@ocaml.deprecated "pr_open_subgoals2"]
 val pr_nth_open_subgoal    : proof:Proof.t -> int -> Pp.t

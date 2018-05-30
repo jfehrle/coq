@@ -494,15 +494,20 @@ let pr_transparent_state (ids, csts) =
 	str"CONSTANTS: " ++ pr_cpred csts ++ fnl ())
 
 (* display complete goal *)
-let pr_goal gs =
+(* todo: comment *)
+let pr_goal ?prev_gs gs =
   let g = sig_it gs in
   let sigma = project gs in
   let env = Goal.V82.env sigma g in
   let concl = Goal.V82.concl sigma g in
   let goal =
-    pr_context_of env sigma ++ cut () ++
-      str "============================" ++ cut ()  ++
-      pr_goal_concl_style_env env sigma concl in
+    if prev_gs = None then
+      pr_context_of env sigma ++ cut () ++
+        str "============================" ++ cut ()  ++
+        pr_goal_concl_style_env env sigma concl
+    else
+      Proof_diffs.diff_goals ?prev_gs (Some gs)
+  in
   str "  " ++ v 0 goal
 
 (* display a goal tag *)
@@ -695,7 +700,7 @@ let print_dependent_evars gl sigma seeds =
 (* spiwack: [seeds] is for printing dependent evars in emacs mode. *)
 (* spiwack: [pr_first] is true when the first goal must be singled out
    and printed in its entirety. *)
-let pr_subgoals ?(pr_first=true) ?diffs
+let pr_subgoals ?(pr_first=true) ?prev
                         close_cmd sigma ~seeds ~shelf ~stack ~unfocused ~goals =
   (** Printing functions for the extra informations. *)
   let rec print_stack a = function
@@ -739,11 +744,15 @@ let pr_subgoals ?(pr_first=true) ?diffs
   in
   let print_multiple_goals g l =
     if pr_first then
-      let goal = match diffs with
-        | Some pp -> str "  " ++ v 0 pp
-        | None -> pr_goal { it = g ; sigma = sigma }
+      let prev_gs =
+        match prev with
+        (* todo: show diff if there are no goals? *)
+        | Some (prev_goals, prev_sigma) ->
+          if prev_goals = [] then None
+          else Some { it = List.hd prev_goals; sigma = prev_sigma}
+        | None -> None
       in
-      goal
+      pr_goal ?prev_gs { it = g ; sigma = sigma }
       ++ (if l=[] then mt () else cut ())
       ++ pr_rec 2 l
     else 
@@ -786,7 +795,7 @@ let pr_subgoals ?(pr_first=true) ?diffs
 	++ print_dependent_evars (Some g1) sigma seeds
       )
 
-let pr_open_subgoals2  ?(quiet=false) ?diffs ~proof () =
+let pr_open_subgoals2  ?(quiet=false) ?prev_proof ~proof () =
   (* spiwack: it shouldn't be the job of the printer to look up stuff
      in the [evar_map], I did stuff that way because it was more
      straightforward, but seriously, [Proof.proof] should return
@@ -822,12 +831,14 @@ let pr_open_subgoals2  ?(quiet=false) ?diffs ~proof () =
      let { Evd.it = bgoals ; sigma = bsigma } = Proof.V82.background_subgoals p in
      let bgoals_focused, bgoals_unfocused = List.partition (fun x -> List.mem x goals) bgoals in
      let unfocused_if_needed = if should_unfoc() then bgoals_unfocused else [] in
-     (* todo: ICK, HELP this is why I had ?(diffs=None) in the argument declaration above *)
-     match diffs with
-     | Some d ->
-       pr_subgoals ~pr_first:true ~diffs:d None bsigma ~seeds ~shelf ~stack:[] ~unfocused:unfocused_if_needed ~goals:bgoals_focused
-     | None ->
-       pr_subgoals ~pr_first:true None bsigma ~seeds ~shelf ~stack:[] ~unfocused:unfocused_if_needed ~goals:bgoals_focused
+     let prev = match prev_proof with
+       | Some op ->
+         let { Evd.it = obgoals; sigma = osigma } = Proof.V82.background_subgoals op in
+         let obgoals_focused = List.filter (fun x -> List.mem x goals) obgoals in
+         Some (obgoals_focused, osigma)
+       | None -> None
+     in
+     pr_subgoals ~pr_first:true ?prev None bsigma ~seeds ~shelf ~stack:[] ~unfocused:unfocused_if_needed ~goals:bgoals_focused
   end
 
 let pr_open_subgoals ~proof =
