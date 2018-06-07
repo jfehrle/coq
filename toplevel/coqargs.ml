@@ -534,6 +534,7 @@ let parse_args arglist : coq_cmdopts * string list =
                   else
                     (prerr_endline ("Error: on|off|removed expected after -diffs"); exit 1);
                   { oval with diffs_set = true }
+    |"-Xhtmldiffs" -> Proof_diffs_html.enable_html (); oval  (* hidden *)
     |"-stm-debug" -> Stm.stm_debug := true; oval
     |"-emacs" -> set_emacs oval
     |"-filteropts" -> { oval with filter_opts = true }
@@ -573,5 +574,9 @@ let parse_args arglist : coq_cmdopts * string list =
     parse noval
   in
   try
-    parse init_args
+    let (opts, list) = parse init_args in
+    (* post-parsing checks *)
+    if !Proof_diffs_html.html_diffs && not opts.batch_mode then
+      CErrors.user_err Pp.(str "Error: -Xhtmldiffs requires batch mode, e.g. -compile");
+    (opts, list)
   with any -> fatal_error any

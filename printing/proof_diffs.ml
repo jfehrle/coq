@@ -11,8 +11,8 @@
 (*
 Displays the differences between successive proof steps in coqtop and CoqIDE.
 Proof General requires minor changes to make the diffs visible, but this code
-shouldn't break the existing version of PG.  See pp_diff.ml for details on how
-the diff works.
+shouldn't break the existing version of PG.  Also provides an option to generate
+diffs in HTML in a file.  See pp_diff.ml for details on how the diff works.
 
 Diffs are computed for the hypotheses and conclusion of the first goal between
 the old and new proofs.
@@ -25,6 +25,11 @@ added text.
 
 In CoqIDE, colors and highlights can be set in the Edit/Preferences/Tags panel.
 For coqtop, these can be set through the COQ_COLORS environment variable.
+
+To generate HTML diffs, pass "-Xhtmldiffs" to coqtop in non-interactive mode
+(i.e., with -compile).  The HTML for xyz.v will be saved in xyz.v.html.  The
+HTML diffs were very useful during development but may not be useful to general
+users, so the option doesn't appear in the usage information.
 
 Limitations/Possible enhancements:
 
@@ -46,8 +51,8 @@ not the greatest.  I didn't want to change the existing green highlight.
 Suggestions welcome.
 
 - coqtop underlines removed text because (per Wikipedia) the ANSI escape code
-for strikeout is not commonly supported (it didn't work on mine).  CoqIDE
-uses strikeout on removed text.
+for strikeout is not commonly supported (it didn't work on mine).  CoqIDE and
+the HTML use strikeout on removed text.
 *)
 
 open Pp_diff

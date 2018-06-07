@@ -3,5 +3,6 @@ Pputils
 Ppconstr
 Proof_diffs
 Printer
+Proof_diffs_html
 Printmod
 Prettyp
