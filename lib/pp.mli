@@ -188,6 +188,10 @@ val pr_vertical_list : ('b -> t) -> 'b list -> t
 (** [pp_with fmt pp] Print [pp] to [fmt] and don't flush [fmt]  *)
 val pp_with          : Format.formatter -> t -> unit
 
+(** [pp_with2 html fmt pp] Print [pp] to [fmt] and don't flush [fmt] .
+    If html is true, apply HTML escape sequences to strings. *)
+val pp_with2         : bool -> Format.formatter -> t -> unit
+
 val string_of_ppcmds : t -> string
 
 

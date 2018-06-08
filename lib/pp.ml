@@ -181,8 +181,28 @@ let split_tag tag =
     let (pfx, ttag) = split_pfx end_pfx tag in
     (pfx, ttag);;
 
+(* escape HTML reserved characters *)
+let maybe_escape str html =
+  if html then
+    let buf = Buffer.create 16 in
+    let lim = String.length str - 1 in
+    for i = 0 to lim do
+      let c = str.[i] in
+      Buffer.add_string buf (match c with
+        | '&' -> "&amp;"
+        | '<' -> "&lt;"
+        | '>' -> "&gt;"
+        | '\"' -> "&quot;"
+        | '\'' -> "&apos;"
+        | ch -> String.make 1 ch)
+    done;
+    Buffer.contents buf
+  else
+    str;;
+
 (* pretty printing functions *)
-let pp_with ft pp =
+(* todo: better to pass in escape function, but couldn't get it to compile *)
+let pp_with2 html ft pp =
   let cpp_open_box = function
     | Pp_hbox n   -> Format.pp_open_hbox ft ()
     | Pp_vbox n   -> Format.pp_open_vbox ft n
@@ -193,7 +213,7 @@ let pp_with ft pp =
     | Ppcmd_empty             -> ()
     | Ppcmd_glue sl           -> List.iter pp_cmd sl
     | Ppcmd_string str        -> let n = utf8_length str in
-                                 pp_print_as ft n str
+                                 pp_print_as ft n (maybe_escape str html)
     | Ppcmd_box(bty,ss)       -> cpp_open_box bty ;
                                  if not (over_max_boxes ()) then pp_cmd ss;
                                  pp_close_box ft ()
@@ -209,6 +229,8 @@ let pp_with ft pp =
     let reraise = Backtrace.add_backtrace reraise in
     let () = Format.pp_print_flush ft () in
     Exninfo.iraise reraise
+
+let pp_with ft pp = pp_with2 false ft pp;;
 
 (* If mixing some output and a goal display, please use msg_warning,
    so that interfaces (proofgeneral for example) can easily dispatch
