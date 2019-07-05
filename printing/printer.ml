@@ -635,27 +635,35 @@ let () =
       optwrite = (fun v -> should_print_dependent_evars := v) }
 
 let print_dependent_evars gl sigma seeds =
-  let constraints = print_evar_constraints gl sigma in
-  let evars () =
-    if !should_print_dependent_evars then
-      let evars = Evarutil.gather_dependent_evars sigma seeds in
-      let evars =
-	Evar.Map.fold begin fun e i s ->
-	  let e' = pr_internal_existential_key e in
-	  match i with
-	  | None -> s ++ str" " ++ e' ++ str " open,"
-	  | Some i ->
-	    s ++ str " " ++ e' ++ str " using " ++
-	      Evar.Set.fold begin fun d s ->
-		pr_internal_existential_key d ++ str " " ++ s
-	      end i (str ",")
-	end evars (str "")
-    in
-    cut () ++ cut () ++
-    str "(dependent evars:" ++ evars ++ str ")"
-    else mt ()
+  let rec pr_map sigma = function
+  | [] -> mt ()
+  | (evk, evi)::rest ->
+    let sep = if rest <> [] then ", " else "" in
+    (Evar.print evk) ++ str " : " ++ (Termops.pr_existential_key sigma evk) ++ str sep ++
+         (pr_map sigma rest)
   in
-  constraints ++ evars ()
+  if !should_print_dependent_evars then
+    let evars = Evarutil.gather_dependent_evars sigma seeds in
+    let evars_pp = Evar.Map.fold (fun e i s ->
+        let e' = pr_internal_existential_key e in
+        let sep = if s = (str "") then "" else ", " in
+        s ++ str sep ++ e' ++
+            (match i with
+            | None -> str " open"
+            | Some i ->
+              let using = Evar.Set.fold (fun d s ->
+                  let sep = if s = (str "") then "" else " " in
+                  s ++ str sep ++ (pr_internal_existential_key d))
+                i (str "") in
+              str " using " ++ using))
+      evars (str "")
+    in
+    let map_evars = List.filter (fun b -> let (ev, _) = b in Evar.Map.mem ev evars)
+        (Evar.Map.bindings (Evd.undefined_map sigma)) in
+    cut () ++ cut () ++
+    str "(dependent evars: " ++ evars_pp ++ str ";" ++ cut () ++
+    str "mapping: " ++ (pr_map sigma map_evars) ++ str ")"
+  else mt ()
 
 module GoalMap = Evar.Map
 
@@ -732,6 +740,9 @@ let pr_subgoals ?(pr_first=true) ?(diffs=false) ?os_map
     else 
       pr_rec 1 (g::l)
   in
+  let pr_evar_info gl sigma seeds =
+    print_evar_constraints gl sigma ++ print_dependent_evars gl sigma seeds
+  in
   (* Side effect! This has to be made more robust *)
   let () =
     match close_cmd with
@@ -742,23 +753,21 @@ let pr_subgoals ?(pr_first=true) ?(diffs=false) ?os_map
   (* Main function *)
   match goals with
   | [] ->
-      begin
-	let exl = Evd.undefined_map sigma in
-	if Evar.Map.is_empty exl then
-	  (str"No more subgoals." ++ print_dependent_evars None sigma seeds)
-	else
-          let pei = pr_evars_int sigma ~shelf ~given_up:[] 1 exl in
-	  v 0 ((str "No more subgoals,"
-                ++ str " but there are non-instantiated existential variables:"
-	        ++ cut () ++ (hov 0 pei)
-                ++ print_dependent_evars None sigma seeds
-                ++ cut () ++ str "You can use Grab Existential Variables."))
-      end
+    let exl = Evd.undefined_map sigma in
+    if Evar.Map.is_empty exl then
+      v 0 (str "No more subgoals." ++ pr_evar_info None sigma seeds)
+    else
+      let pei = pr_evars_int sigma ~shelf ~given_up:[] 1 exl in
+      v 0 ((str "No more subgoals,"
+          ++ str " but there are non-instantiated existential variables:"
+          ++ cut () ++ (hov 0 pei)
+          ++ pr_evar_info None sigma seeds
+          ++ cut () ++ str "You can use Grab Existential Variables."))
   | g1::rest ->
       let goals = print_multiple_goals g1 rest in
       let ngoals = List.length rest+1 in
       v 0 (
-	int ngoals ++ focused_if_needed ++ str(String.plural ngoals "subgoal")
+        int ngoals ++ focused_if_needed ++ str(String.plural ngoals "subgoal")
         ++ print_extra
         ++ str (if (should_gname()) then ", subgoal 1" else "")
         ++ (if should_tag() then pr_goal_tag g1 else str"")
@@ -766,7 +775,7 @@ let pr_subgoals ?(pr_first=true) ?(diffs=false) ?os_map
         ++ (if unfocused=[] then str ""
            else (cut() ++ cut() ++ str "*** Unfocused goals:" ++ cut()
                  ++ pr_rec (List.length rest + 2) unfocused))
-	++ print_dependent_evars (Some g1) sigma seeds
+        ++ pr_evar_info (Some g1) sigma seeds
       )
 
 let pr_open_subgoals_diff ?(quiet=false) ?(diffs=false) ?oproof proof =
