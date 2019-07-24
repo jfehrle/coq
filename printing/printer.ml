@@ -635,34 +635,32 @@ let () =
       optwrite = (fun v -> should_print_dependent_evars := v) }
 
 let print_dependent_evars gl sigma seeds =
-  let rec pr_map sigma = function
-  | [] -> mt ()
-  | (evk, evi)::rest ->
-    let sep = if rest <> [] then ", " else "" in
-    (Evar.print evk) ++ str " : " ++ (Termops.pr_existential_key sigma evk) ++ str sep ++
-         (pr_map sigma rest)
-  in
   if !should_print_dependent_evars then
     let evars = Evarutil.gather_dependent_evars sigma seeds in
     let evars_pp = Evar.Map.fold (fun e i s ->
         let e' = pr_internal_existential_key e in
-        let sep = if s = (str "") then "" else ", " in
-        s ++ str sep ++ e' ++
+        s ++ e' ++
             (match i with
-            | None -> str " open"
+            | None -> (str " : ") ++ (Termops.pr_existential_key sigma e) ++ (str " open")
             | Some i ->
               let using = Evar.Set.fold (fun d s ->
-                  let sep = if s = (str "") then "" else " " in
-                  s ++ str sep ++ (pr_internal_existential_key d))
+                  s ++ str " " ++ (pr_internal_existential_key d))
                 i (str "") in
-              str " using " ++ using))
+              str " using" ++ using)
+          ++ str ", ")
       evars (str "")
     in
-    let map_evars = List.filter (fun b -> let (ev, _) = b in Evar.Map.mem ev evars)
-        (Evar.Map.bindings (Evd.undefined_map sigma)) in
+    let evars_current_pp = match gl with
+        | None -> str "no current goal"
+        | Some gl ->
+           let evars_current = Evarutil.gather_dependent_evars sigma [ gl ] in
+           Evar.Map.fold (fun e _ s ->
+               s ++ (pr_internal_existential_key e) ++ (str " "))
+             evars_current (str "current goal: ")
+    in
     cut () ++ cut () ++
-    str "(dependent evars: " ++ evars_pp ++ str ";" ++ cut () ++
-    str "mapping: " ++ (pr_map sigma map_evars) ++ str ")"
+    str "(dependent evars: " ++ evars_pp ++ str "; " ++
+    evars_current_pp ++ str ")"
   else mt ()
 
 module GoalMap = Evar.Map
@@ -741,7 +739,8 @@ let pr_subgoals ?(pr_first=true) ?(diffs=false) ?os_map
       pr_rec 1 (g::l)
   in
   let pr_evar_info gl sigma seeds =
-    print_evar_constraints gl sigma ++ print_dependent_evars gl sigma seeds
+    let first_goal = if pr_first then gl else None in
+    print_evar_constraints gl sigma ++ print_dependent_evars first_goal sigma seeds
   in
   (* Side effect! This has to be made more robust *)
   let () =
