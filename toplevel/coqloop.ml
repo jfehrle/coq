@@ -412,7 +412,7 @@ let rec vernac_loop ~state =
         | Some p ->
           let gl = (Evar.unsafe_of_int gid) in
           let { Proof.sigma } = Proof.data p in
-          try Printer.print_dependent_evars gl sigma [ gl ]
+          try Printer.print_dependent_evars (Some gl) sigma [ gl ]
           with Not_found -> mt()
       in
       Feedback.msg_notice (v 0 (goal ++ evars));
