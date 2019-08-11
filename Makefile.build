@@ -448,7 +448,7 @@ $(COQTOPBYTE): $(COQTOP_BYTE) $(LINKCMO) $(LIBCOQRUN)
 ###########################################################################
 
 .PHONY: tools
-tools: $(TOOLS) $(OCAMLLIBDEP) $(COQDEPBOOT) $(DOC_GRAM)
+tools: $(TOOLS) $(OCAMLLIBDEP) $(COQDEPBOOT) $(DOC_GRAM) $(PRINT_STATS)
 
 # coqdep_boot : a basic version of coqdep, with almost no dependencies.
 # We state these dependencies here explicitly, since some .ml.d files
