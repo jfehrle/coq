@@ -63,7 +63,7 @@ term100: [
 
 term10: [
 | term1 args
-| "@" qualid universe_annot_opt term1_list_opt
+| "@" qualid universe_instance_opt term1_list_opt
 | term1
 ]
 
@@ -98,7 +98,7 @@ args_opt: [
 ]
 
 term0: [
-| qualid universe_annot_opt
+| qualid universe_instance_opt
 | sort
 | numeral
 | string
@@ -163,7 +163,6 @@ ident_list: [
 
 record_fields: [
 | record_field ";" record_fields
-| record_field ";"
 | record_field
 | empty
 ]
@@ -281,7 +280,7 @@ universe_increment_opt: [
 | empty
 ]
 
-universe_annot_opt: [
+universe_instance_opt: [
 | "@{" universe_levels_opt "}"
 | empty
 ]
@@ -300,18 +299,28 @@ universe_level: [
 ]
 
 term_fix: [
-| single_fix
-| single_fix "with" fix_bodies "for" ident
+| "fix" fix_decls
+| "cofix" cofix_decls
 ]
 
-single_fix: [
-| "fix" fix_body
-| "cofix" fix_body
+fix_decls: [
+| fix_body
+| fix_body "with" fix_bodies "for" ident
 ]
 
 fix_bodies: [
 | fix_bodies "with" fix_body
 | fix_body
+]
+
+cofix_decls: [
+| cofix_decl
+| cofix_decl "with" cofix_decl_list "for" ident
+]
+
+cofix_decl_list: [
+| cofix_decl_list "with" cofix_decl
+| cofix_decl
 ]
 
 fix_body: [
@@ -323,6 +332,10 @@ fixannot_opt: [
 | empty
 ]
 
+cofix_decl: [
+| ident binders_opt colon_term_opt ":=" term
+]
+
 fixannot: [
 | "{" "struct" ident "}"
 | "{" "wf" term1_extended ident "}"
@@ -331,7 +344,7 @@ fixannot: [
 
 term1_extended: [
 | term1
-| "@" qualid universe_annot_opt
+| "@" qualid universe_instance_opt
 ]
 
 ident_opt: [
@@ -346,8 +359,9 @@ term1_extended_opt: [
 
 term_let: [
 | "let" name colon_term_opt ":=" term "in" term
+| "let" "fix" fix_body "in" term
+| "let" "cofix" cofix_decl "in" term
 | "let" name binders colon_term_opt ":=" term "in" term
-| "let" single_fix "in" term
 | "let" names_tuple as_return_type_opt ":=" term "in" term
 | "let" "'" pattern ":=" term return_type_opt "in" term
 | "let" "'" pattern "in" pattern ":=" term return_type "in" term

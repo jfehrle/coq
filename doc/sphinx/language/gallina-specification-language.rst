@@ -145,13 +145,13 @@ is described in Chapter :ref:`syntaxextensionsandinterpretationscopes`.
    term : forall `open_binders` , `term`
         : fun `open_binders` => `term`
         : `term_let`
-        : if `term` `as_return_type_opt` then `term` else `term`
         : `term_fix`
+        : if `term` `as_return_type_opt` then `term` else `term`
         : `term100`
    term100 : `term_cast`
            : `term10`
    term10 : `term1` `args`
-          : @ `qualid` `universe_annot_opt` `term1_list_opt`
+          : @ `qualid` `universe_instance_opt` `term1_list_opt`
           : `term1`
    args : `args` `arg`
         : `arg`
@@ -165,7 +165,7 @@ is described in Chapter :ref:`syntaxextensionsandinterpretationscopes`.
          : `term0`
    args_opt : `args`
             : `empty`
-   term0 : `qualid` `universe_annot_opt`
+   term0 : `qualid` `universe_instance_opt`
          : `sort`
          : `numeral`
          : `string`
@@ -256,8 +256,8 @@ Sorts
                  : Prop
    universe_increment_opt : + `num`
                           : `empty`
-   universe_annot_opt : @{ `universe_levels_opt` }
-                      : `empty`
+   universe_instance_opt : @{ `universe_levels_opt` }
+                         : `empty`
    universe_levels_opt : `universe_levels_opt` `universe_level`
                        : `empty`
    universe_level : Set
@@ -448,8 +448,9 @@ Let-in definitions
 
 .. productionlist:: coq
    term_let : let `name` `colon_term_opt` := `term` in `term`
+            : let fix `fix_body` in `term`
+            : let cofix `cofix_decl` in `term`
             : let `name` `binders` `colon_term_opt` := `term` in `term`
-            : let `single_fix` in `term`
             : let `names_tuple` `as_return_type_opt` := `term` in `term`
             : let ' `pattern` := `term` `return_type_opt` in `term`
             : let ' `pattern` in `pattern` := `term` `return_type` in `term`
@@ -654,20 +655,25 @@ Recursive and co-recursive functions: fix and cofix
 .. insertgram term_fix term1_extended_opt
 
 .. productionlist:: coq
-   term_fix : `single_fix`
-            : `single_fix` with `fix_bodies` for `ident`
-   single_fix : fix `fix_body`
-              : cofix `fix_body`
+   term_fix : fix `fix_decls`
+            : cofix `cofix_decls`
+   fix_decls : `fix_body`
+             : `fix_body` with `fix_bodies` for `ident`
    fix_bodies : `fix_bodies` with `fix_body`
               : `fix_body`
+   cofix_decls : `cofix_decl`
+               : `cofix_decl` with `cofix_decl_list` for `ident`
+   cofix_decl_list : `cofix_decl_list` with `cofix_decl`
+                   : `cofix_decl`
    fix_body : `ident` `binders_opt` `fixannot_opt` `colon_term_opt` := `term`
    fixannot_opt : `fixannot`
                 : `empty`
+   cofix_decl : `ident` `binders_opt` `colon_term_opt` := `term`
    fixannot : { struct `ident` }
             : { wf `term1_extended` `ident` }
             : { measure `term1_extended` `ident_opt` `term1_extended_opt` }
    term1_extended : `term1`
-                  : @ `qualid` `universe_annot_opt`
+                  : @ `qualid` `universe_instance_opt`
    ident_opt : `ident`
              : `empty`
    term1_extended_opt : `term1_extended`

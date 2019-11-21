@@ -65,6 +65,7 @@ DELETE: [
 | test_lpar_idnum_coloneq
 | test_nospace_pipe_closedcurly
 | test_show_goal
+| ensure_fixannot
 
   (* SSR *)
 (* | ssr_null_entry *)
@@ -174,7 +175,7 @@ lconstr: [
 
 let_type_cstr: [
 | DELETE OPT [ ":" lconstr ]
-| rec_type_cstr
+| type_cstr
 ]
 
 as_name_opt: [
@@ -206,11 +207,14 @@ as_dirpath: [
 
 binder_constr: [
 | MOVETO term_let "let" name binders let_type_cstr ":=" operconstr200 "in" operconstr200
-| MOVETO term_let "let" single_fix "in" operconstr200
+| MOVETO term_let "let" "fix" fix_decl "in" operconstr200
+| MOVETO term_let "let" "cofix" cofix_decl "in" operconstr200
 | MOVETO term_let "let" [ "(" LIST0 name SEP "," ")" | "()" ] as_return_type_opt ":=" operconstr200 "in" operconstr200
 | MOVETO term_let "let" "'" pattern200 ":=" operconstr200 "in" operconstr200
 | MOVETO term_let "let" "'" pattern200 ":=" operconstr200 case_type "in" operconstr200
 | MOVETO term_let "let" "'" pattern200 "in" pattern200 ":=" operconstr200 case_type "in" operconstr200
+| MOVETO term_fix "fix" fix_decls
+| MOVETO term_fix "cofix" cofix_decls
 ]
 
 term_let: [
@@ -282,41 +286,12 @@ operconstr0: [
 | DELETE "{" binder_constr "}"
 ]
 
-single_fix: [
-| DELETE fix_kw fix_decl
-| "fix" fix_decl
-| "cofix" fix_decl
-]
-
-fix_kw: [ | DELETENT ]
-
 binders_fixannot: [
-(*
-| REPLACE impl_name_head impl_ident_tail binders_fixannot
-| WITH impl_name_head impl_ident_tail "}" binders_fixannot
-*)
-(* Omit this complex detail.  See https://github.com/coq/coq/pull/10614#discussion_r344118146 *)
-| DELETE impl_name_head impl_ident_tail binders_fixannot
-
 | DELETE fixannot
 | DELETE binder binders_fixannot
 | DELETE (* empty *)
 
 | LIST0 binder OPT fixannot
-]
-
-impl_ident_tail: [
-| DELETENT
-(*
-| REPLACE "}"
-| WITH empty
-| REPLACE LIST1 name ":" lconstr "}"
-| WITH LIST1 name ":" lconstr
-| REPLACE LIST1 name "}"
-| WITH LIST1 name
-| REPLACE ":" lconstr "}"
-| WITH ":" lconstr
-*)
 ]
 
 of_type_with_opt_coercion: [
@@ -348,12 +323,12 @@ closed_binder: [
 
 | DELETE "(" name ":=" lconstr ")"
 | REPLACE "(" name ":" lconstr ":=" lconstr ")"
-| WITH "(" name rec_type_cstr ":=" lconstr ")"
+| WITH "(" name type_cstr ":=" lconstr ")"
 
 | DELETE "{" name LIST1 name "}"
 
 | REPLACE "{" name LIST1 name ":" lconstr "}"
-| WITH "{" LIST1 name rec_type_cstr "}"
+| WITH "{" LIST1 name type_cstr "}"
 | DELETE "{" name ":" lconstr  "}"
 ]
 
@@ -594,7 +569,6 @@ SPLICE: [
 | reference
 | bar_cbrace
 | lconstr
-| impl_name_head
 
 (*
 | ast_closure_term
@@ -703,9 +677,8 @@ RENAME: [
 | BULLET bullet
 | nat_or_var num_or_var
 | fix_decl fix_body
-| instance universe_annot_opt
-| rec_type_cstr colon_term_opt
-| fix_constr term_fix
+| univ_instance universe_instance_opt
+| type_cstr colon_term_opt
 | constr term1_extended
 | case_type return_type
 | appl_arg arg
@@ -713,8 +686,6 @@ RENAME: [
 | universe_increment universe_increment_opt
 | rec_definition fix_definition
 | corec_definition cofix_definition
-| record_field_instance field_def
-| record_fields_instance fields_def
 | evar_instance evar_bindings_opt
 | inst evar_binding
 ]

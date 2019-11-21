@@ -148,8 +148,10 @@ module DocGram = struct
 
   let g_add_prod_after g ins_after nt prod =
     let prods = try NTMap.find nt !g.map with Not_found -> [] in
-    (* todo: add check for duplicates *)
-    g_add_after g ~update:true ins_after nt (prods @ [prod])
+    if prods <> [] then
+      g_update_prods g nt (prods @ [prod])
+    else
+      g_add_after g ~update:true ins_after nt [prod]
 
   (* replace the map and order *)
   let g_reorder g map order =
@@ -1079,7 +1081,9 @@ let apply_edit_file g edits =
             g_add_prod_after g (Some nt) nt2 oprod;
             let prods' = (try
               let posn = find_first oprod prods nt in
-              let prods = insert_after posn [[Snterm nt2]] prods in  (* insert new prod *)
+              let prods = if List.mem [Snterm nt2] prods then prods
+                else insert_after posn [[Snterm nt2]] prods (* insert new prod *)
+              in
               remove_prod oprod prods nt      (* remove orig prod *)
               with Not_found -> prods)
             in
@@ -1091,6 +1095,7 @@ let apply_edit_file g edits =
             aux tl (edit_single_prod g oprod prods nt) add_nt
           | (Snterm "REPLACE" :: oprod) :: (Snterm "WITH" :: rprod) :: tl ->
             report_undef_nts g rprod "";
+            (* todo: check result not already present *)
             let prods' = (try
               let posn = find_first oprod prods nt in
               let prods = insert_after posn [rprod] prods in  (* insert new prod *)
