@@ -537,7 +537,7 @@ gallina_ext: [
 | WITH "Generalizable" [  [ "Variable" | "Variables" ] LIST1 identref | "All" "Variables" | "No" "Variables" ]
 
 | REPLACE "Export" "Set" option_table option_setting
-| WITH OPT "Export" "Set" option_table option_setting
+| WITH OPT "Export" "Set" option_table option_setting   (* set option *)
 | REPLACE "Export" "Unset" option_table
 | WITH OPT "Export" "Unset" option_table
 | REPLACE "Instance" instance_name ":" operconstr200 hint_info [ ":=" "{" record_declaration "}" | ":=" lconstr | ]
@@ -878,13 +878,13 @@ command: [
 | DELETE "Back"
 | REPLACE "Back" natural
 | WITH "Back" OPT natural
-| REPLACE "Test" option_table "for" LIST1 option_ref_value
-| WITH "Test" option_table OPT ( "for" LIST1 option_ref_value )
-| DELETE "Test" option_table
 | REPLACE "Load" [ "Verbose" | ] [ ne_string | IDENT ]
 | WITH "Load" OPT "Verbose" [ ne_string | IDENT ]
 | DELETE "Unset" option_table
-| DELETE "Set" option_table option_setting
+| REPLACE "Set" option_table option_setting
+| WITH OPT "Export" "Set" option_table   (* set flag *)
+| REPLACE "Test" option_table "for" LIST1 option_ref_value
+| WITH "Test" option_table OPT ( "for" LIST1 option_ref_value )
 | REPLACE "Add" IDENT IDENT LIST1 option_ref_value
 | WITH "Add" IDENT OPT IDENT LIST1 option_ref_value
 | DELETE "Add" IDENT LIST1 option_ref_value
@@ -975,7 +975,12 @@ command: [
 | DELETE "Abort" "All"
 | REPLACE "Abort" identref
 | WITH "Abort" OPT [ "All" | identref ]
+| DELETE "Locate" "Ltac" reference
 
+]
+
+option_setting: [
+| DELETE (* empty *) (* required for set option *)
 ]
 
 only_parsing: [
@@ -1169,10 +1174,6 @@ vernac_control: [
 | DELETE decorated_vernac
 ]
 
-option_setting: [
-| OPTINREF
-]
-
 orient: [
 | OPTINREF
 ]
@@ -1351,6 +1352,22 @@ module_expr: [
 | DELETE module_expr module_expr_atom
 ]
 
+locatable: [
+| "Ltac" reference
+]
+
+ne_in_or_out_modules: [
+| REPLACE "inside" LIST1 global
+| WITH [ "inside" | "outside" ] LIST1 global
+| DELETE "outside" LIST1 global
+]
+
+searchabout_queries: [
+| DELETE ne_in_or_out_modules
+| REPLACE searchabout_query searchabout_queries
+| WITH [ ne_in_or_out_modules | LIST1 searchabout_query ]
+]
+
 SPLICE: [
 | noedit_mode
 | bigint
@@ -1518,6 +1535,8 @@ SPLICE: [
 | ltac_def_kind
 | intropatterns
 | instance_name
+| ne_in_or_out_modules
+| searchabout_queries
 ] (* end SPLICE *)
 
 RENAME: [
@@ -1567,6 +1586,7 @@ RENAME: [
 | record_binder_body field_body
 | class_rawexpr class
 | smart_global smart_qualid
+| searchabout_query search_item
 ]
 
 (* todo: doesn't work if up above... maybe because 'clause' doesn't exist? *)

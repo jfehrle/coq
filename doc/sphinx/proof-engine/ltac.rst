@@ -174,6 +174,9 @@ mode but it can also be used in toplevel definitions as shown below.
    ltac_def         : `ident` [`ident` ... `ident`] := `ltac_expr`
                     : `qualid` [`ident` ... `ident`] ::= `ltac_expr`
 
+
+.. todo: document "@selector: "
+
 .. _ltac-semantics:
 
 Semantics

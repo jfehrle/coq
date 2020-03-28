@@ -638,9 +638,9 @@ arguments_modifier: [
 ]
 
 strategy_level: [
-| "expand"
 | "opaque"
 | int
+| "expand"
 | "transparent"
 ]
 
@@ -708,11 +708,12 @@ command: [
 | "Print" "Namespace" dirpath
 | "Inspect" num
 | "Add" "ML" "Path" string
-| OPT "Export" "Set" LIST1 ident OPT [ int | string ]
+| OPT "Export" "Set" LIST1 ident
 | OPT "Export" "Unset" LIST1 ident
 | "Print" "Table" LIST1 ident
 | "Add" ident OPT ident LIST1 [ qualid | string ]
 | "Test" LIST1 ident OPT ( "for" LIST1 [ qualid | string ] )
+| "Test" LIST1 ident
 | "Remove" OPT ident ident LIST1 [ qualid | string ]
 | "Write" "State" [ ident | string ]
 | "Restore" "State" [ ident | string ]
@@ -806,7 +807,6 @@ command: [
 | "Tactic" "Notation" OPT ( "(" "at" "level" num ")" ) LIST1 ltac_production_item ":=" ltac_expr
 | "Print" "Rewrite" "HintDb" ident
 | "Print" "Ltac" qualid
-| "Locate" "Ltac" qualid
 | "Ltac" tacdef_body LIST0 ( "with" tacdef_body )
 | "Print" "Ltac" "Signatures"
 | "Set" "Firstorder" "Solver" ltac_expr
@@ -899,6 +899,7 @@ command: [
 | "Arguments" smart_qualid LIST0 argument_spec_block LIST0 [ "," LIST0 more_implicits_block ] OPT [ ":" LIST1 arguments_modifier SEP "," ]
 | "Implicit" [ "Type" | "Types" ] reserv_list
 | "Generalizable" [ [ "Variable" | "Variables" ] LIST1 ident | "All" "Variables" | "No" "Variables" ]
+| OPT "Export" "Set" LIST1 ident [ int | string ]
 | "Open" "Scope" ident
 | "Close" "Scope" ident
 | "Delimit" "Scope" ident "with" ident
@@ -914,10 +915,10 @@ command: [
 | "Compute" term
 | "Check" term
 | "About" smart_qualid OPT ( "@{" LIST0 name "}" )
-| "SearchHead" one_term OPT ne_in_or_out_modules
-| "SearchPattern" one_term OPT ne_in_or_out_modules
-| "SearchRewrite" one_term OPT ne_in_or_out_modules
-| "Search" searchabout_query OPT searchabout_queries
+| "SearchHead" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
+| "SearchPattern" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
+| "SearchRewrite" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
+| "Search" search_item OPT [ [ "inside" | "outside" ] LIST1 qualid | LIST1 search_item ]
 | "Time" command
 | "Redirect" string command
 | "Timeout" num command
@@ -971,15 +972,21 @@ bignat: [
 locatable: [
 | smart_qualid
 | "Term" smart_qualid
-| "File" string
-| "Library" qualid
 | "Module" qualid
+| "Ltac" qualid
+| "Library" qualid
+| "File" string
 ]
 
 comment: [
 | one_term
 | string
 | num
+]
+
+search_item: [
+| OPT "-" string OPT ( "%" ident )
+| OPT "-" one_term
 ]
 
 hint: [
@@ -1067,21 +1074,6 @@ class: [
 | "Funclass"
 | "Sortclass"
 | smart_qualid
-]
-
-ne_in_or_out_modules: [
-| "inside" LIST1 qualid
-| "outside" LIST1 qualid
-]
-
-searchabout_query: [
-| OPT "-" string OPT ( "%" ident )
-| OPT "-" one_term
-]
-
-searchabout_queries: [
-| ne_in_or_out_modules
-| searchabout_query searchabout_queries
 ]
 
 level: [

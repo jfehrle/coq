@@ -719,7 +719,7 @@ accessible, absolute names can never be hidden.
 
        Locate nat.
 
-.. seealso:: Commands :cmd:`Locate` and :cmd:`Locate Library`.
+.. seealso:: Commands :cmd:`Locate`.
 
 .. _libraries-and-filesystem:
 

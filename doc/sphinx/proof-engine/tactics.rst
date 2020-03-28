@@ -51,6 +51,9 @@ specified, the default selector is used.
      tactic_invocation : `toplevel_selector` : `tactic`.
                        : `tactic`.
 
+.. todo: selectors on commands, such as
+   Check, Search, SearchHead, SearchPattern, SearchRewrite.
+
 .. opt:: Default Goal Selector "@toplevel_selector"
    :name: Default Goal Selector
 
