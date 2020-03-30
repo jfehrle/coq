@@ -175,7 +175,7 @@ mode but it can also be used in toplevel definitions as shown below.
                     : `qualid` [`ident` ... `ident`] ::= `ltac_expr`
 
 
-.. todo: document "@selector: "
+.. todo: document "@selector: " for commands
 
 .. _ltac-semantics:
 

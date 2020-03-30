@@ -665,7 +665,6 @@ command: [
 | "Add" "Rec" "LoadPath" string "as" dirpath
 | "Remove" "LoadPath" string
 | "Type" term
-| "Print" "Term" smart_qualid OPT ( "@{" LIST0 name "}" )
 | "Print" "All"
 | "Print" "Section" qualid
 | "Print" "Grammar" ident
@@ -702,19 +701,18 @@ command: [
 | "Print" "Strategy" smart_qualid
 | "Print" "Strategies"
 | "Print" "Registered"
-| "Print" smart_qualid OPT ( "@{" LIST0 name "}" )
+| "Print" OPT "Term" smart_qualid OPT univ_name_list
 | "Print" "Module" "Type" qualid
 | "Print" "Module" qualid
 | "Print" "Namespace" dirpath
 | "Inspect" num
 | "Add" "ML" "Path" string
-| OPT "Export" "Set" LIST1 ident
-| OPT "Export" "Unset" LIST1 ident
-| "Print" "Table" LIST1 ident
-| "Add" ident OPT ident LIST1 [ qualid | string ]
-| "Test" LIST1 ident OPT ( "for" LIST1 [ qualid | string ] )
-| "Test" LIST1 ident
-| "Remove" OPT ident ident LIST1 [ qualid | string ]
+| OPT "Export" "Set" setting_name
+| "Print" "Table" setting_name
+| "Add" setting_name LIST1 [ qualid | string ]
+| "Test" setting_name OPT ( "for" LIST1 [ qualid | string ] )
+| "Test" setting_name
+| "Remove" setting_name LIST1 [ qualid | string ]
 | "Write" "State" [ ident | string ]
 | "Restore" "State" [ ident | string ]
 | "Reset" "Initial"
@@ -899,7 +897,9 @@ command: [
 | "Arguments" smart_qualid LIST0 argument_spec_block LIST0 [ "," LIST0 more_implicits_block ] OPT [ ":" LIST1 arguments_modifier SEP "," ]
 | "Implicit" [ "Type" | "Types" ] reserv_list
 | "Generalizable" [ [ "Variable" | "Variables" ] LIST1 ident | "All" "Variables" | "No" "Variables" ]
-| OPT "Export" "Set" LIST1 ident [ int | string ]
+| "Set" setting_name [ int | string ]
+| "Unset" setting_name
+| "Set" setting_name
 | "Open" "Scope" ident
 | "Close" "Scope" ident
 | "Delimit" "Scope" ident "with" ident
@@ -914,11 +914,11 @@ command: [
 | "Eval" red_expr "in" term
 | "Compute" term
 | "Check" term
-| "About" smart_qualid OPT ( "@{" LIST0 name "}" )
+| "About" smart_qualid OPT univ_name_list
 | "SearchHead" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
 | "SearchPattern" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
 | "SearchRewrite" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
-| "Search" search_item OPT [ [ "inside" | "outside" ] LIST1 qualid | LIST1 search_item ]
+| "Search" LIST1 search_item OPT ( [ "inside" | "outside" ] LIST1 qualid )
 | "Time" command
 | "Redirect" string command
 | "Timeout" num command
@@ -978,6 +978,10 @@ locatable: [
 | "File" string
 ]
 
+setting_name: [
+| LIST1 ident
+]
+
 comment: [
 | one_term
 | string
@@ -987,6 +991,10 @@ comment: [
 search_item: [
 | OPT "-" string OPT ( "%" ident )
 | OPT "-" one_term
+]
+
+univ_name_list: [
+| "@{" LIST0 name "}"
 ]
 
 hint: [

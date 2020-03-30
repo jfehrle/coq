@@ -536,10 +536,12 @@ gallina_ext: [
 | REPLACE "Generalizable" [ "All" "Variables" | "No" "Variables" | [ "Variable" | "Variables" ] LIST1 identref ]
 | WITH "Generalizable" [  [ "Variable" | "Variables" ] LIST1 identref | "All" "Variables" | "No" "Variables" ]
 
+(* don't show Export for Set, Unset *)
 | REPLACE "Export" "Set" option_table option_setting
-| WITH OPT "Export" "Set" option_table option_setting   (* set option *)
+| WITH "Set" option_table option_setting   (* set option *)
+| "Set" option_table  (* set flag *)
 | REPLACE "Export" "Unset" option_table
-| WITH OPT "Export" "Unset" option_table
+| WITH "Unset" option_table
 | REPLACE "Instance" instance_name ":" operconstr200 hint_info [ ":=" "{" record_declaration "}" | ":=" lconstr | ]
 | WITH "Instance" instance_name ":" operconstr200 hint_info OPT [ ":=" "{" record_declaration "}" | ":=" lconstr ]
 
@@ -859,6 +861,7 @@ bar_cbrace: [
 printable: [
 | REPLACE [ "Sorted" | ] "Universes" OPT printunivs_subgraph OPT ne_string
 | WITH OPT "Sorted" "Universes" OPT printunivs_subgraph OPT ne_string
+| DELETE "Term" smart_global OPT univ_name_list  (* readded in commands *)
 | INSERTALL "Print"
 ]
 
@@ -885,8 +888,10 @@ command: [
 | WITH OPT "Export" "Set" option_table   (* set flag *)
 | REPLACE "Test" option_table "for" LIST1 option_ref_value
 | WITH "Test" option_table OPT ( "for" LIST1 option_ref_value )
+
+(* hide the fact that table names are limited to 2 IDENTs *)
 | REPLACE "Add" IDENT IDENT LIST1 option_ref_value
-| WITH "Add" IDENT OPT IDENT LIST1 option_ref_value
+| WITH "Add" option_table LIST1 option_ref_value
 | DELETE "Add" IDENT LIST1 option_ref_value
 | DELETE "Add" "Parametric" "Relation" binders ":" constr constr "reflexivity" "proved" "by" constr "symmetry" "proved" "by" constr "as" ident
 | DELETE "Add" "Parametric" "Relation" binders ":" constr constr "reflexivity" "proved" "by" constr "as" ident
@@ -941,7 +946,11 @@ command: [
 | REPLACE "Preterm" "of" ident
 | WITH "Preterm" OPT ( "of" ident )
 | DELETE "Preterm"
-| EDIT "Remove" ADD_OPT IDENT IDENT LIST1 option_ref_value
+
+(* hide the fact that table names are limited to 2 IDENTs *)
+| REPLACE "Remove" IDENT IDENT LIST1 option_ref_value
+| WITH "Remove" option_table LIST1 option_ref_value
+| DELETE "Remove" IDENT LIST1 option_ref_value
 | DELETE "Restore" "State" IDENT
 | DELETE "Restore" "State" ne_string
 | "Restore" "State" [ IDENT | ne_string ]
@@ -976,6 +985,8 @@ command: [
 | REPLACE "Abort" identref
 | WITH "Abort" OPT [ "All" | identref ]
 | DELETE "Locate" "Ltac" reference
+| REPLACE "Print" smart_global OPT univ_name_list
+| WITH "Print" OPT "Term" smart_global OPT univ_name_list
 
 ]
 
@@ -1129,7 +1140,7 @@ query_command: [
 | REPLACE "SearchRewrite" constr_pattern in_or_out_modules "."
 | WITH "SearchRewrite" constr_pattern in_or_out_modules
 | REPLACE "Search" searchabout_query searchabout_queries "."
-| WITH "Search" searchabout_query searchabout_queries
+| WITH "Search" searchabout_queries
 ]
 
 vernac_toplevel: [
@@ -1152,10 +1163,6 @@ positive_search_mark: [
 ]
 
 in_or_out_modules: [
-| OPTINREF
-]
-
-searchabout_queries: [
 | OPTINREF
 ]
 
@@ -1365,7 +1372,8 @@ ne_in_or_out_modules: [
 searchabout_queries: [
 | DELETE ne_in_or_out_modules
 | REPLACE searchabout_query searchabout_queries
-| WITH [ ne_in_or_out_modules | LIST1 searchabout_query ]
+| WITH LIST1 searchabout_query OPT ne_in_or_out_modules
+| DELETE (* empty *)
 ]
 
 SPLICE: [
@@ -1452,7 +1460,6 @@ SPLICE: [
 | mode
 | mult_pattern
 | open_constr
-| option_table
 | record_declaration
 | register_type_token
 | tactic
@@ -1483,7 +1490,6 @@ SPLICE: [
 | assum_coe
 | inline
 | occs
-| univ_name_list
 | ltac_info
 | field_mods
 | ltac_production_sep
@@ -1587,6 +1593,7 @@ RENAME: [
 | class_rawexpr class
 | smart_global smart_qualid
 | searchabout_query search_item
+| option_table setting_name
 ]
 
 (* todo: doesn't work if up above... maybe because 'clause' doesn't exist? *)

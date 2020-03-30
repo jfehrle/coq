@@ -11,14 +11,19 @@ Displaying
 
 .. _Print:
 
-.. cmd:: Print @smart_qualid {? @%{ {* @name } %} }
+.. cmd:: Print {? Term } @smart_qualid {? @univ_name_list }
+
+   .. insertprodn univ_name_list univ_name_list
+
+   .. prodn::
+      univ_name_list ::= @%{ {* @name } %}
 
    This command displays information about the object identified by :n:`@smart_qualid`.
+   The presence of :n:`Term` doesn't affect the behavior.
 
-   :n:`{? @%{ {* @name } %} }` locally renames the polymorphic universes of :n:`@smart_qualid`.
+   When :n:`@univ_name_list` clause is provided, it locally renames the
+   polymorphic universes of :n:`@smart_qualid`.
    The name `_` means the usual name is printed.
-
-   Error messages:
 
    .. exn:: @qualid not a defined object.
       :undocumented:
@@ -30,23 +35,12 @@ Displaying
       :undocumented:
 
 
-.. cmd:: Print Term @smart_qualid {? @%{ {* @name } %} }
-
-   This is a synonym of :cmd:`Print` :n:`@qualid` where :n:`@qualid`
-   denotes a global constant.
-
-   :n:`{? @%{ {* @name } %} }` locally renames the polymorphic universes of :n:`@smart_qualid`.
-   An underscore means the usual name is printed.
-
-.. cmd:: About @smart_qualid {? @%{ {* @name } %} }
+.. cmd:: About @smart_qualid {? @univ_name_list }
 
    This displays various information about the object
    denoted by :n:`@smart_qualid`: its kind (module, constant, assumption, inductive,
    constructor, abbreviation, …), long name, type, implicit arguments and
    argument scopes. It does not print the body of definitions or proofs.
-
-   :n:`{? @%{ {* @name } %} }` locally renames the polymorphic universes of :n:`@smart_qualid`.
-   An underscore means the usual name is printed.
 
 
 .. cmd:: Print All
@@ -63,7 +57,8 @@ Displaying
 
    Displays the objects defined since the beginning of the section named :n:`@qualid`.
 
-   .. todo: how does that work for, say, "A.B"?
+   .. todo: "A.B" is permitted but unnecessary for modules/sections.
+      should the command just take an @ident?
 
 
 .. _flags-options-tables:
@@ -84,34 +79,40 @@ and tables:
 Flags, options and tables are identified by a series of identifiers, each with an initial
 capital letter.
 
-.. cmd:: {? Export } Set {+ @ident }
-   :name: Set
+.. cmd:: Set @setting_name
+   :name: Set flag
 
-   Sets the flag identified by the :n:`@ident`\s to on.
+   .. insertprodn setting_name setting_name
+
+   .. prodn::
+      setting_name ::= {+ @ident }
+
+   Sets the flag :n:`@setting_name` to on.
 
    This command supports the :attr:`local`, :attr:`global` and :attr:`export` attributes.
    They are described :ref:`here <set_unset_scope_qualifiers>`.
-
-   .. todo shouldn't export be included in the legacy_attr NT and listed in the table
-      in the gallina/Attributes section?  And not shown here?
 
    .. todo "Set Hyps Limit." gives "Bad type of value for this option: expected int, got bool."
       I can create an issue--when do you think someone might get to this?  The issue backlog
       is another topic for discussion/action.
 
-.. cmd:: {? Export } Set {+ @ident } {| @int | @string }
-   :name: Set @option
+   .. exn:: There is no option @setting_name.
 
-   Sets the option identified by the :n:`@ident` to the specified value, which
+      This message also appears for unknown flags.
+
+.. cmd:: Set @setting_name {| @int | @string }
+   :name: Set option
+
+   Sets the option :n:`@setting_name` to the specified value, which
    must be of the appropriate type for the option.
 
    This command supports the :attr:`local`, :attr:`global` and :attr:`export` attributes.
    They are described :ref:`here <set_unset_scope_qualifiers>`.
 
-.. cmd:: {? Export } Unset {+ @ident }
+.. cmd:: Unset @setting_name
    :name: Unset
 
-   If :n:`@ident`\s is a flag, it is set to off.  If :n:`@ident`\s is an option, it is
+   If :n:`@setting_name` is a flag, it is set to off.  If :n:`@setting_name` is an option, it is
    set to its default value.
 
    This command supports the :attr:`local`, :attr:`global` and :attr:`export` attributes.
@@ -119,42 +120,35 @@ capital letter.
 
    .. todo doesn't work for "Diffs"
 
-.. cmd:: Test {+ @ident }
-   :name: Test @flag/@option
+.. cmd:: Test @setting_name
+   :name: Test flag/option
 
-   Prints the current value of the flag or option identified by the :n:`@ident`\s.
+   Prints the current value of the flag or option :n:`@setting_name`.
 
 .. cmd:: Print Options
 
    Prints the current value of all flags and options, and the names of all tables.
 
 
-.. cmd:: Add @ident {? @ident } {+ {| @qualid | @string } }
-   :name: Add @table
+.. cmd:: Add @setting_name {+ {| @qualid | @string } }
+   :name: Add table
 
-   Adds the specified values to the table identified by the :n:`@ident`.
+   Adds the specified values to the table :n:`@setting_name`.
 
-   .. todo: are tables identified by a single ident or is this command limited
-      What are the first two idents?
-      It handles multiple values?
-      Is it used much?
+.. cmd:: Remove @setting_name {+ {| @qualid | @string } }
+   :name: Remove table
 
-.. cmd:: Remove {? @ident } @ident {+ {| @qualid | @string } }
-   :name: Remove @table
+   Removes the specified value from the table :n:`@setting_name`.
 
-   Removes the specified value from the table identified by the :n:`@ident`\s.
+.. cmd:: Test @setting_name {? for {+ {| @qualid | @string } } }
+   :name: Test table
 
-   .. todo: about the same points as Add
+   If a value is given, reports whether the table :n:`@setting_name` contains the specified value.
+   Otherwise, this is equivalent to :cmd:`Print Table`.
 
-.. cmd:: Test {+ @ident } {? for {+ {| @qualid | @string } } }
+.. cmd:: Print Table @setting_name
 
-   The :n:`@ident`\s identify a table.  If no value is given, this is equivalent
-   to :cmd:`Print Table`.  Otherwise the command reports whether the table contains
-   the specified value.
-
-.. cmd:: Print Table {+ @ident }
-
-   Prints the values in the table identified by the :n:`@ident`\s.
+   Prints the values in the table :n:`@setting_name`.
 
 .. cmd:: Print Tables
 
@@ -162,10 +156,10 @@ capital letter.
 
 .. _set_unset_scope_qualifiers:
 
-Locality attributes supported by :cmd:`Set` and :cmd:`Unset`
+Locality attributes supported by :n:`Set` and :cmd:`Unset`
 ````````````````````````````````````````````````````````````
 
-The :cmd:`Set` and :cmd:`Unset` commands support the :attr:`local`,
+The :n:`Set` and :cmd:`Unset` commands support the :attr:`local`,
 :attr:`global` and :attr:`export` locality attributes:
 
 * no attribute: the original setting is *not* restored at the end of
@@ -188,7 +182,7 @@ Newly opened modules and sections inherit the current settings.
 
 .. note::
 
-   The use of the :attr:`global` attribute with the :cmd:`Set` and
+   The use of the :attr:`global` attribute with the :n:`Set` and
    :cmd:`Unset` commands is discouraged.  If your goal is to define
    project-wide settings, you should rather use the command-line
    arguments ``-set`` and ``-unset`` for setting flags and options
@@ -204,7 +198,7 @@ Requests to the environment
    This command displays the type of :n:`@term`. When called in proof mode, the
    term is checked in the local context of the current subgoal.
 
-   Prefix the command with :n:`@selector:` to specify which subgoal to check.
+   Prefix the command with :n:`@selector:` to specify which subgoal to check
    (see Section :ref:`invocation-of-tactics`).
 
 .. cmd:: Eval @red_expr in @term
@@ -229,32 +223,26 @@ Requests to the environment
 .. cmd:: Print Assumptions @smart_qualid
 
    Displays all the assumptions (axioms, parameters and
-   variables) a theorem or definition depends on. Especially, it informs
-   on the assumptions with respect to which the validity of a theorem
-   relies.
+   variables) a theorem or definition depends on.
 
-   .. todo I think drop the second sentence
+   .. exn:: Closed under the global context
+
+      The theorem or definition doesn't depend on any assumptions.
 
 .. cmd:: Print Opaque Dependencies @smart_qualid
 
-   Displays the opaque constants :n:`@smart_qualid` relies on in addition to
-   the assumptions.
-
-   .. todo it printe assumptions+opaque constants?
+   Displays the assumptions and opaque constants that :n:`@smart_qualid` depends on.
 
 .. cmd:: Print Transparent Dependencies @smart_qualid
 
-   Displays the transparent constants :n:`@smart_qualid` relies on
-   in addition to the assumptions.
-
-   .. todo ditto
+   Displays the assumptions and  transparent constants that :n:`@smart_qualid` depends on.
 
 .. cmd:: Print All Dependencies @smart_qualid
 
    Displays all the assumptions and constants :n:`@smart_qualid` relies on.
 
 
-.. cmd:: Search @search_item {? {| {| inside | outside } {+ @qualid } | {+ @search_item } } }
+.. cmd:: Search {+ @search_item } {? {| inside | outside } {+ @qualid } }
 
    .. insertprodn search_item search_item
 
@@ -280,7 +268,7 @@ Requests to the environment
         what if it's not a valid identifier?  error or does something different?
         this is a substring match, e.g. "abc" matches "bc", right?
 
-     .. todo would be nice if notation had syntax for embedding :cmd: et al
+     .. todo would be nice if :n: had syntax for embedding :cmd: et al
 
      Specifying :n:`@ident` limits this to interpretation in the scope bound to
      the delimiting key :token:`ident` (see Section :ref:`LocalInterpretationRulesForNotations`).
@@ -365,8 +353,6 @@ Requests to the environment
    .. exn:: Module/section @qualid not found.
 
       No module :n:`@qualid` has been required (see Section :ref:`compiled-files`).
-
-   .. note:: Up to |Coq| version 8.4, ``SearchHead`` was named ``Search``.
 
 
 .. cmd:: SearchPattern @one_term {? {| inside | outside } {+ @qualid } }
@@ -458,7 +444,7 @@ Requests to the environment
       search results.  The default blacklisted substrings are ``_subterm``, ``_subproof`` and
       ``Private_``.
 
-      Use the :cmd:`Add @table` and :cmd:`Remove @table` commands to update the set of
+      Use the :cmd:`Add table` and :cmd:`Remove table` commands to update the set of
       blacklisted strings.
 
 .. cmd:: Locate @locatable
@@ -548,7 +534,9 @@ toplevel. This kind of file is called a *script* for |Coq|. The standard
    Files loaded this way can't leave proofs open, nor can :cmd:`Load`
    be used inside a proof.
 
-   .. todo add comparison to Require
+   We discourage the use of :cmd:`Load`; use :cmd:`Require` instead.
+   :cmd:`Require` loads `.vo` files that were previously
+   compiled from `.v` files.
 
    :n:`Verbose` displays the |Coq| output for each command and tactic
    in the loaded file, as if the commands and tactics were entered interactively.
@@ -582,13 +570,9 @@ file is a particular case of module called *library file*.
    directory (see Section :ref:`libraries-and-filesystem`) and loads the compiled
    file :n:`@ident.vo` from that directory.  (Compiling :n:`@ident.v` generates :n:`@ident.vo`.)
 
-   The process is applied recursively to all the added modules.
-   |Coq| assumes the compiled files have been produced by a valid |Coq| compiler
-   and their contents are neither replayed nor rechecked.
-
-   .. todo "added" or "loaded"?  The latter seems better
-      "valid Coq compiler" - IIRC the verion must match exactly
-      "assumes" - or gives an error?
+   The process is applied recursively to all the loaded modules.
+   The compiled files must have been compiled with the same version of |Coq|.
+   The compiled files are neither replayed nor rechecked.
 
    * :n:`Import` - TBA
    * :n:`Export` - TBA
@@ -1065,9 +1049,9 @@ described first.
    .. insertprodn strategy_level strategy_level
 
    .. prodn::
-      strategy_level ::= expand
-      | opaque
+      strategy_level ::= opaque
       | @int
+      | expand
       | transparent
 
    This command accepts the :attr:`local` attribute, which limits its effect
@@ -1169,7 +1153,7 @@ Controlling the locality of commands
      when no section contains them. For these commands, the :attr:`local` attribute
      limits the effect to the current section or module while the :attr:`global`
      attribute extends the effect outside the module even when the command
-     occurs in a section.  The :cmd:`Set` and :cmd:`Unset` commands belong to this
+     occurs in a section.  The :n:`Set` and :cmd:`Unset` commands belong to this
      category.
 
 .. attr:: export
@@ -1177,7 +1161,7 @@ Controlling the locality of commands
    Some commands support an :attr:`export` attribute.  The effect of
    the attribute is to make the effect of the command available when
    the module containing it is imported.  It is supported in
-   particular by the :cmd:`Hint`, :cmd:`Set` and :cmd:`Unset`
+   particular by the :cmd:`Hint`, :n:`Set` and :cmd:`Unset`
    commands.
 
 .. _controlling-typing-flags:
