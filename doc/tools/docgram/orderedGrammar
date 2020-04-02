@@ -660,7 +660,12 @@ command: [
 | "Cd" OPT string
 | "Load" OPT "Verbose" [ string | ident ]
 | "Declare" "ML" "Module" LIST1 string
-| "Locate" locatable
+| "Locate" smart_qualid
+| "Locate" "Term" smart_qualid
+| "Locate" "Module" qualid
+| "Locate" "Ltac" qualid
+| "Locate" "Library" qualid
+| "Locate" "File" string
 | "Add" "LoadPath" string "as" dirpath
 | "Add" "Rec" "LoadPath" string "as" dirpath
 | "Remove" "LoadPath" string
@@ -711,7 +716,6 @@ command: [
 | "Print" "Table" setting_name
 | "Add" setting_name LIST1 [ qualid | string ]
 | "Test" setting_name OPT ( "for" LIST1 [ qualid | string ] )
-| "Test" setting_name
 | "Remove" setting_name LIST1 [ qualid | string ]
 | "Write" "State" [ ident | string ]
 | "Restore" "State" [ ident | string ]
@@ -897,9 +901,8 @@ command: [
 | "Arguments" smart_qualid LIST0 argument_spec_block LIST0 [ "," LIST0 more_implicits_block ] OPT [ ":" LIST1 arguments_modifier SEP "," ]
 | "Implicit" [ "Type" | "Types" ] reserv_list
 | "Generalizable" [ [ "Variable" | "Variables" ] LIST1 ident | "All" "Variables" | "No" "Variables" ]
-| "Set" setting_name [ int | string ]
+| "Set" setting_name OPT [ int | string ]
 | "Unset" setting_name
-| "Set" setting_name
 | "Open" "Scope" ident
 | "Close" "Scope" ident
 | "Delimit" "Scope" ident "with" ident
@@ -961,21 +964,11 @@ starredidentref: [
 ]
 
 dirpath: [
-| ident
-| dirpath field_ident
+| ident LIST0 field_ident
 ]
 
 bignat: [
 | numeral
-]
-
-locatable: [
-| smart_qualid
-| "Term" smart_qualid
-| "Module" qualid
-| "Ltac" qualid
-| "Library" qualid
-| "File" string
 ]
 
 setting_name: [

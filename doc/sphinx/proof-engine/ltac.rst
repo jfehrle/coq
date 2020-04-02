@@ -174,9 +174,6 @@ mode but it can also be used in toplevel definitions as shown below.
    ltac_def         : `ident` [`ident` ... `ident`] := `ltac_expr`
                     : `qualid` [`ident` ... `ident`] ::= `ltac_expr`
 
-
-.. todo: document "@selector: " for commands
-
 .. _ltac-semantics:
 
 Semantics
@@ -260,6 +257,9 @@ following form:
 
 Goal selectors
 ~~~~~~~~~~~~~~
+
+.. todo: mention this applies to Print commands and the Info command
+
 
 We can restrict the application of a tactic to a subset of the currently
 focused goals with:

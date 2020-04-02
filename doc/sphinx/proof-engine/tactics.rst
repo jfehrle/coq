@@ -3035,8 +3035,8 @@ following:
 For backward compatibility, the notation :n:`in {+ @ident}` performs
 the conversion in hypotheses :n:`{+ @ident}`.
 
-.. tacn:: cbv {* @flag}
-          lazy {* @flag}
+.. tacn:: {? @strategy_flag }
+          lazy {? @strategy_flag }
    :name: cbv; lazy
 
    These parameterized reduction tactics apply to any goal and perform

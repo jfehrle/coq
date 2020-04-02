@@ -151,8 +151,7 @@ fields: [ | DELETENT ]
 
 dirpath: [
 | REPLACE ident LIST0 field
-| WITH ident
-| dirpath field_ident
+| WITH ident LIST0 field_ident
 ]
 
 binders: [
@@ -538,8 +537,7 @@ gallina_ext: [
 
 (* don't show Export for Set, Unset *)
 | REPLACE "Export" "Set" option_table option_setting
-| WITH "Set" option_table option_setting   (* set option *)
-| "Set" option_table  (* set flag *)
+| WITH "Set" option_table option_setting
 | REPLACE "Export" "Unset" option_table
 | WITH "Unset" option_table
 | REPLACE "Instance" instance_name ":" operconstr200 hint_info [ ":=" "{" record_declaration "}" | ":=" lconstr | ]
@@ -888,6 +886,7 @@ command: [
 | WITH OPT "Export" "Set" option_table   (* set flag *)
 | REPLACE "Test" option_table "for" LIST1 option_ref_value
 | WITH "Test" option_table OPT ( "for" LIST1 option_ref_value )
+| DELETE "Test" option_table
 
 (* hide the fact that table names are limited to 2 IDENTs *)
 | REPLACE "Add" IDENT IDENT LIST1 option_ref_value
@@ -984,14 +983,17 @@ command: [
 | DELETE "Abort" "All"
 | REPLACE "Abort" identref
 | WITH "Abort" OPT [ "All" | identref ]
-| DELETE "Locate" "Ltac" reference
+
+(* show the locate options as separate commands *)
+| DELETE "Locate" locatable
+| locatable
 | REPLACE "Print" smart_global OPT univ_name_list
 | WITH "Print" OPT "Term" smart_global OPT univ_name_list
 
 ]
 
 option_setting: [
-| DELETE (* empty *) (* required for set option *)
+| OPTINREF
 ]
 
 only_parsing: [
@@ -1360,7 +1362,7 @@ module_expr: [
 ]
 
 locatable: [
-| "Ltac" reference
+| INSERTALL "Locate"
 ]
 
 ne_in_or_out_modules: [
@@ -1543,6 +1545,7 @@ SPLICE: [
 | instance_name
 | ne_in_or_out_modules
 | searchabout_queries
+| locatable
 ] (* end SPLICE *)
 
 RENAME: [

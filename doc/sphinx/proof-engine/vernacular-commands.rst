@@ -69,9 +69,9 @@ Flags, Options and Tables
 Coq has many settings to control its behavior.  Setting types include flags, options
 and tables:
 
-* A :production:`flag` has a boolean value, such as :flag:`Asymmetric Patterns`.
-* An :production:`option` generally has a numeric or string value, such as :opt:`Firstorder Depth`.
-* A :production:`table` contains a set of strings or qualids.
+* A **flag** has a boolean value, such as :flag:`Asymmetric Patterns`.
+* An **option** generally has a numeric or string value, such as :opt:`Firstorder Depth`.
+* A **table** contains a set of strings or qualids.
 * In addition, some commands provide settings, such as :cmd:`Extraction Language`.
 
 .. FIXME Convert "Extraction Language" to an option.
@@ -79,15 +79,17 @@ and tables:
 Flags, options and tables are identified by a series of identifiers, each with an initial
 capital letter.
 
-.. cmd:: Set @setting_name
-   :name: Set flag
+.. cmd:: Set @setting_name {? {| @int | @string } }
+   :name: Set
 
    .. insertprodn setting_name setting_name
 
    .. prodn::
       setting_name ::= {+ @ident }
 
-   Sets the flag :n:`@setting_name` to on.
+   If :n:`setting_name` is a flag, sets the flag :n:`@setting_name` to on.
+   If :n:`setting_name` is an option, sets the option to the specified value,
+   which must be of the appropriate type for the option.
 
    This command supports the :attr:`local`, :attr:`global` and :attr:`export` attributes.
    They are described :ref:`here <set_unset_scope_qualifiers>`.
@@ -100,15 +102,6 @@ capital letter.
 
       This message also appears for unknown flags.
 
-.. cmd:: Set @setting_name {| @int | @string }
-   :name: Set option
-
-   Sets the option :n:`@setting_name` to the specified value, which
-   must be of the appropriate type for the option.
-
-   This command supports the :attr:`local`, :attr:`global` and :attr:`export` attributes.
-   They are described :ref:`here <set_unset_scope_qualifiers>`.
-
 .. cmd:: Unset @setting_name
    :name: Unset
 
@@ -118,12 +111,12 @@ capital letter.
    This command supports the :attr:`local`, :attr:`global` and :attr:`export` attributes.
    They are described :ref:`here <set_unset_scope_qualifiers>`.
 
-   .. todo doesn't work for "Diffs"
+.. cmd:: Test @setting_name {? for {+ {| @qualid | @string } } }
 
-.. cmd:: Test @setting_name
-   :name: Test flag/option
-
-   Prints the current value of the flag or option :n:`@setting_name`.
+   If :n:`setting_name` is a flag or option, prints its the current value.
+   If :n:`setting_name` is a table: if a value is specified, reports whether
+   the table contains the specified value, otherise this is equivalen to
+   :cmd:`Print Table`.
 
 .. cmd:: Print Options
 
@@ -131,20 +124,12 @@ capital letter.
 
 
 .. cmd:: Add @setting_name {+ {| @qualid | @string } }
-   :name: Add table
 
    Adds the specified values to the table :n:`@setting_name`.
 
 .. cmd:: Remove @setting_name {+ {| @qualid | @string } }
-   :name: Remove table
 
    Removes the specified value from the table :n:`@setting_name`.
-
-.. cmd:: Test @setting_name {? for {+ {| @qualid | @string } } }
-   :name: Test table
-
-   If a value is given, reports whether the table :n:`@setting_name` contains the specified value.
-   Otherwise, this is equivalent to :cmd:`Print Table`.
 
 .. cmd:: Print Table @setting_name
 
@@ -156,10 +141,10 @@ capital letter.
 
 .. _set_unset_scope_qualifiers:
 
-Locality attributes supported by :n:`Set` and :cmd:`Unset`
+Locality attributes supported by :cmd:`Set` and :cmd:`Unset`
 ````````````````````````````````````````````````````````````
 
-The :n:`Set` and :cmd:`Unset` commands support the :attr:`local`,
+The :cmd:`Set` and :cmd:`Unset` commands support the :attr:`local`,
 :attr:`global` and :attr:`export` locality attributes:
 
 * no attribute: the original setting is *not* restored at the end of
@@ -182,7 +167,7 @@ Newly opened modules and sections inherit the current settings.
 
 .. note::
 
-   The use of the :attr:`global` attribute with the :n:`Set` and
+   The use of the :attr:`global` attribute with the :cmd:`Set` and
    :cmd:`Unset` commands is discouraged.  If your goal is to define
    project-wide settings, you should rather use the command-line
    arguments ``-set`` and ``-unset`` for setting flags and options
@@ -250,62 +235,46 @@ Requests to the environment
       search_item ::= {? - } @string {? % @ident }
       | {? - } @one_term
 
-   This command displays the name and type of objects (hypothesis of
-   the current goal, theorems, axioms, etc) in the current context.
-   This command is useful to remind the user of the names of library lemmas.
+   Displays the name and type of objects matching :n:`@search_item`\s
+   in the current context (i.e. hypotheses of the selected goal, theorems, axioms, etc.).
+   It's useful to remind the user of the names of library lemmas.
 
    .. todo above: "current context" meaning on the current goal or the first goal?
       below: adapted the old wording, doesn't seem consistent
       also will "invocation-of-tactics" cover the command case, or will there be a new section?
 
-   * :n:`@string  {? % @ident }` - If :n:`@string` is a valid identifier,
-     search for objects whose name contains :n:`@string`. If :n:`@string` is a
-     notation's string for some reference :n:`@qualid` (referred to by its
-     main symbol as in `"+"` or by its notation’s string as in `"_ + _"` or
-     `"_ 'U' _"`, see Section :ref:`notations`) the command works like :cmd:`Search` :n:`@qualid`.
+   * :n:`@string` - If :n:`@string` is a substring of a valid identifier,
+     search for objects whose name contains :n:`@string`. If :n:`string` is a notation
+     string associated with a :n:`qualid`, that's equivalent to :cmd:`Search` :n:`@qualid`.
+     For example, specifying "+" or "_ + _", which are notations for "plus", are equivalent
+     to :cmd:`Search` :n:`plus`.
 
-     .. todo: don't understand the 2nd sentence; notation's string -> notation string?
-        what if it's not a valid identifier?  error or does something different?
-        this is a substring match, e.g. "abc" matches "bc", right?
+     .. todo: still don't get the `"_ 'U' _"` in the old text, not sure that matters
 
-     .. todo would be nice if :n: had syntax for embedding :cmd: et al
+   * :n:`% @ident` - limits the search to the scope bound to
+     the delimiting key :n:`@ident`, such as, for example :n:`%nat`
+     (see Section :ref:`LocalInterpretationRulesForNotations`).
 
-     Specifying :n:`@ident` limits this to interpretation in the scope bound to
-     the delimiting key :token:`ident` (see Section :ref:`LocalInterpretationRulesForNotations`).
-
-     .. todo: does delimiting key mean anything special?
+   If you Specify multiple :n:`seatch_item`\s, all the conditions must be satisfied
+   to be displayed.
 
    * :n:`@one_term` - Search for objects containing a subterm matching the pattern
-     :token:`one_term` in which holes of the pattern are indicated by `_` or,
+     :n:`@one_term` in which holes of the pattern are indicated by `_` or,
      when a non linear pattern is specified, :n:`?@ident`.
 
       .. todo: "all statements or types of definition" is equivalent to "objects"?
          Should non linear pattern be defined or reworded?  I had never run across it.
-         Not so keen on the term "holes", maybe reword to remove
 
    * :n:`{? - }` - excludes objects that contain the :n:`@string` or :n:`@one_term`
    * :n:`inside {+ @qualid }` - limit the search to the specified modules
    * :n:`outside {+ @qualid }` - exclude the specified modules from the search
 
-   Prefix the command with :n:`@selector:` to specify the goal on which to search hypothesis.
+   Prefix the command with :n:`@selector:` to specify the goal on which to search hypotheses.
    By default the first goal is searched. (see Section :ref:`invocation-of-tactics`).
 
    .. exn:: The reference @qualid was not found in the current environment.
 
-      There is no constant in the environment named qualid.
-
-   .. cmdv:: Search {+ {? -}@term_pattern_string}
-
-      where
-      :n:`@term_pattern_string` is a term_pattern, a string, or a string followed
-      by a scope delimiting key `%key`.  This generalization of ``Search`` searches
-      for all objects whose statement or type contains a subterm matching
-      :n:`@term_pattern` (or :n:`@qualid` if :n:`@string` is the notation for a reference
-      qualid) and whose name contains all string of the request that
-      correspond to valid identifiers.
-
-      .. todo Isn't this the same as for @string?  But the wording was different than
-         the other one with @term_pattern_string
+      There is no constant in the environment named :n:`@qualid`.
 
       .. example:: :cmd:`Search` examples
 
@@ -324,12 +293,20 @@ Requests to the environment
 
 .. cmd:: SearchHead @one_term {? {| inside | outside } {+ @qualid } }
 
-   This command displays the name and type of all hypothesis of the
+   Displays the name and type of all hypotheses of the
    current goal (if any) and theorems of the current context whose
-   statement’s conclusion has the form `(term t1 .. tn)`. This command is
+   statement’s conclusion has the form :n:`(@one_term t1 .. tn)`. It is
    useful to remind the user of the name of library lemmas.
 
-   Prefix the command with :n:`@selector:` to specify the goal on which to search hypothesis.
+   * :n:`@one_term` - Search for objects containing a subterm matching the pattern
+     :n:`@one_term` in which holes of the pattern are indicated by `_` or,
+     when a non linear pattern is specified, :n:`?@ident`.
+   * :n:`inside {+ @qualid }` - limit the search to the specified modules
+   * :n:`outside {+ @qualid }` - exclude the specified modules from the search
+
+   .. todo: what is the complete definition of context?
+
+   Prefix the command with :n:`@selector:` to specify the goal on which to search hypotheses.
    By default the first goal is searched. (see Section :ref:`invocation-of-tactics`).
 
    .. example::
@@ -340,16 +317,6 @@ Requests to the environment
 
          SearchHead (@eq bool).
 
-   .. cmdv:: SearchHead @term inside {+ @qualid }
-
-      This restricts the search to constructions defined in the modules named
-      by the given :n:`qualid` sequence.
-
-   .. cmdv:: SearchHead @term outside {+ @qualid }
-
-      This restricts the search to constructions not defined in the modules
-      named by the given :n:`qualid` sequence.
-
    .. exn:: Module/section @qualid not found.
 
       No module :n:`@qualid` has been required (see Section :ref:`compiled-files`).
@@ -357,16 +324,28 @@ Requests to the environment
 
 .. cmd:: SearchPattern @one_term {? {| inside | outside } {+ @qualid } }
 
-   This command displays the name and type of all hypothesis of the
+   Displays the name and type of all hypotheses of the
    current goal (if any) and theorems of the current context whose
    statement’s conclusion or last hypothesis and conclusion matches the
-   expressionterm where holes in the latter are denoted by `_`.
+   pattern :n:`@one_term`.
    It is a variant of :n:`Search @term_pattern` that does not look for subterms
    but searches for statements whose conclusion has exactly the expected
    form, or whose statement finishes by the given series of
    hypothesis/conclusion.
 
-   Prefix the command with :n:`@selector:` to specify the goal on which to search hypothesis.
+   .. todo: should this+SearchPattern+SearchHead be described as "Like Search, but ..."?
+      there seems to be a lot of similarity (and thus a lot of repeated text)
+
+   .. todo: and very hard to get this (and the difference between the 4 Search*)
+      without concrete examples.  Too many abstractions strung together.
+
+   * :n:`@one_term` - Search for objects containing a subterm matching the pattern
+     :n:`@one_term` in which holes of the pattern are indicated by `_` or,
+     when a non linear pattern is specified, :n:`?@ident`.
+   * :n:`inside {+ @qualid }` - limit the search to the specified modules
+   * :n:`outside {+ @qualid }` - exclude the specified modules from the search
+
+   Prefix the command with :n:`@selector:` to specify the goal on which to search hypotheses.
    By default the first goal is searched. (see Section :ref:`invocation-of-tactics`).
 
    .. example::
@@ -383,9 +362,6 @@ Requests to the environment
 
          SearchPattern (forall l : list _, _ l l).
 
-   Patterns need not be linear: you can express that the same expression
-   must occur in two places by using pattern variables `?ident`.
-
 
    .. example::
 
@@ -393,22 +369,18 @@ Requests to the environment
 
          SearchPattern (?X1 + _ = _ + ?X1).
 
-   .. cmdv:: SearchPattern @term inside {+ @qualid }
-
-      This restricts the search to constructions defined in the modules
-      named by the given :n:`qualid` sequence.
-
-   .. cmdv:: SearchPattern @term outside {+ @qualid }
-
-      This restricts the search to constructions not defined in the modules
-      named by the given :n:`qualid` sequence.
-
 .. cmd:: SearchRewrite @one_term {? {| inside | outside } {+ @qualid } }
 
-   This command displays the name and type of all hypothesis of the
+   This command displays the name and type of all hypotheses of the
    current goal (if any) and theorems of the current context whose
    statement’s conclusion is an equality of which one side matches the
-   expression term. Holes in term are denoted by “_”.
+   expression :n:`@one_term`.
+
+   * :n:`@one_term` - Search for objects containing a subterm matching the pattern
+     :n:`@one_term` in which holes of the pattern are indicated by `_` or,
+     when a non linear pattern is specified, :n:`?@ident`.
+   * :n:`inside {+ @qualid }` - limit the search to the specified modules
+   * :n:`outside {+ @qualid }` - exclude the specified modules from the search
 
    Prefix the command with :n:`@selector:` to specify the goal on which to search hypothesis.
    By default the first goal is searched. (see Section :ref:`invocation-of-tactics`).
@@ -423,16 +395,6 @@ Requests to the environment
 
          SearchRewrite (_ + _ + _).
 
-   .. cmdv:: SearchRewrite @term inside {+ @qualid }
-
-      This restricts the search to constructions defined in the modules
-      named by the given :n:`qualid` sequence.
-
-   .. cmdv:: SearchRewrite @term outside {+ @qualid }
-
-      This restricts the search to constructions not defined in the modules
-      named by the given :n:`qualid` sequence.
-
 .. note::
 
    .. table:: Search Blacklist @string
@@ -444,42 +406,44 @@ Requests to the environment
       search results.  The default blacklisted substrings are ``_subterm``, ``_subproof`` and
       ``Private_``.
 
-      Use the :cmd:`Add table` and :cmd:`Remove table` commands to update the set of
+      Use the :cmd:`Add` and :cmd:`Remove` commands to update the set of
       blacklisted strings.
 
-.. cmd:: Locate @locatable
+.. cmd:: Locate @smart_qualid
 
-   .. insertprodn locatable locatable
+   Displays the full name of objects that end with :n:`@smart_qualid`,
+   thereby showing the module they are defined in.
+   :cmd:`Locate` searches for objects from |Coq|'s various
+   qualified namespaces such as terms, modules and Ltac.
 
-   .. prodn::
-      locatable ::= @smart_qualid
-      | Term @smart_qualid
-      | Module @qualid
-      | Ltac @qualid
-      | Library @qualid
-      | File @string
+   .. todo somewhere we should list all the qualified namespaces
 
-   Displays the full name of objects whose name is a prefix
-   of the specified value, and consequently the |Coq| module in
-   which they are defined. It searches for objects from the different
-   qualified namespaces of |Coq|: terms, modules, Ltac, etc.
+.. cmd:: Locate Term @smart_qualid
 
-   The alternatives have the following behavior:
+   Like :cmd:`Locate`, but limits the search to terms
 
-   -  :n:`Locate @smart_qualid` - displays the full name of objects whose name is a prefix
-      of :n:`@smart_qualid`, thereby showing the module they are defined in.
-   -  :n:`Locate Term @smart_qualid` - limits the search to terms
-   -  :n:`Locate Module @qualid` - limits the search to modules
-   -  :n:`Locate Ltac @qualid` - reports whether the specified module has been loaded
-   -  :n:`Locate Library @qualid` - gives the status of the specified |Coq| module. It reports whether
-      the module is loaded and, if not, searches for the module in the load path and reports
-      where it is found.
-   -  :n:`Locate File @string` - displays the location of a file specified by :n:`@string`
-      Typically, :n:`@string` is a ``.cmo`` or ``.vo`` or ``.v`` file, such as :n:`Nat.v`.
+.. cmd:: Locate Module @qualid
 
-      .. todo: "Data" also works (parent in dirpath of Nat.v)
+   Like :cmd:`Locate`, but limits the search to modules
 
-   .. example::
+.. cmd:: Locate Ltac @qualid
+
+   Like :cmd:`Locate`, but limits the search to tactics
+
+.. cmd:: Locate Library @qualid
+
+   Displays the full name. status and file system path of the module :n:`@qualid`, whether loaded or not.
+
+.. cmd:: Locate File @string
+
+   Displays the file system path of the file ending with :n:`@string`.
+   Typically, :n:`@string` has a suffix such as ``.cmo`` or ``.vo`` or ``.v`` file, such as :n:`Nat.v`.
+
+      .. todo: also works for directory names such as "Data" (parent in dirpath of Nat.v)
+         also "Data/Nat.v" works
+         but not a substring match,
+
+   .. example:: Locate examples
 
       .. coqtop:: all
 
@@ -566,7 +530,7 @@ file is a particular case of module called *library file*.
 
    Loads compiled modules into the |Coq| environment.  The command
    searches the loadpath for the modules named by the :n:`@qualid`\s.  Each :n:`@qualid`
-   has the form :n:`@dirpath.@ident`.  The commmand maps :n:`@dirpath` to a physical
+   has the form :n:`{? @dirpath }.@ident`.  The commmand maps :n:`@dirpath` to a physical
    directory (see Section :ref:`libraries-and-filesystem`) and loads the compiled
    file :n:`@ident.vo` from that directory.  (Compiling :n:`@ident.v` generates :n:`@ident.vo`.)
 
@@ -625,7 +589,7 @@ file is a particular case of module called *library file*.
    for some :n:`@dirpath’`. This is useful to ensure that the :token:`qualid` library
    comes from a given package by making explicit its absolute root.
 
-   .. exn:: Cannot load qualid: no physical path bound to dirpath.
+   .. exn:: Cannot load @qualid: no physical path bound to @dirpath.
       :undocumented:
 
    .. exn:: Cannot find library foo in loadpath.
@@ -634,7 +598,7 @@ file is a particular case of module called *library file*.
       file foo.vo. Either foo.v exists but is not compiled or foo.vo is in a
       directory which is not in your LoadPath (see Section :ref:`libraries-and-filesystem`).
 
-   .. exn:: Compiled library @ident.vo makes inconsistent assumptions over library qualid.
+   .. exn:: Compiled library @ident.vo makes inconsistent assumptions over library @qualid.
 
       The command tried to load library file :n:`@ident`.vo that
       depends on some specific version of library :n:`@qualid` which is not the
@@ -648,7 +612,7 @@ file is a particular case of module called *library file*.
       |Coq| compiled module, or it was compiled with an incompatible
       version of |Coq|.
 
-   .. exn:: The file :n:`@ident.vo` contains library dirpath and not library dirpath’.
+   .. exn:: The file @ident.vo contains library @dirpath and not library @dirpath.
 
       The library file :n:`@dirpath’` is indirectly required by the
       ``Require`` command but it is bound in the current loadpath to the
@@ -672,9 +636,13 @@ file is a particular case of module called *library file*.
 .. cmd:: Declare ML Module {+ @string }
 
    This commands dynamically loads the specified OCaml compiled files.
-   It is mainly used to load tactics dynamically. The
-   files are searched into the current OCaml loadpath (see the
+   It is used to load plugins dynamically.  The
+   files must be accessible in the current OCaml loadpath (see the
    command :cmd:`Add ML Path`).
+
+   This command is reserved for plugin developers, who should provide
+   a .v file containing the command. Users of the plugins will then generally
+   load the .v file.
 
    .. todo "searched into" meaning?
 
@@ -716,16 +684,13 @@ the toplevel, and using them in source files is discouraged.
    If :n:`@string` is specified, changes the current directory according to :token:`string` which
    can be any valid path.  Otherwise, it displays the current directory.
 
-   .. todo Not like Linux `cd`.  Maybe change?
-
 
 .. cmd:: Add LoadPath @string as @dirpath
 
    .. insertprodn dirpath dirpath
 
    .. prodn::
-      dirpath ::= @ident
-      | @dirpath @field_ident
+      dirpath ::= @ident {* @field_ident }
 
    This command is equivalent to the command line option
    :n:`-Q @string @dirpath`. It adds the physical directory string to the current
@@ -804,7 +769,7 @@ interactively, they cannot be part of a vernacular file loaded via
 
    If :n:`@num` is specified, the command undoes :n:`@num` vernacular commands.
 
-   Back will not reopen a closed proof, but instead will go to the state just before that
+   :cmd:`Back` will not reopen a closed proof, but instead will go to the state just before that
    proof.
 
    .. exn:: Invalid backtrack.
@@ -834,7 +799,8 @@ Quitting and debugging
 .. cmd:: Drop
 
    This command temporarily enters the OCaml toplevel.
-   It is a debug facility used by |Coq|’s implementers.  Valid only in coqtop.
+   It is a debug facility used by |Coq|’s implementers.  Valid only in the
+   bytecode version of coqtop.
    The OCaml command:
 
    ::
@@ -1153,7 +1119,7 @@ Controlling the locality of commands
      when no section contains them. For these commands, the :attr:`local` attribute
      limits the effect to the current section or module while the :attr:`global`
      attribute extends the effect outside the module even when the command
-     occurs in a section.  The :n:`Set` and :cmd:`Unset` commands belong to this
+     occurs in a section.  The :cmd:`Set` and :cmd:`Unset` commands belong to this
      category.
 
 .. attr:: export
@@ -1161,7 +1127,7 @@ Controlling the locality of commands
    Some commands support an :attr:`export` attribute.  The effect of
    the attribute is to make the effect of the command available when
    the module containing it is imported.  It is supported in
-   particular by the :cmd:`Hint`, :n:`Set` and :cmd:`Unset`
+   particular by the :cmd:`Hint`, :cmd:`Set` and :cmd:`Unset`
    commands.
 
 .. _controlling-typing-flags:

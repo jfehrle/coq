@@ -1090,7 +1090,7 @@ Local opening of an interpretation scope
 
 It is possible to locally extend the interpretation scope stack using the syntax
 :n:`(@term)%@ident` (or simply :n:`@term%@ident` for atomic terms), where :token:`ident` is a
-special identifier called *delimiting key* and bound to a given scope.
+special identifier called a *delimiting key* and bound to a given scope.
 
 In such a situation, the term term, and all its subterms, are
 interpreted in the scope stack extended with the scope bound to :token:`ident`.
