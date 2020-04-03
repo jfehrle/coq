@@ -718,7 +718,7 @@ has type :n:`@type`.
    :name: @ident already exists. (Axiom)
    :undocumented:
 
-.. warn:: @ident is declared as a local axiom [local-declaration,scope]
+.. warn:: @ident is declared as a local axiom
 
    Warning generated when using :cmd:`Variable` or its equivalent
    instead of :n:`Local Parameter` or its equivalent.

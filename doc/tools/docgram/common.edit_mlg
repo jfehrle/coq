@@ -1498,7 +1498,6 @@ SPLICE: [
 | ltac_tactic_level
 | printunivs_subgraph
 | ring_mods
-| scope_delimiter
 | eliminator  (* todo: splice or not? *)
 | quoted_attributes  (* todo: splice or not? *)
 | printable
@@ -1597,7 +1596,10 @@ RENAME: [
 | smart_global smart_qualid
 | searchabout_query search_item
 | option_table setting_name
+| scope_delimiter scope
 ]
+
+(* todo: positive_search_mark is a lousy name for OPT "-" *)
 
 (* todo: doesn't work if up above... maybe because 'clause' doesn't exist? *)
 clause_dft_concl: [

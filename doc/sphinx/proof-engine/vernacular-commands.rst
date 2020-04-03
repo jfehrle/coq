@@ -18,12 +18,16 @@ Displaying
    .. prodn::
       univ_name_list ::= @%{ {* @name } %}
 
-   This command displays information about the object identified by :n:`@smart_qualid`.
-   The presence of :n:`Term` doesn't affect the behavior.
+   Displays information about the object identified by :n:`@smart_qualid`.
 
-   When :n:`@univ_name_list` clause is provided, it locally renames the
-   polymorphic universes of :n:`@smart_qualid`.
-   The name `_` means the usual name is printed.
+   * :n:`Term` - a syntactic marker to allow printing a :n:`@smart_qualid`
+     that is the same as one of the various :n:`Print` commands.  For example,
+     :cmd:`Print All` is a different command, while :n:`Print Term All` shows
+     information on the :n:`@smart_qualid` ":n:`All`".
+
+   * :n:`@univ_name_list` - locally renames the
+     polymorphic universes of :n:`@smart_qualid`.
+     The name `_` means the usual name is printed.
 
    .. exn:: @qualid not a defined object.
       :undocumented:
@@ -87,16 +91,13 @@ capital letter.
    .. prodn::
       setting_name ::= {+ @ident }
 
-   If :n:`setting_name` is a flag, sets the flag :n:`@setting_name` to on.
-   If :n:`setting_name` is an option, sets the option to the specified value,
-   which must be of the appropriate type for the option.
+   If :n:`@setting_name` is a flag, no value may be provided; the flag
+   is set to on.
+   If :n:`@setting_name` is an option, a value of the appropriate type
+   must be provided; the option is set to the specified value.
 
    This command supports the :attr:`local`, :attr:`global` and :attr:`export` attributes.
    They are described :ref:`here <set_unset_scope_qualifiers>`.
-
-   .. todo "Set Hyps Limit." gives "Bad type of value for this option: expected int, got bool."
-      I can create an issue--when do you think someone might get to this?  The issue backlog
-      is another topic for discussion/action.
 
    .. exn:: There is no option @setting_name.
 
@@ -113,8 +114,8 @@ capital letter.
 
 .. cmd:: Test @setting_name {? for {+ {| @qualid | @string } } }
 
-   If :n:`setting_name` is a flag or option, prints its the current value.
-   If :n:`setting_name` is a table: if a value is specified, reports whether
+   If :n:`@setting_name` is a flag or option, prints its the current value.
+   If :n:`@setting_name` is a table: if a value is specified, reports whether
    the table contains the specified value, otherise this is equivalen to
    :cmd:`Print Table`.
 
@@ -232,15 +233,17 @@ Requests to the environment
    .. insertprodn search_item search_item
 
    .. prodn::
-      search_item ::= {? - } @string {? % @ident }
+      search_item ::= {? - } @string {? @scope }
       | {? - } @one_term
 
+   Todo: :n:`@scope ::= % @ident` (fix in syntax extensions)
+
    Displays the name and type of objects matching :n:`@search_item`\s
-   in the current context (i.e. hypotheses of the selected goal, theorems, axioms, etc.).
-   It's useful to remind the user of the names of library lemmas.
+   in the current context (i.e. hypotheses of the selected goal in the current proof
+   as well as accessible theorems, axioms, etc.).
+   It's useful for finding the names of library lemmas.
 
    .. todo above: "current context" meaning on the current goal or the first goal?
-      below: adapted the old wording, doesn't seem consistent
       also will "invocation-of-tactics" cover the command case, or will there be a new section?
 
    * :n:`@string` - If :n:`@string` is a substring of a valid identifier,
@@ -249,21 +252,17 @@ Requests to the environment
      For example, specifying "+" or "_ + _", which are notations for "plus", are equivalent
      to :cmd:`Search` :n:`plus`.
 
-     .. todo: still don't get the `"_ 'U' _"` in the old text, not sure that matters
-
-   * :n:`% @ident` - limits the search to the scope bound to
-     the delimiting key :n:`@ident`, such as, for example :n:`%nat`
+   * :n:`% @scope` - limits the search to the scope bound to
+     the delimiting key :n:`@scope`, such as, for example :n:`%nat`
      (see Section :ref:`LocalInterpretationRulesForNotations`).
 
-   If you Specify multiple :n:`seatch_item`\s, all the conditions must be satisfied
+   If you specify multiple :n:`seatch_item`\s, all the conditions must be satisfied
    to be displayed.
 
    * :n:`@one_term` - Search for objects containing a subterm matching the pattern
-     :n:`@one_term` in which holes of the pattern are indicated by `_` or,
-     when a non linear pattern is specified, :n:`?@ident`.
-
-      .. todo: "all statements or types of definition" is equivalent to "objects"?
-         Should non linear pattern be defined or reworded?  I had never run across it.
+     :n:`@one_term` in which holes of the pattern are indicated by `_` or :n:`?@ident`.
+     If the same :n:`?@ident` occurs more than once in the pattern, all occurrences must
+     match the same value.
 
    * :n:`{? - }` - excludes objects that contain the :n:`@string` or :n:`@one_term`
    * :n:`inside {+ @qualid }` - limit the search to the specified modules
@@ -295,19 +294,10 @@ Requests to the environment
 
    Displays the name and type of all hypotheses of the
    current goal (if any) and theorems of the current context whose
-   statement’s conclusion has the form :n:`(@one_term t1 .. tn)`. It is
-   useful to remind the user of the name of library lemmas.
+   statement’s conclusion has the form :n:`(@one_term t1 .. tn)`. It's
+   useful for finding the names of library lemmas.
 
-   * :n:`@one_term` - Search for objects containing a subterm matching the pattern
-     :n:`@one_term` in which holes of the pattern are indicated by `_` or,
-     when a non linear pattern is specified, :n:`?@ident`.
-   * :n:`inside {+ @qualid }` - limit the search to the specified modules
-   * :n:`outside {+ @qualid }` - exclude the specified modules from the search
-
-   .. todo: what is the complete definition of context?
-
-   Prefix the command with :n:`@selector:` to specify the goal on which to search hypotheses.
-   By default the first goal is searched. (see Section :ref:`invocation-of-tactics`).
+   See :cmd:`Search` for an explanation of the syntax.
 
    .. example::
 
@@ -333,20 +323,10 @@ Requests to the environment
    form, or whose statement finishes by the given series of
    hypothesis/conclusion.
 
-   .. todo: should this+SearchPattern+SearchHead be described as "Like Search, but ..."?
-      there seems to be a lot of similarity (and thus a lot of repeated text)
-
    .. todo: and very hard to get this (and the difference between the 4 Search*)
       without concrete examples.  Too many abstractions strung together.
 
-   * :n:`@one_term` - Search for objects containing a subterm matching the pattern
-     :n:`@one_term` in which holes of the pattern are indicated by `_` or,
-     when a non linear pattern is specified, :n:`?@ident`.
-   * :n:`inside {+ @qualid }` - limit the search to the specified modules
-   * :n:`outside {+ @qualid }` - exclude the specified modules from the search
-
-   Prefix the command with :n:`@selector:` to specify the goal on which to search hypotheses.
-   By default the first goal is searched. (see Section :ref:`invocation-of-tactics`).
+   See :cmd:`Search` for an explanation of the syntax.
 
    .. example::
 
@@ -376,14 +356,7 @@ Requests to the environment
    statement’s conclusion is an equality of which one side matches the
    expression :n:`@one_term`.
 
-   * :n:`@one_term` - Search for objects containing a subterm matching the pattern
-     :n:`@one_term` in which holes of the pattern are indicated by `_` or,
-     when a non linear pattern is specified, :n:`?@ident`.
-   * :n:`inside {+ @qualid }` - limit the search to the specified modules
-   * :n:`outside {+ @qualid }` - exclude the specified modules from the search
-
-   Prefix the command with :n:`@selector:` to specify the goal on which to search hypothesis.
-   By default the first goal is searched. (see Section :ref:`invocation-of-tactics`).
+   See :cmd:`Search` for an explanation of the syntax.
 
    .. example::
 
@@ -440,8 +413,7 @@ Requests to the environment
    Typically, :n:`@string` has a suffix such as ``.cmo`` or ``.vo`` or ``.v`` file, such as :n:`Nat.v`.
 
       .. todo: also works for directory names such as "Data" (parent in dirpath of Nat.v)
-         also "Data/Nat.v" works
-         but not a substring match,
+         also "Data/Nat.v" works, but not a substring match
 
    .. example:: Locate examples
 
@@ -505,8 +477,6 @@ toplevel. This kind of file is called a *script* for |Coq|. The standard
    :n:`Verbose` displays the |Coq| output for each command and tactic
    in the loaded file, as if the commands and tactics were entered interactively.
 
-   .. seealso:: Section :ref:`controlling-display`.
-
    .. exn:: Can’t find file @ident on loadpath.
       :undocumented:
 
@@ -538,48 +508,19 @@ file is a particular case of module called *library file*.
    The compiled files must have been compiled with the same version of |Coq|.
    The compiled files are neither replayed nor rechecked.
 
-   * :n:`Import` - TBA
-   * :n:`Export` - TBA
+   * :n:`Import` - additionally does an :cmd:`Import` on the loaded module, making components defined
+     in the module available by their short names
+   * :n:`Export` - additionally does an :cmd:`Export` on the loaded module, making components defined
+     in the module available by their short names *and* marking them to be imported when the current
+     module is itself imported into a third module.
 
-   .. todo: I can't make sense of the old explanations for Import and Export
+   If the required module has already been loaded, :n:`Import` and :n:`Export` make the command
+   is equivalent to :cmd:`Import` or :cmd:`Export`.
 
    The mapping between
    physical directories and logical names at the time of requiring the
    file must be consistent with the mapping used to compile the file. If
    several files match, one of them is picked in an unspecified fashion.
-
-   .. todo both sentences still true?  Second sentence is unsettling
-
-   .. todo: remove the following 3 variants
-
-   .. cmdv:: Require Import @qualid
-      :name: Require Import
-
-      This loads and declares the module :n:`@qualid`
-      and its dependencies then imports the contents of :n:`@qualid` as described
-      for :cmd:`Import`. It does not import the modules that
-      :n:`@qualid` depends on unless these modules were themselves required in module
-      :n:`@qualid`
-      using :cmd:`Require Export`, or if they are recursively required
-      through a series of :cmd:`Require Export`\s.  If the required module has
-      already been loaded, :cmd:`Require Import` :n:`@qualid` simply imports it, as
-      :cmd:`Import` :n:`@qualid` would.
-
-   .. cmdv:: Require Export @qualid
-      :name: Require Export
-
-      This command acts as :cmd:`Require Import` :n:`@qualid`,
-      but if a further module, say `A`, contains a command :cmd:`Require Export` `B`,
-      then the command :cmd:`Require Import` `A` also imports the module `B.`
-
-   .. cmdv:: Require {| Import | Export } {+ @qualid }
-
-      This loads the
-      modules named by the :token:`qualid` sequence and their recursive
-      dependencies. If
-      ``Import`` or ``Export`` is given, it also imports these modules and
-      all the recursive dependencies that were marked or transitively marked
-      as ``Export``.
 
 .. cmd:: From @qualid Require {? {| Import | Export } } {+ @qualid }
    :name: From ... Require ...
@@ -635,16 +576,15 @@ file is a particular case of module called *library file*.
 
 .. cmd:: Declare ML Module {+ @string }
 
-   This commands dynamically loads the specified OCaml compiled files.
+   This commands dynamically loads OCaml compiled code from
+   an :n:`.mllib` file.
    It is used to load plugins dynamically.  The
    files must be accessible in the current OCaml loadpath (see the
-   command :cmd:`Add ML Path`).
+   command :cmd:`Add ML Path`).  The :n:`.mllib` suffix may be omitted.
 
    This command is reserved for plugin developers, who should provide
    a .v file containing the command. Users of the plugins will then generally
    load the .v file.
-
-   .. todo "searched into" meaning?
 
    This command supports the :attr:`local` attribute.  If present,
    the listed files are not exported, even if they're outside a section.

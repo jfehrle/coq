@@ -608,13 +608,13 @@ argument_spec_block: [
 | argument_spec
 | "/"
 | "&"
-| "(" LIST1 argument_spec ")" OPT ( "%" ident )
-| "[" LIST1 argument_spec "]" OPT ( "%" ident )
-| "{" LIST1 argument_spec "}" OPT ( "%" ident )
+| "(" LIST1 argument_spec ")" OPT scope
+| "[" LIST1 argument_spec "]" OPT scope
+| "{" LIST1 argument_spec "}" OPT scope
 ]
 
 argument_spec: [
-| OPT "!" name OPT ( "%" ident )
+| OPT "!" name OPT scope
 ]
 
 more_implicits_block: [
@@ -635,6 +635,10 @@ arguments_modifier: [
 | "rename"
 | "assert"
 | "extra" "scopes"
+]
+
+scope: [
+| "%" ident
 ]
 
 strategy_level: [
@@ -875,7 +879,6 @@ command: [
 | "Module" "Type" ident LIST0 module_binder LIST0 ( "<:" module_type_inl ) OPT ( ":=" LIST1 module_type_inl SEP "<+" )
 | "Declare" "Module" OPT [ "Import" | "Export" ] ident LIST0 module_binder ":" module_type_inl
 | "Section" ident
-| "Chapter" ident
 | "End" ident
 | "Collection" ident ":=" section_subset_expr
 | "Require" OPT [ "Import" | "Export" ] LIST1 qualid
@@ -982,7 +985,7 @@ comment: [
 ]
 
 search_item: [
-| OPT "-" string OPT ( "%" ident )
+| OPT "-" string OPT scope
 | OPT "-" one_term
 ]
 
