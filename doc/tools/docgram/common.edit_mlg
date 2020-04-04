@@ -149,9 +149,16 @@ qualid: [
 field: [ | DELETENT ]
 fields: [ | DELETENT ]
 
+(*
+module: [
+| ident
+]
+*)
+
 dirpath: [
 | REPLACE ident LIST0 field
 | WITH ident LIST0 field_ident
+(* | WITH LIST0 ( module "." ) ident *)
 ]
 
 binders: [
@@ -493,10 +500,6 @@ strategy_flag: [
 | OPTINREF
 ]
 
-export_token: [
-| OPTINREF
-]
-
 functor_app_annot: [
 | OPTINREF
 ]
@@ -543,6 +546,17 @@ gallina_ext: [
 | REPLACE "Instance" instance_name ":" operconstr200 hint_info [ ":=" "{" record_declaration "}" | ":=" lconstr | ]
 | WITH "Instance" instance_name ":" operconstr200 hint_info OPT [ ":=" "{" record_declaration "}" | ":=" lconstr ]
 
+| PRINT
+| REPLACE "Require" export_token LIST1 global
+| WITH "Require" export_token LIST1 dirpath
+(*| REPLACE "From" global "Require" export_token LIST1 global
+| WITH "From" global "Require" export_token LIST1 dirpath
+*)
+
+]
+
+export_token: [
+| OPTINREF
 ]
 
 (* lexer stuff *)

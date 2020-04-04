@@ -1755,6 +1755,11 @@ let process_rst g file args seen tac_prods cmd_prods =
 (*  in*)
 
   let cmd_replace_files = [
+    "doc/sphinx/language/core/records.rst";
+    "doc/sphinx/language/core/sections.rst";
+    "doc/sphinx/language/extensions/implicit-arguments.rst";
+    "doc/sphinx/language/using/libraries/funind.rst";
+
     "doc/sphinx/language/gallina-specification-language.rst";
     "doc/sphinx/language/gallina-extensions.rst";
     "doc/sphinx/proof-engine/vernacular-commands.rst"

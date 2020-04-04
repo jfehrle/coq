@@ -881,7 +881,7 @@ command: [
 | "Section" ident
 | "End" ident
 | "Collection" ident ":=" section_subset_expr
-| "Require" OPT [ "Import" | "Export" ] LIST1 qualid
+| "Require" OPT [ "Import" | "Export" ] LIST1 dirpath
 | "From" qualid "Require" OPT [ "Import" | "Export" ] LIST1 qualid
 | "Import" LIST1 qualid
 | "Export" LIST1 qualid
