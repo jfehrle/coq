@@ -726,14 +726,45 @@ accessible, absolute names can never be hidden.
 Libraries and filesystem
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. note:: The questions described here have been subject to redesign in |Coq| 8.5.
-   Former versions of |Coq| use the same terminology to describe slightly different things.
+.. todo: better section name?
 
-Compiled files (``.vo`` and ``.vio``) store sub-libraries. In order to refer
-to them inside |Coq|, a translation from file-system names to |Coq| names
-is needed. In this translation, names in the file system are called
-*physical* paths while |Coq| names are contrastingly called *logical*
-names.
+`.v` files can be compiled to generate `.vo` or `.vio` files, which are
+*libraries*.  Within |Coq|, libraries are identified by *logical names*
+rather than the filesystem's name (aka *physical filename*) for the library file.
+The *loadpath* maps *logical names* to filesystem names.
+
+The logical name used to compile a library is embedded in the library.
+Loading a library with the :cmd:`Require` command will succeed only if
+the logical name used to compile the library has also been defined in
+the |Coq| process.
+
+Logical names may be defined through multiple mechanisms:
+
+* Within |Coq| by using the :cmd:`Add LoadPath` or :cmd:`Add Rec LoadPath`
+  commands, which correspond to the `-Q` and `-R` options.
+* As a command-line option to `coqc`, `coqtop` or |CoqIDE| by specifying
+  the `-Q` or `-R` options.  See :ref:`command-line-options`.
+* By specifying the `-Q` or `-R` options in the first line of a `_CoqProject`
+  file for |CoqIDE| or Proof-General (version ≥ ``4.3pre``).  See :ref:`coq_makefile`.
+
+.. todo: are resource files and environment variables recommended ways to set up loadpaths?
+   how about `Add LoadPath` - recommended or secondary?
+   put these in order most to least preferred.
+   how about Dune?
+
+.. note:: To avoid some common novice difficulties:
+
+   * Always provide a logical name to `coqc`.  If this isn't specified, `coqc` uses the default
+     logical name of `Top`, which is probably not what you want.
+   * To use additional libraries to |CoqIDE|, you must provide the logical name.
+     If the library was built from a Coq-generated makefile,
+     renaming the makefile to `_CoqProject` will let |CoqIDE| find the makefile and the `-Q` or `-R`
+     on its first line.  Alternatively, use the `-Q` or `-R` optins on the |CoqIDE| command line.
+
+
+.. todo: where does Coq look for _CoqProject?
+
+.. todo following part still needs editing
 
 A logical prefix Lib can be associated with a physical path using
 the command line option ``-Q`` `path` ``Lib``. All subfolders of path are
@@ -745,14 +776,14 @@ subdirectories named ``CVS`` or ``_darcs`` are skipped too.
 
 Thanks to this mechanism, ``.vo`` files are made available through the
 logical name of the folder they are in, extended with their own
-basename. For example, the name associated to the file
+basename. For example, the name associated with the file
 ``path/fOO/Bar/File.vo`` is ``Lib.fOO.Bar.File``. The same caveat applies for
 invalid identifiers. When compiling a source file, the ``.vo`` file stores
 its logical name, so that an error is issued if it is loaded with the
 wrong loadpath afterwards.
 
-Some folders have a special status and are automatically put in the
-path. |Coq| commands associate automatically a logical path to files in
+Some folders have a special status and are automatically added to the
+loadpath. |Coq| commands associate automatically a logical path to files in
 the repository trees rooted at the directory from where the command is
 launched, ``coqlib/user-contrib/``, the directories listed in the
 ``$COQPATH``, ``${XDG_DATA_HOME}/coq/`` and ``${XDG_DATA_DIRS}/coq/``
@@ -773,7 +804,7 @@ dependent and explicit qualification is recommended. The ``From`` argument
 of the ``Require`` command can be used to bypass the implicit shortening
 by providing an absolute root to the required file (see :ref:`compiled-files`).
 
-There also exists another independent loadpath mechanism attached to
+There is another independent loadpath mechanism attached to
 OCaml object files (``.cmo`` or ``.cmxs``) rather than |Coq| object
 files as described above. The OCaml loadpath is managed using
 the option ``-I`` `path` (in the OCaml world, there is neither a
@@ -781,7 +812,7 @@ notion of logical name prefix nor a way to access files in
 subdirectories of path). See the command :cmd:`Declare ML Module` in
 :ref:`compiled-files` to understand the need of the OCaml loadpath.
 
-See :ref:`command-line-options` for a more general view over the |Coq| command
+See :ref:`command-line-options` for more information on the |Coq| command
 line options.
 
 .. _Coercions:

@@ -52,6 +52,7 @@ vernacular file named *file*.v, and tries to compile it into a
    It should contain only letters, digits or underscores (_). For example ``/bar/foo/toto.v`` is valid,
    but ``/bar/foo/to-to.v`` is not.
 
+??
 
 Customization at launch time
 ---------------------------------
@@ -165,13 +166,13 @@ and ``coqtop``, unless stated otherwise:
 :-load-vernac-object *qualid*: Load |Coq| compiled library :n:`@qualid`. This
   is equivalent to running :cmd:`Require` :n:`qualid`.
 :-ri *qualid*, -require-import *qualid*: Load |Coq| compiled library :n:`@qualid` and import it.
-  This is equivalent to running :cmd:`Require` :n:`Import @qualid`.
+  This is equivalent to running :cmd:`Require Import` :n:`@qualid`.
 :-re *qualid*, -require-export *qualid*: Load |Coq| compiled library :n:`@qualid` and transitively import it.
-  This is equivalent to running :cmd:`Require` :n:`Export :n:`@qualid`.
+  This is equivalent to running :cmd:`Require Export` :n:`@qualid`.
 :-rifrom *dirpath* *qualid*, -require-import-from *dirpath* *qualid*: Load |Coq| compiled library :n:`@qualid` and import it.
-  This is equivalent to running :n:`From` :n:`@dirpath` :cmd:`Require` :n:`Import @qualid`.
+  This is equivalent to running :n:`From` :n:`@dirpath` :cmd:`Require Import` :n:`@qualid`.
 :-refrom *dirpath* *qualid*, -require-export-from *dirpath* *qualid*: Load |Coq| compiled library :n:`@qualid` and transitively import it.
-  This is equivalent to running :n:`From` :n:`@dirpath` :cmd:`Require` :n:`Export :n:`@qualid`.
+  This is equivalent to running :n:`From` :n:`@dirpath` :cmd:`Require Export` :n:`@qualid`.
 :-require *qualid*: Deprecated; use ``-ri`` *qualid*.
 :-batch: Exit just after argument parsing. Available for ``coqtop`` only.
 :-compile *file.v*: Deprecated; use ``coqc`` instead. Compile file *file.v* into *file.vo*. This option
@@ -379,7 +380,7 @@ Compiled libraries checker (coqchk)
 ----------------------------------------
 
 The ``coqchk`` command takes a list of library paths as argument, described either
-by their logical name or by their physical filename, hich must end in ``.vo``. The
+by their logical name or by their physical filename, which must end in ``.vo``. The
 corresponding compiled libraries (``.vo`` files) are searched in the path,
 recursively processing the libraries they depend on. The content of all these
 libraries is then type checked. The effect of ``coqchk`` is only to return with

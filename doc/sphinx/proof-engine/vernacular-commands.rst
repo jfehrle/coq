@@ -18,12 +18,12 @@ Displaying
    .. prodn::
       univ_name_list ::= @%{ {* @name } %}
 
-   Displays information about the object identified by :n:`@smart_qualid`.
+   Displays definitions of terms, including opaque terms, for the object :n:`@smart_qualid`.
 
-   * :n:`Term` - a syntactic marker to allow printing a :n:`@smart_qualid`
+   * :n:`Term` - a syntactic marker to allow printing a term
      that is the same as one of the various :n:`Print` commands.  For example,
      :cmd:`Print All` is a different command, while :n:`Print Term All` shows
-     information on the :n:`@smart_qualid` ":n:`All`".
+     information on the object whose name is ":n:`All`".
 
    * :n:`@univ_name_list` - locally renames the
      polymorphic universes of :n:`@smart_qualid`.
@@ -91,7 +91,7 @@ capital letter.
    This command supports the :attr:`local`, :attr:`global` and :attr:`export` attributes.
    They are described :ref:`here <set_unset_scope_qualifiers>`.
 
-   .. exn:: There is no option @setting_name.
+   .. warn:: There is no option @setting_name.
 
       This message also appears for unknown flags.
 
@@ -106,10 +106,10 @@ capital letter.
 
 .. cmd:: Test @setting_name {? for {+ {| @qualid | @string } } }
 
-   If :n:`@setting_name` is a flag or option, prints its the current value.
-   If :n:`@setting_name` is a table: if a value is specified, reports whether
-   the table contains the specified value, otherise this is equivalen to
-   :cmd:`Print Table`.
+   If :n:`@setting_name` is a flag or option, prints its current value.
+   If :n:`@setting_name` is a table: if the `for` clause is specified, reports
+   whether the table contains each specified value, otherise this is equivalent to
+   :cmd:`Print Table`.  The `for` clause is not valid for flags and options.
 
 .. cmd:: Print Options
 
@@ -169,8 +169,9 @@ Newly opened modules and sections inherit the current settings.
 Query commands
 --------------
 
-Unlike other commands, if a proof is open, query commands may be prefixed with
-:n:`@selector:` to specify which subgoal(s) should be included.  If no selector is provided,
+Unlike other commands, query commands may be prefixed with
+a goal selector (:n:`@num:`) to specify which goal context, it applies to.
+If no selector is provided,
 the command applies to the current goal.  If no proof is open, then the command only applies
 to accessible objects.  (see Section :ref:`invocation-of-tactics`).
 
@@ -232,24 +233,26 @@ Requests to the environment
 
 .. cmd:: Print All Dependencies @smart_qualid
 
-   Displays all the assumptions and constants :n:`@smart_qualid` relies on.
+   Displays all the assumptions and constants :n:`@smart_qualid` depends on.
 
 .. todo: move Search* to the section on query commands once we agree on the wording
 
-.. cmd:: Search {+ @search_item } {? {| inside | outside } {+ @qualid } }
+.. cmd:: Search {+ {? - } @search_item } {? {| inside | outside } {+ @qualid } }
 
    .. insertprodn search_item search_item
 
    .. prodn::
-      search_item ::= {? - } @string {? @scope }
-      | {? - } @one_term
+      search_item ::= @one_term
+      | @string {? % @scope }
 
-   Todo: :n:`@scope ::= % @ident` (fix in syntax extensions)
+   Displays the name and type of all hypotheses of the
+   selected goal (if any) and theorems of the current context
+   matching :n:`@search_item`\s.
 
-   Displays the name and type of objects matching :n:`@search_item`\s
-   in the selected goals (if a proof is open)
-   as well as accessible theorems, axioms, etc..
-   It's useful for finding the names of library lemmas.
+   * :n:`@one_term` - Search for objects containing a subterm matching the pattern
+     :n:`@one_term` in which holes of the pattern are indicated by `_` or :n:`?@ident`.
+     If the same :n:`?@ident` occurs more than once in the pattern, all occurrences must
+     match the same value.
 
    * :n:`@string` - If :n:`@string` is a substring of a valid identifier,
      search for objects whose name contains :n:`@string`. If :n:`@string` is a notation
@@ -257,75 +260,63 @@ Requests to the environment
      For example, specifying "+" or "_ + _", which are notations for "plus", are equivalent
      to :cmd:`Search` :n:`plus`.
 
-   * :n:`@scope` - limits the search to the scope bound to
-     the delimiting key :n:`@scope`, such as, for example, :n:`%nat`
-     (see Section :ref:`LocalInterpretationRulesForNotations`).
+   * :n:`% @scope` - limits the search to the scope bound to
+     the delimiting key :n:`@scope`, such as, for example, :n:`%nat`.
+     This clause may be used only if :n:`@string` contains a notation string.
+     (see Section :ref:`LocalInterpretationRulesForNotations`)
 
    If you specify multiple :n:`@search_item`\s, all the conditions must be satisfied
-   for the object to be displayed.
+   for the object to be displayed.  `{? - }` excludes objects that contain the :n:`@search_item`.
 
-   * :n:`@one_term` - Search for objects containing a subterm matching the pattern
-     :n:`@one_term` in which holes of the pattern are indicated by `_` or :n:`?@ident`.
-     If the same :n:`?@ident` occurs more than once in the pattern, all occurrences must
-     match the same value.
+   Additional clauses:
 
-   * :n:`{? - }` - excludes objects that contain the :n:`@string` or :n:`@one_term`
    * :n:`inside {+ @qualid }` - limit the search to the specified modules
    * :n:`outside {+ @qualid }` - exclude the specified modules from the search
 
    .. exn:: The reference @qualid was not found in the current environment.
 
-      There is no constant in the environment named :n:`@qualid`.
+      There is no constant in the environment named :n:`@qualid`, where :n:`@qualid`
+      is in an `inside` or `outside` clause.
 
-      .. example:: :cmd:`Search` examples
+   .. example:: :cmd:`Search` examples
 
-         .. coqtop:: in
+      .. coqtop:: in
 
-            Require Import ZArith.
+         Require Import ZArith.
 
-         .. coqtop:: all
+      .. coqtop:: all
 
-            Search Z.mul Z.add "distr".
-
-            Search "+"%Z "*"%Z "distr" -positive -Prop.
-
-            Search (?x * _ + ?x * _)%Z outside OmegaLemmas.
+         Search Z.mul Z.add "distr".
+         Search "+"%Z "*"%Z "distr" -Prop.
+         Search (?x * _ + ?x * _)%Z outside OmegaLemmas.
 
 
 .. cmd:: SearchHead @one_term {? {| inside | outside } {+ @qualid } }
 
    Displays the name and type of all hypotheses of the
-   selected goals (if any) and theorems of the current context that have the
-   form :n:`{* P__n -> } (@one_term t__1 ... t__m)`.
+   selected goal (if any) and theorems of the current context that have the
+   form :n:`{* P__i -> } (@one_term t__1 ... t__m)`.
    It's useful for finding the names of library lemmas.
 
    See :cmd:`Search` for an explanation of the syntax.
 
-   .. see examples at https://github.com/coq/coq/pull/11961#discussion_r402904029
-
-   .. example::
+   .. example:: :cmd:`SearchHead` examples
 
       .. coqtop:: reset all
 
          SearchHead le.
-
          SearchHead (@eq bool).
-
-   .. exn:: Module/section @qualid not found.
-
-      No module :n:`@qualid` has been required (see Section :ref:`compiled-files`).
-
 
 .. cmd:: SearchPattern @one_term {? {| inside | outside } {+ @qualid } }
 
    Displays the name and type of all hypotheses of the
-   selected goals (if any) and theorems of the current context
-   ending with :n:`{* P__n -> } C` that match the pattern
+   selected goal (if any) and theorems of the current context
+   ending with :n:`{* P__i -> } C` that match the pattern
    :n:`@one_term`.
 
    See :cmd:`Search` for an explanation of the syntax.
 
-   .. example::
+   .. example:: :cmd:`SearchPattern` examples
 
       .. coqtop:: in
 
@@ -334,13 +325,8 @@ Requests to the environment
       .. coqtop:: all
 
          SearchPattern (_ + _ = _ + _).
-
          SearchPattern (nat -> bool).
-
          SearchPattern (forall l : list _, _ l l).
-
-
-   .. example::
 
       .. coqtop:: all
 
@@ -349,16 +335,16 @@ Requests to the environment
 .. cmd:: SearchRewrite @one_term {? {| inside | outside } {+ @qualid } }
 
    Displays the name and type of all hypotheses of the
-   selected goals (if any) and theorems of the current context whose
+   selected goal (if any) and theorems of the current context whose
    conclusion is an equality for which one side matches the
    expression :n:`@one_term`.
 
-   For a statement in the form :n:`{* P__n -> } C`, the :n:`P__n` are the *premises*
+   For a statement in the form :n:`{* P__i -> } C`, the :n:`P__n` are the *premises*
    and :n:`C` is the *conclusion*.
 
    See :cmd:`Search` for an explanation of the syntax.
 
-   .. example::
+   .. example:: :cmd:`SearchRewrite` examples
 
       .. coqtop:: in
 
@@ -368,19 +354,17 @@ Requests to the environment
 
          SearchRewrite (_ + _ + _).
 
-.. note::
+.. table:: Search Blacklist @string
+   :name: Search Blacklist
 
-   .. table:: Search Blacklist @string
-      :name: Search Blacklist
+   Specifies a set of strings used to exclude lemmas from the results of :cmd:`Search`,
+   :cmd:`SearchHead`, :cmd:`SearchPattern` and :cmd:`SearchRewrite` queries.  A lemma whose
+   fully-qualified name contains any of the strings will be excluded from the
+   search results.  The default blacklisted substrings are ``_subterm``, ``_subproof`` and
+   ``Private_``.
 
-      Specifies a set of strings used to exclude lemmas from the results of :cmd:`Search`,
-      :cmd:`SearchHead`, :cmd:`SearchPattern` and :cmd:`SearchRewrite` queries.  A lemma whose
-      fully-qualified name contains any of the strings will be excluded from the
-      search results.  The default blacklisted substrings are ``_subterm``, ``_subproof`` and
-      ``Private_``.
-
-      Use the :cmd:`Add` and :cmd:`Remove` commands to update the set of
-      blacklisted strings.
+   Use the :cmd:`Add` and :cmd:`Remove` commands to update the set of
+   blacklisted strings.
 
 .. cmd:: Locate @smart_qualid
 
@@ -388,6 +372,8 @@ Requests to the environment
    thereby showing the module they are defined in.
    :cmd:`Locate` searches for objects from |Coq|'s various
    qualified namespaces such as terms, modules and Ltac.
+
+   .. seealso:: Section :ref:`locating-notations`
 
    .. todo somewhere we should list all the qualified namespaces
 
@@ -425,8 +411,6 @@ Requests to the environment
       Locate Coq.Init.Datatypes.O.
       Locate I.Dont.Exist.
 
-.. seealso:: Section :ref:`locating-notations`
-
 .. _printing-flags:
 
 Printing flags
@@ -450,7 +434,7 @@ Loading files
 |Coq| offers the possibility of loading different parts of a whole
 development stored in separate files. Their contents will be loaded as
 if they were entered from the keyboard. This means that the loaded
-files are ASCII files containing sequences of commands for |Coq|’s
+files are text files containing sequences of commands for |Coq|’s
 toplevel. This kind of file is called a *script* for |Coq|. The standard
 (and default) extension of |Coq|’s script files is .v.
 
@@ -497,15 +481,16 @@ file is a particular case of a module called a *library file*.
 
 
 .. cmd:: Require {? {| Import | Export } } {+ @dirpath }
+   :name: Require; Require Import; Require Export
 
    Loads compiled modules into the |Coq| environment.  The command
-   searches the loadpath for the modules named by the :n:`@dirpath`\s.  Each :n:`@dirpath`
-   has the form :n:`{* @ident .}@ident`.  The command maps the prefix :n:`{* @ident .}` to a physical
-   directory (see Section :ref:`libraries-and-filesystem`) and using the final :n:`@ident`,
-   loads the compiled
+   searches the loadpath for the modules designated by the :n:`@dirpath`\s.  Each :n:`@dirpath`
+   has the form :n:`{* @directory .}@ident`.  The command maps the prefix :n:`{* @directory .}` to a physical
+   directory (see Section :ref:`libraries-and-filesystem`) and loads the compiled
    file :n:`@ident.vo` from that directory.  (Compiling :n:`@ident.v` generates :n:`@ident.vo`.)
 
-   The process is applied recursively to all the loaded modules.
+   The process is applied recursively to all the loaded files;
+   if they contain :cmd:`Require` commands, those commands are executed as well.
    The compiled files must have been compiled with the same version of |Coq|.
    The compiled files are neither replayed nor rechecked.
 
@@ -518,23 +503,24 @@ file is a particular case of a module called a *library file*.
    If the required module has already been loaded, :n:`Import` and :n:`Export` make the command
    equivalent to :cmd:`Import` or :cmd:`Export`.
 
-   The mapping between
-   physical directories and logical names at the time of requiring the
-   file must be consistent with the mapping used to compile the file. If
+   The mapping between physical directories and logical names at the time of
+   requiring the file must contain the same mapping used to compile the file
+   (see Section :ref:`libraries-and-filesystem`). If
    several files match, one of them is picked in an unspecified fashion.
+   Therefore, library authors should use a unique name for each module and
+   users are encouraged to use fully-qualified names
+   or the :cmd:`From ... Require` command to load files.
+
 
    .. todo common user error on dirpaths see https://github.com/coq/coq/pull/11961#discussion_r402852390
 
-.. cmd:: From @qualid Require {? {| Import | Export } } {+ @qualid }
-   :name: From ... Require ...
+.. cmd:: From @dirpath Require {? {| Import | Export } } {+ @dirpath }
+   :name: From ... Require
 
-   .. todo: wanted to change @qualid to @dirpath
-      but even without that, I don't get the description with ":n:`@dirpath.@dirpath’.@qualid`"
-
-   Works like :cmd:`Require`, but picks
-   any library whose absolute name is of the form :n:`@dirpath.@dirpath’.@qualid`
-   for some :n:`@dirpath’`. This is useful to ensure that the :token:`qualid` library
-   comes from a given package by making explicit its absolute root.
+   Works like :cmd:`Require`, but loads, for each :n:`@dirpath`,
+   the library whose fully-qualified name matches :n:`@dirpath__From.{* @directory . }@dirpath`
+   for some :n:`{* @directory . }`. This is useful to ensure that the :n:`@dirpath` library
+   comes from a particular package.
 
    .. exn:: Cannot load @qualid: no physical path bound to @dirpath.
       :undocumented:
@@ -633,16 +619,21 @@ the toplevel, and using them in source files is discouraged.
 
 .. cmd:: Add LoadPath @string as @dirpath
 
-   .. insertprodn dirpath dirpath
+   .. insertprodn dirpath directory
 
    .. prodn::
-      dirpath ::= @ident {* @field_ident }
-
+      dirpath ::= {* @directory . } @ident
+      directory ::= @ident
 
    This command is equivalent to the command line option
-   :n:`-Q @string @dirpath`. It adds the physical directory string to the current
-   |Coq| loadpath and maps it to the logical directory dirpath.
+   :n:`-Q @string @dirpath`. It adds the physical directory :n:`@string` to the current
+   |Coq| loadpath and maps it to the logical directory :n:`@dirpath`.
 
+   * :n:`@dirpath` represents a filesystem path.  On Linux, for example `A.B.C` maps to
+     :n:`@string/B/C`.  Avoid using spaces after a `.` in the path because the parser will
+     interpret that as the end of a command or tactic.
+
+   .. todo: Windows paths?
 
 .. cmd:: Add Rec LoadPath @string as @dirpath
 

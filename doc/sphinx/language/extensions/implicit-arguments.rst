@@ -277,10 +277,10 @@ Declaring Implicit Arguments
       argument_spec_block ::= @argument_spec
       | /
       | &
-      | ( {+ @argument_spec } ) {? @scope }
-      | [ {+ @argument_spec } ] {? @scope }
-      | %{ {+ @argument_spec } %} {? @scope }
-      argument_spec ::= {? ! } @name {? @scope }
+      | ( {+ @argument_spec } ) {? % @scope }
+      | [ {+ @argument_spec } ] {? % @scope }
+      | %{ {+ @argument_spec } %} {? % @scope }
+      argument_spec ::= {? ! } @name {? % @scope }
       more_implicits_block ::= @name
       | [ {+ @name } ]
       | %{ {+ @name } %}

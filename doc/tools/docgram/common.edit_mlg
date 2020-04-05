@@ -149,16 +149,13 @@ qualid: [
 field: [ | DELETENT ]
 fields: [ | DELETENT ]
 
-(*
-module: [
+directory: [
 | ident
 ]
-*)
 
 dirpath: [
 | REPLACE ident LIST0 field
-| WITH ident LIST0 field_ident
-(* | WITH LIST0 ( module "." ) ident *)
+| WITH LIST0 ( directory "." ) ident
 ]
 
 binders: [
@@ -546,13 +543,10 @@ gallina_ext: [
 | REPLACE "Instance" instance_name ":" operconstr200 hint_info [ ":=" "{" record_declaration "}" | ":=" lconstr | ]
 | WITH "Instance" instance_name ":" operconstr200 hint_info OPT [ ":=" "{" record_declaration "}" | ":=" lconstr ]
 
-| PRINT
 | REPLACE "Require" export_token LIST1 global
 | WITH "Require" export_token LIST1 dirpath
-(*| REPLACE "From" global "Require" export_token LIST1 global
-| WITH "From" global "Require" export_token LIST1 dirpath
-*)
-
+| REPLACE "From" global "Require" export_token LIST1 global
+| WITH "From" dirpath "Require" export_token LIST1 dirpath
 ]
 
 export_token: [
@@ -1174,10 +1168,6 @@ vernac_toplevel: [
 | DELETE vernac_control
 ]
 
-positive_search_mark: [
-| OPTINREF
-]
-
 in_or_out_modules: [
 | OPTINREF
 ]
@@ -1385,11 +1375,31 @@ ne_in_or_out_modules: [
 | DELETE "outside" LIST1 global
 ]
 
+searchabout_query: [
+| REPLACE positive_search_mark ne_string OPT scope_delimiter
+| WITH ne_string OPT scope_delimiter
+| REPLACE positive_search_mark constr_pattern
+| WITH constr_pattern
+]
+
 searchabout_queries: [
 | DELETE ne_in_or_out_modules
 | REPLACE searchabout_query searchabout_queries
-| WITH LIST1 searchabout_query OPT ne_in_or_out_modules
+| WITH LIST1 ( positive_search_mark searchabout_query ) OPT ne_in_or_out_modules
 | DELETE (* empty *)
+]
+
+positive_search_mark: [
+| OPTINREF
+]
+
+scope: [
+| IDENT
+]
+
+scope_delimiter: [
+| REPLACE "%" IDENT
+| WITH "%" scope
 ]
 
 SPLICE: [
@@ -1559,6 +1569,7 @@ SPLICE: [
 | ne_in_or_out_modules
 | searchabout_queries
 | locatable
+| scope_delimiter
 ] (* end SPLICE *)
 
 RENAME: [
@@ -1610,7 +1621,6 @@ RENAME: [
 | smart_global smart_qualid
 | searchabout_query search_item
 | option_table setting_name
-| scope_delimiter scope
 ]
 
 (* todo: positive_search_mark is a lousy name for OPT "-" *)

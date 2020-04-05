@@ -608,13 +608,13 @@ argument_spec_block: [
 | argument_spec
 | "/"
 | "&"
-| "(" LIST1 argument_spec ")" OPT scope
-| "[" LIST1 argument_spec "]" OPT scope
-| "{" LIST1 argument_spec "}" OPT scope
+| "(" LIST1 argument_spec ")" OPT ( "%" scope )
+| "[" LIST1 argument_spec "]" OPT ( "%" scope )
+| "{" LIST1 argument_spec "}" OPT ( "%" scope )
 ]
 
 argument_spec: [
-| OPT "!" name OPT scope
+| OPT "!" name OPT ( "%" scope )
 ]
 
 more_implicits_block: [
@@ -638,7 +638,7 @@ arguments_modifier: [
 ]
 
 scope: [
-| "%" ident
+| ident
 ]
 
 strategy_level: [
@@ -882,7 +882,7 @@ command: [
 | "End" ident
 | "Collection" ident ":=" section_subset_expr
 | "Require" OPT [ "Import" | "Export" ] LIST1 dirpath
-| "From" qualid "Require" OPT [ "Import" | "Export" ] LIST1 qualid
+| "From" dirpath "Require" OPT [ "Import" | "Export" ] LIST1 dirpath
 | "Import" LIST1 qualid
 | "Export" LIST1 qualid
 | "Include" module_type_inl LIST0 ( "<+" module_expr_inl )
@@ -924,7 +924,7 @@ command: [
 | "SearchHead" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
 | "SearchPattern" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
 | "SearchRewrite" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
-| "Search" LIST1 search_item OPT ( [ "inside" | "outside" ] LIST1 qualid )
+| "Search" LIST1 ( OPT "-" search_item ) OPT ( [ "inside" | "outside" ] LIST1 qualid )
 | "Time" command
 | "Redirect" string command
 | "Timeout" num command
@@ -967,7 +967,11 @@ starredidentref: [
 ]
 
 dirpath: [
-| ident LIST0 field_ident
+| LIST0 ( directory "." ) ident
+]
+
+directory: [
+| ident
 ]
 
 bignat: [
@@ -985,8 +989,8 @@ comment: [
 ]
 
 search_item: [
-| OPT "-" string OPT scope
-| OPT "-" one_term
+| one_term
+| string OPT ( "%" scope )
 ]
 
 univ_name_list: [
