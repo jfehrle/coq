@@ -178,7 +178,7 @@ to accessible objects.  (see Section :ref:`invocation-of-tactics`).
 .. cmd:: About @smart_qualid {? @univ_name_list }
 
    Displays information about the :n:`@smart_qualid` object, which,
-   if a proof is open,  may be a hypothesis of the selected goal(s),
+   if a proof is open,  may be a hypothesis of the selected goal,
    or an accessible theorem, axiom, etc.:
    its kind (module, constant, assumption, inductive,
    constructor, abbreviation, …), long name, type, implicit arguments and
@@ -187,14 +187,13 @@ to accessible objects.  (see Section :ref:`invocation-of-tactics`).
 .. cmd:: Check @term
 
    Displays the type of :n:`@term`. When called in proof mode, the
-   term is checked in the local context of the selected goal(s).
+   term is checked in the local context of the selected goal.
 
 .. cmd:: Eval @red_expr in @term
 
-   Performs the specified reduction on :n:`@term`, and displays
-   the resulting term with its type. The term to be reduced may depend on
-   hypotheses introduced in the selected goals (if a proof is in
-   progress).
+   Performs the specified reduction on :n:`@term` and displays
+   the resulting term with its type. If a proof is open, :n:`@term`
+   may reference hypotheses of the selected goal.
 
    .. seealso:: Section :ref:`performingcomputations`.
 
@@ -202,9 +201,7 @@ to accessible objects.  (see Section :ref:`invocation-of-tactics`).
 .. cmd:: Compute @term
 
    Evaluates :n:`@term` using the bytecode-based virtual machine.
-   If a proof is open, :n:`@term` may reference hypotheses of the
-   selected goal.  It is a shortcut for :cmd:`Eval` :n:`vm_compute in
-   @term`.
+   It is a shortcut for :cmd:`Eval` :n:`vm_compute in @term`.
 
    .. seealso:: Section :ref:`performingcomputations`.
 
@@ -219,7 +216,8 @@ Requests to the environment
    Displays all the assumptions (axioms, parameters and
    variables) a theorem or definition depends on.
 
-   .. exn:: Closed under the global context
+   The message "Closed under the global context" indicates that the theorem or
+   definition has no dependencies.
 
       The theorem or definition doesn't depend on any assumptions.
 
@@ -273,7 +271,7 @@ Requests to the environment
    * :n:`inside {+ @qualid }` - limit the search to the specified modules
    * :n:`outside {+ @qualid }` - exclude the specified modules from the search
 
-   .. exn:: The reference @qualid was not found in the current environment.
+   .. exn:: Module/section @qualid not found.
 
       There is no constant in the environment named :n:`@qualid`, where :n:`@qualid`
       is in an `inside` or `outside` clause.
@@ -295,7 +293,7 @@ Requests to the environment
 
    Displays the name and type of all hypotheses of the
    selected goal (if any) and theorems of the current context that have the
-   form :n:`{* P__i -> } (@one_term t__1 ... t__m)`.
+   form :n:`{? forall {* @binder }, } {* P__i -> } C` where :n:`@one_term` matches `C`.
    It's useful for finding the names of library lemmas.
 
    See :cmd:`Search` for an explanation of the syntax.
@@ -311,7 +309,7 @@ Requests to the environment
 
    Displays the name and type of all hypotheses of the
    selected goal (if any) and theorems of the current context
-   ending with :n:`{* P__i -> } C` that match the pattern
+   ending with :n:`{? forall {* @binder }, } {* P__i -> } C` that match the pattern
    :n:`@one_term`.
 
    See :cmd:`Search` for an explanation of the syntax.
@@ -339,9 +337,6 @@ Requests to the environment
    conclusion is an equality for which one side matches the
    expression :n:`@one_term`.
 
-   For a statement in the form :n:`{* P__i -> } C`, the :n:`P__n` are the *premises*
-   and :n:`C` is the *conclusion*.
-
    See :cmd:`Search` for an explanation of the syntax.
 
    .. example:: :cmd:`SearchRewrite` examples
@@ -368,12 +363,16 @@ Requests to the environment
 
 .. cmd:: Locate @smart_qualid
 
-   Displays the full name of objects that end with :n:`@smart_qualid`,
-   thereby showing the module they are defined in.
-   :cmd:`Locate` searches for objects from |Coq|'s various
-   qualified namespaces such as terms, modules and Ltac.
+   Displays the full name of objects from |Coq|'s various qualified namespaces such as terms,
+   modules and Ltac.  It also displays notation definitions.
 
-   .. seealso:: Section :ref:`locating-notations`
+   If the argument is:
+
+   * :n:`@qualid` - displays the full name of objects that
+     end with :n:`@qualid`, thereby showing the module they are defined in.
+   * :n:`@string {? "%" @ident }` - displays the definition of a notation.  :n:`@string`
+     can be a single token in the notation such as "`->`" or a pattern that matches the
+     notation.  See :ref:`locating-notations`.
 
    .. todo somewhere we should list all the qualified namespaces
 
@@ -398,7 +397,7 @@ Requests to the environment
    Displays the file system path of the file ending with :n:`@string`.
    Typically, :n:`@string` has a suffix such as ``.cmo`` or ``.vo`` or ``.v`` file, such as :n:`Nat.v`.
 
-      .. todo: also works for directory names such as "Data" (parent in dirpath of Nat.v)
+      .. todo: also works for directory names such as "Data" (parent of Nat.v)
          also "Data/Nat.v" works, but not a substring match
 
 .. example:: Locate examples
@@ -442,7 +441,7 @@ toplevel. This kind of file is called a *script* for |Coq|. The standard
 .. cmd:: Load {? Verbose } {| @string | @ident }
 
    Loads a file.  If :n:`@ident` is specified, the command loads a file
-   named :n:`@ident`.v, searching successively in
+   named :n:`@ident.v`, searching successively in
    each of the directories specified in the *loadpath*. (see Section
    :ref:`libraries-and-filesystem`)
 
@@ -480,14 +479,13 @@ Chapter :ref:`thecoqcommands` for documentation on how to compile a file). A com
 file is a particular case of a module called a *library file*.
 
 
-.. cmd:: Require {? {| Import | Export } } {+ @dirpath }
+.. cmd:: Require {? {| Import | Export } } {+ @qualid }
    :name: Require; Require Import; Require Export
 
-   Loads compiled modules into the |Coq| environment.  The command
-   searches the loadpath for the modules designated by the :n:`@dirpath`\s.  Each :n:`@dirpath`
-   has the form :n:`{* @directory .}@ident`.  The command maps the prefix :n:`{* @directory .}` to a physical
-   directory (see Section :ref:`libraries-and-filesystem`) and loads the compiled
-   file :n:`@ident.vo` from that directory.  (Compiling :n:`@ident.v` generates :n:`@ident.vo`.)
+   Loads compiled modules into the |Coq| environment.  For each :n:`@qualid`, which has the form
+   :n:`{* @ident__module . } @ident`, the command searches for the logical name represented
+   by the :n:`ident__module`\s and loads the compiled file :n:`@ident.vo` from the associated
+   filesystem directory.
 
    The process is applied recursively to all the loaded files;
    if they contain :cmd:`Require` commands, those commands are executed as well.
@@ -503,8 +501,7 @@ file is a particular case of a module called a *library file*.
    If the required module has already been loaded, :n:`Import` and :n:`Export` make the command
    equivalent to :cmd:`Import` or :cmd:`Export`.
 
-   The mapping between physical directories and logical names at the time of
-   requiring the file must contain the same mapping used to compile the file
+   The loadpath must contain the same mapping used to compile the file
    (see Section :ref:`libraries-and-filesystem`). If
    several files match, one of them is picked in an unspecified fashion.
    Therefore, library authors should use a unique name for each module and
@@ -514,12 +511,12 @@ file is a particular case of a module called a *library file*.
 
    .. todo common user error on dirpaths see https://github.com/coq/coq/pull/11961#discussion_r402852390
 
-.. cmd:: From @dirpath Require {? {| Import | Export } } {+ @dirpath }
+.. cmd:: From @dirpath Require {? {| Import | Export } } {+ @qualid }
    :name: From ... Require
 
-   Works like :cmd:`Require`, but loads, for each :n:`@dirpath`,
-   the library whose fully-qualified name matches :n:`@dirpath__From.{* @directory . }@dirpath`
-   for some :n:`{* @directory . }`. This is useful to ensure that the :n:`@dirpath` library
+   Works like :cmd:`Require`, but loads, for each :n:`@qualid`,
+   the library whose fully-qualified name matches :n:`@dirpath.{* @ident . }@qualid`
+   for some :n:`{* @ident . }`. This is useful to ensure that the :n:`@qualid` library
    comes from a particular package.
 
    .. exn:: Cannot load @qualid: no physical path bound to @dirpath.
@@ -548,7 +545,7 @@ file is a particular case of a module called a *library file*.
    .. exn:: The file @ident.vo contains library @dirpath and not library @dirpath.
 
       The library file :n:`@dirpath’` is indirectly required by the
-      ``Require`` command but it is bound in the current loadpath to the
+      :cmd:`Require` command but it is bound in the current loadpath to the
       file :n:`@ident.vo` which was bound to a different library name :token:`dirpath` at
       the time it was compiled.
 
@@ -592,7 +589,7 @@ file is a particular case of a module called a *library file*.
 
    This prints the name of all OCaml modules loaded with :cmd:`Declare ML Module`.
    To know from where these module were loaded, the user
-   should use the command :cmd:`Locate` ``File``.
+   should use the command :cmd:`Locate File`.
 
 
 .. _loadpath:
@@ -619,21 +616,19 @@ the toplevel, and using them in source files is discouraged.
 
 .. cmd:: Add LoadPath @string as @dirpath
 
-   .. insertprodn dirpath directory
+   .. insertprodn dirpath dirpath
 
    .. prodn::
-      dirpath ::= {* @directory . } @ident
-      directory ::= @ident
+      dirpath ::= {* @ident . } @ident
 
    This command is equivalent to the command line option
-   :n:`-Q @string @dirpath`. It adds the physical directory :n:`@string` to the current
-   |Coq| loadpath and maps it to the logical directory :n:`@dirpath`.
+   :n:`-Q @string @dirpath`. It adds a mapping to the loadpath from
+   the logical name :n:`@dirpath` to the file system directory :n:`@string`.
 
-   * :n:`@dirpath` represents a filesystem path.  On Linux, for example `A.B.C` maps to
-     :n:`@string/B/C`.  Avoid using spaces after a `.` in the path because the parser will
-     interpret that as the end of a command or tactic.
-
-   .. todo: Windows paths?
+   * :n:`@dirpath` is a prefix of a module name.  The module name hierarchy
+     follows the file system hierarchy.  On Linux, for example, the prefix
+     `A.B.C` maps to the directory :n:`@string/B/C`.  Avoid using spaces after a `.` in the
+     path because the parser will interpret that as the end of a command or tactic.
 
 .. cmd:: Add Rec LoadPath @string as @dirpath
 
@@ -766,19 +761,19 @@ Quitting and debugging
 
 .. TODO : command is not a syntax entry
 
-.. cmd:: Time @command
+.. cmd:: Time @vernacular
 
    This command executes the vernacular command :n:`@command` and displays the
    time needed to execute it.
 
 
-.. cmd:: Redirect @string @command
+.. cmd:: Redirect @string @vernacular
 
    This command executes the vernacular command :n:`@command`, redirecting its
    output to ":n:`@string`.out".
 
 
-.. cmd:: Timeout @num @command
+.. cmd:: Timeout @num @vernacular
 
    This command executes the vernacular command :n:`@command`. If the command
    has not terminated after the time specified by the :n:`@num` (time
@@ -793,7 +788,7 @@ Quitting and debugging
       :cmd:`Timeout` are unaffected.
 
 
-.. cmd:: Fail @command
+.. cmd:: Fail @vernacular
 
    For debugging scripts, sometimes it is desirable to know whether a
    command or a tactic fails. If the given :n:`@command` fails, then
@@ -808,8 +803,8 @@ Quitting and debugging
       fails with this error message.
 
 .. note:: For :cmd:`Time`, :cmd:`Redirect`, :cmd:`Timeout` and :cmd:`Fail`,
-   the goal selector and any attributes that apply to the :n:`@command` must
-   appear after the outer command name (e.g. after `Time`.
+   the goal selector and any attributes that apply to the :n:`@vernacular` must
+   appear after the outer command name (e.g. after `Time`).
 
 .. _controlling-display:
 

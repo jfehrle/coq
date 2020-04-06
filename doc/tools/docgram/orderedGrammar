@@ -881,8 +881,8 @@ command: [
 | "Section" ident
 | "End" ident
 | "Collection" ident ":=" section_subset_expr
-| "Require" OPT [ "Import" | "Export" ] LIST1 dirpath
-| "From" dirpath "Require" OPT [ "Import" | "Export" ] LIST1 dirpath
+| "Require" OPT [ "Import" | "Export" ] LIST1 qualid
+| "From" dirpath "Require" OPT [ "Import" | "Export" ] LIST1 qualid
 | "Import" LIST1 qualid
 | "Export" LIST1 qualid
 | "Include" module_type_inl LIST0 ( "<+" module_expr_inl )
@@ -925,10 +925,10 @@ command: [
 | "SearchPattern" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
 | "SearchRewrite" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
 | "Search" LIST1 ( OPT "-" search_item ) OPT ( [ "inside" | "outside" ] LIST1 qualid )
-| "Time" command
-| "Redirect" string command
-| "Timeout" num command
-| "Fail" command
+| "Time" vernacular
+| "Redirect" string vernacular
+| "Timeout" num vernacular
+| "Fail" vernacular
 | "Drop"
 | "Quit"
 | "BackTo" num
@@ -967,11 +967,7 @@ starredidentref: [
 ]
 
 dirpath: [
-| LIST0 ( directory "." ) ident
-]
-
-directory: [
-| ident
+| LIST0 ( ident "." ) ident
 ]
 
 bignat: [

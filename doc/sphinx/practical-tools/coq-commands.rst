@@ -52,7 +52,6 @@ vernacular file named *file*.v, and tries to compile it into a
    It should contain only letters, digits or underscores (_). For example ``/bar/foo/toto.v`` is valid,
    but ``/bar/foo/to-to.v`` is not.
 
-??
 
 Customization at launch time
 ---------------------------------

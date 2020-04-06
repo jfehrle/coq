@@ -149,13 +149,9 @@ qualid: [
 field: [ | DELETENT ]
 fields: [ | DELETENT ]
 
-directory: [
-| ident
-]
-
 dirpath: [
 | REPLACE ident LIST0 field
-| WITH LIST0 ( directory "." ) ident
+| WITH LIST0 ( ident "." ) ident
 ]
 
 binders: [
@@ -543,10 +539,8 @@ gallina_ext: [
 | REPLACE "Instance" instance_name ":" operconstr200 hint_info [ ":=" "{" record_declaration "}" | ":=" lconstr | ]
 | WITH "Instance" instance_name ":" operconstr200 hint_info OPT [ ":=" "{" record_declaration "}" | ":=" lconstr ]
 
-| REPLACE "Require" export_token LIST1 global
-| WITH "Require" export_token LIST1 dirpath
 | REPLACE "From" global "Require" export_token LIST1 global
-| WITH "From" dirpath "Require" export_token LIST1 dirpath
+| WITH "From" dirpath "Require" export_token LIST1 global
 ]
 
 export_token: [
@@ -1177,13 +1171,13 @@ vernac_control: [
    they can't refer to the vernac_toplevel commands.
    cover this the descriptions of these commands *)
 | REPLACE "Time" vernac_control
-| WITH "Time" command
+| WITH "Time" vernacular
 | REPLACE "Redirect" ne_string vernac_control
-| WITH "Redirect" ne_string command
+| WITH "Redirect" ne_string vernacular
 | REPLACE "Timeout" natural vernac_control
-| WITH "Timeout" natural command
+| WITH "Timeout" natural vernacular
 | REPLACE "Fail" vernac_control
-| WITH "Fail" command
+| WITH "Fail" vernacular
 | DELETE decorated_vernac
 ]
 
