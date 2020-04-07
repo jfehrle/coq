@@ -161,7 +161,7 @@ is described in Chapter :ref:`syntaxextensionsandinterpretationscopes`.
    one_term ::= @term1
    | @ @qualid {? @univ_annot }
    term1 ::= @term_projection
-   | @term0 % @ident
+   | @term0 % @scope
    | @term0
    term0 ::= @qualid {? @univ_annot }
    | @sort
@@ -458,7 +458,7 @@ Definition by cases: match
    pattern10 ::= @pattern1 as @name
    | @pattern1 {* @pattern1 }
    | @ @qualid {* @pattern1 }
-   pattern1 ::= @pattern0 % @ident
+   pattern1 ::= @pattern0 % @scope
    | @pattern0
    pattern0 ::= @qualid
    | %{%| {* @qualid := @pattern } %|%}
@@ -636,13 +636,18 @@ co-recursion. It is the local counterpart of the :cmd:`CoFixpoint` command. When
 The Vernacular
 ==============
 
-.. insertprodn vernacular vernacular
+.. insertprodn vernacular sentence
 
 .. prodn::
-   vernacular ::= {* {? @all_attrs } {| @command | @ltac_expr } . }
+   vernacular ::= {* @sentence }
+   sentence ::= {? @all_attrs } @command .
+   | {? @all_attrs } {? @num : } @query_command .
+   | {? @all_attrs } {? @toplevel_selector } @ltac_expr {| . | ... }
+   | @control_command
 
-The top-level input to |Coq| is a series of :production:`command`\s and :production:`tactic`\s,
-each terminated with a period
+The top-level input to |Coq| is a series of :n:`@sentence`\s,
+which are :production:`tactic`\s or :production:`command`\s,
+generally terminated with a period
 and optionally decorated with :ref:`gallina-attributes`.  :n:`@ltac_expr` syntax supports both simple
 and compound tactics.  For example: ``split`` is a simple tactic while ``split; auto`` combines two
 simple tactics.

@@ -47,7 +47,7 @@ one_term: [
 
 term1: [
 | term_projection
-| term0 "%" ident
+| term0 "%" scope
 | term0
 ]
 
@@ -159,7 +159,20 @@ where: [
 ]
 
 vernacular: [
-| LIST0 ( OPT all_attrs [ command | ltac_expr ] "." )
+| LIST0 sentence
+]
+
+sentence: [
+| OPT all_attrs command "."
+| OPT all_attrs OPT ( num ":" ) query_command "."
+| OPT all_attrs OPT toplevel_selector ltac_expr [ "." | "..." ]
+| control_command
+]
+
+control_command: [
+]
+
+query_command: [
 ]
 
 tacticals: [
@@ -330,7 +343,7 @@ pattern10: [
 ]
 
 pattern1: [
-| pattern0 "%" ident
+| pattern0 "%" scope
 | pattern0
 ]
 
@@ -601,7 +614,7 @@ smart_qualid: [
 ]
 
 by_notation: [
-| string OPT [ "%" ident ]
+| string OPT [ "%" scope ]
 ]
 
 argument_spec_block: [
@@ -925,10 +938,10 @@ command: [
 | "SearchPattern" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
 | "SearchRewrite" one_term OPT ( [ "inside" | "outside" ] LIST1 qualid )
 | "Search" LIST1 ( OPT "-" search_item ) OPT ( [ "inside" | "outside" ] LIST1 qualid )
-| "Time" vernacular
-| "Redirect" string vernacular
-| "Timeout" num vernacular
-| "Fail" vernacular
+| "Time" sentence
+| "Redirect" string sentence
+| "Timeout" num sentence
+| "Fail" sentence
 | "Drop"
 | "Quit"
 | "BackTo" num

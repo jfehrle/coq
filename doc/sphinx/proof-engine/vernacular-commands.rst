@@ -169,8 +169,8 @@ Newly opened modules and sections inherit the current settings.
 Query commands
 --------------
 
-Unlike other commands, query commands may be prefixed with
-a goal selector (:n:`@num:`) to specify which goal context, it applies to.
+Unlike other commands, :production:`query_command`\s may be prefixed with
+a goal selector (:n:`@num:`) to specify which goal context it applies to.
 If no selector is provided,
 the command applies to the current goal.  If no proof is open, then the command only applies
 to accessible objects.  (see Section :ref:`invocation-of-tactics`).
@@ -761,19 +761,19 @@ Quitting and debugging
 
 .. TODO : command is not a syntax entry
 
-.. cmd:: Time @vernacular
+.. cmd:: Time @sentence
 
    This command executes the vernacular command :n:`@command` and displays the
    time needed to execute it.
 
 
-.. cmd:: Redirect @string @vernacular
+.. cmd:: Redirect @string @sentence
 
    This command executes the vernacular command :n:`@command`, redirecting its
    output to ":n:`@string`.out".
 
 
-.. cmd:: Timeout @num @vernacular
+.. cmd:: Timeout @num @sentence
 
    This command executes the vernacular command :n:`@command`. If the command
    has not terminated after the time specified by the :n:`@num` (time
@@ -788,7 +788,7 @@ Quitting and debugging
       :cmd:`Timeout` are unaffected.
 
 
-.. cmd:: Fail @vernacular
+.. cmd:: Fail @sentence
 
    For debugging scripts, sometimes it is desirable to know whether a
    command or a tactic fails. If the given :n:`@command` fails, then
@@ -802,9 +802,10 @@ Quitting and debugging
       If the given :n:`@command` succeeds, then :n:`Fail @command`
       fails with this error message.
 
-.. note:: For :cmd:`Time`, :cmd:`Redirect`, :cmd:`Timeout` and :cmd:`Fail`,
-   the goal selector and any attributes that apply to the :n:`@vernacular` must
-   appear after the outer command name (e.g. after `Time`).
+.. note:: :cmd:`Time`, :cmd:`Redirect`, :cmd:`Timeout` and :cmd:`Fail` are
+   :production:`control_command`\s; for these commands, goal selectors and
+   attributes must be placed after the command name and before the inner
+   :n:`@sentence``.  For example, `Time :1 auto.` or `Time Timeout 10 :1 auto.`.
 
 .. _controlling-display:
 

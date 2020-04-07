@@ -273,7 +273,7 @@ Declaring Implicit Arguments
    .. prodn::
       smart_qualid ::= @qualid
       | @by_notation
-      by_notation ::= @string {? % @ident }
+      by_notation ::= @string {? % @scope }
       argument_spec_block ::= @argument_spec
       | /
       | &

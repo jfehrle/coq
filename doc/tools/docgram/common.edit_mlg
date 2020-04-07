@@ -219,6 +219,15 @@ tactic_expr0: [
 | WITH "[>" tactic_then_gen "]"
 ]
 
+(* lexer token *)
+IDENT: [
+| ident
+]
+
+scope: [
+| IDENT
+]
+
 operconstr100: [
 | MOVETO term_cast operconstr99 "<:" operconstr200
 | MOVETO term_cast operconstr99 "<<:" operconstr200
@@ -239,7 +248,9 @@ operconstr9: [
 
 operconstr1: [
 | REPLACE operconstr0 ".(" global LIST0 appl_arg ")"
-| WITH operconstr0 ".(" global LIST0 appl_arg ")"
+| WITH    operconstr0 ".(" global LIST0 appl_arg ")" (* huh? *)
+| REPLACE operconstr0 "%" IDENT
+| WITH operconstr0 "%" scope
 | MOVETO term_projection operconstr0 ".(" global LIST0 appl_arg ")"
 | MOVETO term_projection operconstr0 ".(" "@" global LIST0 ( operconstr9 ) ")"
 ]
@@ -361,6 +372,11 @@ pattern10: [
 | REPLACE pattern1 LIST1 pattern1
 | WITH pattern1 LIST0 pattern1
 | DELETE pattern1
+]
+
+pattern1: [
+| REPLACE pattern0 "%" IDENT
+| WITH pattern0 "%" scope
 ]
 
 pattern0: [
@@ -548,10 +564,6 @@ export_token: [
 ]
 
 (* lexer stuff *)
-IDENT: [
-| ident
-]
-
 integer: [ | DELETENT ]
 RENAME: [
 | integer int (* todo: review uses in .mlg files, some should be "natural" *)
@@ -1082,9 +1094,7 @@ legacy_attr: [
 | DELETE "NonCumulative"
 ]
 
-vernacular: [
-| LIST0 ( OPT all_attrs [ command | tactic ] "." )
-]
+sentence: [ ]  (* productions defined below *)
 
 rec_definition: [
 | REPLACE ident_decl binders_fixannot type_cstr OPT [ ":=" lconstr ] decl_notations
@@ -1171,13 +1181,13 @@ vernac_control: [
    they can't refer to the vernac_toplevel commands.
    cover this the descriptions of these commands *)
 | REPLACE "Time" vernac_control
-| WITH "Time" vernacular
+| WITH "Time" sentence
 | REPLACE "Redirect" ne_string vernac_control
-| WITH "Redirect" ne_string vernacular
+| WITH "Redirect" ne_string sentence
 | REPLACE "Timeout" natural vernac_control
-| WITH "Timeout" natural vernacular
+| WITH "Timeout" natural sentence
 | REPLACE "Fail" vernac_control
-| WITH "Fail" vernacular
+| WITH "Fail" sentence
 | DELETE decorated_vernac
 ]
 
@@ -1387,8 +1397,9 @@ positive_search_mark: [
 | OPTINREF
 ]
 
-scope: [
-| IDENT
+by_notation: [
+| REPLACE ne_string OPT [ "%" IDENT ]
+| WITH ne_string OPT [ "%" scope ]
 ]
 
 scope_delimiter: [
@@ -1706,3 +1717,18 @@ SPLICE: [
 | tactic_notation_tactics
 ]
 (* todo: ssrreflect*.rst ref to fix_body is incorrect *)
+
+(* not included in insertprodn; defined in rst with :production: *)
+control_command: [ ]
+query_command: [ ] (* re-add since previously spliced *)
+
+sentence: [
+| OPT all_attrs command "."
+| OPT all_attrs OPT ( num ":" ) query_command "."
+| OPT all_attrs OPT toplevel_selector ltac_expr [ "." | "..." ]
+| control_command
+]
+
+vernacular: [
+| LIST0 sentence
+]
