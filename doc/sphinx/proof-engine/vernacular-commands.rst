@@ -685,16 +685,14 @@ interactively, they cannot be part of a vernacular file loaded via
 
 .. cmd:: Back {? @num }
 
-   This command undoes all the effects of the last :n:`@num` :n:`@sentence`\s.  If
+   Undoes all the effects of the last :n:`@num` :n:`@sentence`\s.  If
    :n:`@num` is not specified, the command undoes one sentence.
    Sentences read from a `.v` file via a :cmd:`Load` are considered a
-   single sentence. This command also handles proof management commands
-   (see Chapter :ref:`proofhandling`). For that, Back may have to undo more than
-   one sentence in order to reach a state where the proof management
-   information is available. For instance, when the last sentence is a
-   :cmd:`Qed`, the management information about the closed proof has been
-   discarded. In this case, :cmd:`Back` will then undo all the proof steps up to
-   the statement of this proof.
+   single sentence.  While :cmd:`Back` can undo tactics and commands executed
+   within proof mode, once you exit proof mode, such as with :cmd:`Qed`, all
+   the statements executed within are thereafter considered a single sentence.
+   :cmd:`Back` immediately following :cmd:`Qed` gets you back to the state
+   just after the statement of the proof.
 
 
    :cmd:`Back` will not reopen a closed proof, but instead will go to the state just before that
@@ -776,7 +774,7 @@ Quitting and debugging
       :name: Default Timeout
 
       If set, each :n:`@sentence` is treated as if it was prefixed with :cmd:`Timeout` :n:`@num`,
-      except that it doesn't apply to explicit :cmd:`Timeout` commands.  If unset,
+      except for :cmd:`Timeout` commands themselves.  If unset,
       no timeout is applied.
 
 
@@ -793,11 +791,6 @@ Quitting and debugging
 
       If the given :n:`@command` succeeds, then :n:`Fail @sentence`
       fails with this error message.
-
-.. note:: :cmd:`Time`, :cmd:`Redirect`, :cmd:`Timeout` and :cmd:`Fail` are
-   :production:`control_command`\s; for these commands, goal selectors and
-   attributes must be placed after the command name and before the inner
-   :n:`@sentence``.  For example, `Time :1 auto.` or `Time Timeout 10 :1 auto.`.
 
 .. note::
 
@@ -925,7 +918,7 @@ described first.
    the usual defined constants, whose actual values are of course
    relevant in general.
 
-   .. exn:: The reference @smart_qualid was not found in the current environment.
+   .. exn:: The reference @qualid was not found in the current environment.
 
       There is no constant named :n:`@qualid` in the environment.
 
@@ -995,7 +988,7 @@ described first.
    in :n:`Eval @ident in` or ``eval`` constructs. This command
    accepts the :attr:`local` attribute, which indicates that the reduction
    will be discarded at the end of the
-   file or module. For the moment, the name is not qualified. In
+   file or module. The name is not qualified. In
    particular declaring the same name in several modules or in several
    functor applications will be rejected if these declarations are not
    local. The name :n:`@ident` cannot be used directly as an Ltac tactic, but
@@ -1175,62 +1168,28 @@ Inlining hints for the fast reduction machines
 Registering primitive operations
 ````````````````````````````````
 
-.. cmd:: Primitive @ident {? : @term } := @register_token
+.. cmd:: Primitive @ident {? : @term } := # @ident__prim
 
-   .. insertprodn register_token register_token
+   Declares :n:`@ident` as the primitive type or primitive operator :n:`#@ident__prim` (defined in OCaml).
+   For internal use by implementors of |Coq|'s standard library or standard library
+   replacements.  No space is allowed after the `#`.  Invalid values give a syntax
+   error.
 
-   .. prodn::
-      register_token ::= #int63_type
-      | #float64_type
-      | #int63_head0
-      | #int63_tail0
-      | #int63_add
-      | #int63_sub
-      | #int63_mul
-      | #int63_div
-      | #int63_mod
-      | #int63_lsr
-      | #int63_lsl
-      | #int63_land
-      | #int63_lor
-      | #int63_lxor
-      | #int63_addc
-      | #int63_subc
-      | #int63_addcarryc
-      | #int63_subcarryc
-      | #int63_mulc
-      | #int63_diveucl
-      | #int63_div21
-      | #int63_addmuldiv
-      | #int63_eq
-      | #int63_lt
-      | #int63_le
-      | #int63_compare
-      | #float64_opp
-      | #float64_abs
-      | #float64_eq
-      | #float64_lt
-      | #float64_le
-      | #float64_compare
-      | #float64_classify
-      | #float64_add
-      | #float64_sub
-      | #float64_mul
-      | #float64_div
-      | #float64_sqrt
-      | #float64_of_int63
-      | #float64_normfr_mantissa
-      | #float64_frshiftexp
-      | #float64_ldshiftexp
-      | #float64_next_up
-      | #float64_next_down
+   For example, the standard library files `Int63.v` and `PrimFloat.v` use :cmd:`Primitive`
+   to support, respectively, the features described in :ref:`primitive-integers` and
+   :ref:`primitive-floats`.
 
-   Declares :n:`@ident` as the primitive operator :n:`@register_token`.
-   Note that no space is permitted after the `#`.  When
-   running this command, the type of the primitive should be already known by
+   The type associated with an operator must be declared before declaring operations that
+   use that type.  For example, in `Int63.v`, `#int63_type` must be declared before the
+   associated operations.
+
+   When running this command, the type of the primitive should be already known by
    the kernel (this is achieved through this command for primitive types and
    through the :cmd:`Register` command with the :g:`kernel` name-space for other
    types).
 
-   .. exn:: The type int must be registered before this construction can be typechecked.
+   .. exn:: The type @ident must be registered before this construction can be typechecked.
       :undocumented:
+
+      The referenced type must be defined with :cmd:`Primitive` command before this
+      cmd:`Primitive` command (declaring an operation using the type) will succeed.
