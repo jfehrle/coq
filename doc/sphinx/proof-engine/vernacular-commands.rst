@@ -104,6 +104,14 @@ capital letter.
    This command supports the :attr:`local`, :attr:`global` and :attr:`export` attributes.
    They are described :ref:`here <set_unset_scope_qualifiers>`.
 
+.. cmd:: Add @setting_name {+ {| @qualid | @string } }
+
+   Adds the specified values to the table :n:`@setting_name`.
+
+.. cmd:: Remove @setting_name {+ {| @qualid | @string } }
+
+   Removes the specified value from the table :n:`@setting_name`.
+
 .. cmd:: Test @setting_name {? for {+ {| @qualid | @string } } }
 
    If :n:`@setting_name` is a flag or option, prints its current value.
@@ -114,15 +122,6 @@ capital letter.
 .. cmd:: Print Options
 
    Prints the current value of all flags and options, and the names of all tables.
-
-
-.. cmd:: Add @setting_name {+ {| @qualid | @string } }
-
-   Adds the specified values to the table :n:`@setting_name`.
-
-.. cmd:: Remove @setting_name {+ {| @qualid | @string } }
-
-   Removes the specified value from the table :n:`@setting_name`.
 
 .. cmd:: Print Table @setting_name
 
@@ -219,8 +218,6 @@ Requests to the environment
    The message "Closed under the global context" indicates that the theorem or
    definition has no dependencies.
 
-      The theorem or definition doesn't depend on any assumptions.
-
 .. cmd:: Print Opaque Dependencies @smart_qualid
 
    Displays the assumptions and opaque constants that :n:`@smart_qualid` depends on.
@@ -246,6 +243,7 @@ Requests to the environment
    Displays the name and type of all hypotheses of the
    selected goal (if any) and theorems of the current context
    matching :n:`@search_item`\s.
+   It's useful for finding the names of library lemmas.
 
    * :n:`@one_term` - Search for objects containing a subterm matching the pattern
      :n:`@one_term` in which holes of the pattern are indicated by `_` or :n:`?@ident`.
@@ -255,8 +253,8 @@ Requests to the environment
    * :n:`@string` - If :n:`@string` is a substring of a valid identifier,
      search for objects whose name contains :n:`@string`. If :n:`@string` is a notation
      string associated with a :n:`@qualid`, that's equivalent to :cmd:`Search` :n:`@qualid`.
-     For example, specifying "+" or "_ + _", which are notations for "plus", are equivalent
-     to :cmd:`Search` :n:`plus`.
+     For example, specifying `"+"` or `"_ + _"`, which are notations for `Nat.add`, are equivalent
+     to :cmd:`Search` `Nat.add`.
 
    * :n:`% @scope` - limits the search to the scope bound to
      the delimiting key :n:`@scope`, such as, for example, :n:`%nat`.
@@ -264,7 +262,8 @@ Requests to the environment
      (see Section :ref:`LocalInterpretationRulesForNotations`)
 
    If you specify multiple :n:`@search_item`\s, all the conditions must be satisfied
-   for the object to be displayed.  `{? - }` excludes objects that contain the :n:`@search_item`.
+   for the object to be displayed.  The minus sign `-` excludes objects that contain
+   the :n:`@search_item`.
 
    Additional clauses:
 
@@ -294,9 +293,8 @@ Requests to the environment
    Displays the name and type of all hypotheses of the
    selected goal (if any) and theorems of the current context that have the
    form :n:`{? forall {* @binder }, } {* P__i -> } C` where :n:`@one_term` matches `C`.
-   It's useful for finding the names of library lemmas.
 
-   See :cmd:`Search` for an explanation of the syntax.
+   See :cmd:`Search` for an explanation of the `inside`/`outside` clauses.
 
    .. example:: :cmd:`SearchHead` examples
 
@@ -312,7 +310,7 @@ Requests to the environment
    ending with :n:`{? forall {* @binder }, } {* P__i -> } C` that match the pattern
    :n:`@one_term`.
 
-   See :cmd:`Search` for an explanation of the syntax.
+   See :cmd:`Search` for an explanation of the `inside`/`outside` clauses.
 
    .. example:: :cmd:`SearchPattern` examples
 
@@ -333,11 +331,11 @@ Requests to the environment
 .. cmd:: SearchRewrite @one_term {? {| inside | outside } {+ @qualid } }
 
    Displays the name and type of all hypotheses of the
-   selected goal (if any) and theorems of the current context whose
-   conclusion is an equality for which one side matches the
-   expression :n:`@one_term`.
+   selected goal (if any) and theorems of the current context that have the form
+   :n:`{? forall {* @binder }, } {* P__i -> } LHS = RHS` where :n:`@one_term`
+   matches either `LHS` or `RHS`.
 
-   See :cmd:`Search` for an explanation of the syntax.
+   See :cmd:`Search` for an explanation of the `inside`/`outside` clauses.
 
    .. example:: :cmd:`SearchRewrite` examples
 
@@ -483,8 +481,8 @@ file is a particular case of a module called a *library file*.
    :name: Require; Require Import; Require Export
 
    Loads compiled modules into the |Coq| environment.  For each :n:`@qualid`, which has the form
-   :n:`{* @ident__module . } @ident`, the command searches for the logical name represented
-   by the :n:`ident__module`\s and loads the compiled file :n:`@ident.vo` from the associated
+   :n:`{* @ident__prefix . } @ident`, the command searches for the logical name represented
+   by the :n:`@ident__prefix`\s and loads the compiled file :n:`@ident.vo` from the associated
    filesystem directory.
 
    The process is applied recursively to all the loaded files;
@@ -511,13 +509,13 @@ file is a particular case of a module called a *library file*.
 
    .. todo common user error on dirpaths see https://github.com/coq/coq/pull/11961#discussion_r402852390
 
-.. cmd:: From @dirpath Require {? {| Import | Export } } {+ @qualid }
-   :name: From ... Require
+   .. cmd:: From @dirpath Require {? {| Import | Export } } {+ @qualid }
+      :name: From ... Require
 
-   Works like :cmd:`Require`, but loads, for each :n:`@qualid`,
-   the library whose fully-qualified name matches :n:`@dirpath.{* @ident . }@qualid`
-   for some :n:`{* @ident . }`. This is useful to ensure that the :n:`@qualid` library
-   comes from a particular package.
+      Works like :cmd:`Require`, but loads, for each :n:`@qualid`,
+      the library whose fully-qualified name matches :n:`@dirpath.{* @ident . }@qualid`
+      for some :n:`{* @ident . }`. This is useful to ensure that the :n:`@qualid` library
+      comes from a particular package.
 
    .. exn:: Cannot load @qualid: no physical path bound to @dirpath.
       :undocumented:
@@ -542,13 +540,13 @@ file is a particular case of a module called a *library file*.
       |Coq| compiled module, or it was compiled with an incompatible
       version of |Coq|.
 
-   .. exn:: The file @ident.vo contains library @dirpath and not library @dirpath.
+   .. exn:: The file @ident.vo contains library @qualid__1 and not library @qualid__2.
 
-      The library file :n:`@dirpath’` is indirectly required by the
-      :cmd:`Require` command but it is bound in the current loadpath to the
-      file :n:`@ident.vo` which was bound to a different library name :token:`dirpath` at
-      the time it was compiled.
-
+      The library :n:`@qualid__2` is indirectly required by a :cmd:`Require` or
+      :cmd:`From ... Require` command.  The loadpath maps :n:`@qualid__2` to :n:`@ident.vo`,
+      which was compiled using a loadpath that bound it to :n:`@qualid__1`.  Usually
+      the appropriate solution is to recompile :n:`@ident.v` using the correct loadpath.
+      See :ref:`libraries-and-filesystem`.
 
    .. warn:: Require inside a module is deprecated and strongly discouraged. You can Require a module at toplevel and optionally Import it inside another one.
 
@@ -581,9 +579,6 @@ file is a particular case of a module called a *library file*.
    .. exn:: File not found on loadpath: @string.
       :undocumented:
 
-   .. exn:: Loading of ML object file forbidden in a native Coq.
-      :undocumented:
-
 
 .. cmd:: Print ML Modules
 
@@ -598,7 +593,7 @@ Loadpath
 ------------
 
 Loadpaths are preferably managed using |Coq| command line options (see
-Section `libraries-and-filesystem`) but there remain vernacular commands to manage them
+Section :ref:`libraries-and-filesystem`) but there remain vernacular commands to manage them
 for practical purposes. Such commands are only meant to be issued in
 the toplevel, and using them in source files is discouraged.
 
@@ -651,7 +646,7 @@ the toplevel, and using them in source files is discouraged.
 .. cmd:: Add ML Path @string
 
    This command adds the path :n:`@string` to the current OCaml
-   loadpath (see the command `Declare ML Module`` in Section :ref:`compiled-files`).
+   loadpath (cf. :cmd:`Declare ML Module`).
 
 
 .. cmd:: Print ML Path
@@ -659,7 +654,7 @@ the toplevel, and using them in source files is discouraged.
    This command displays the current OCaml loadpath. This
    command makes sense only under the bytecode version of ``coqtop``, i.e.
    using option ``-byte``
-   (see the command Declare ML Module in Section :ref:`compiled-files`).
+   (cf. :cmd:`Declare ML Module`).
 
 
 .. _backtracking:
@@ -690,17 +685,17 @@ interactively, they cannot be part of a vernacular file loaded via
 
 .. cmd:: Back {? @num }
 
-   This command undoes all the effects of the last vernacular command.
-   Commands read from a vernacular file via a :cmd:`Load` are considered as a
-   single command. Proof management commands are also handled by this
-   command (see Chapter :ref:`proofhandling`). For that, Back may have to undo more than
-   one command in order to reach a state where the proof management
-   information is available. For instance, when the last command is a
+   This command undoes all the effects of the last :n:`@num` :n:`@sentence`\s.  If
+   :n:`@num` is not specified, the command undoes one sentence.
+   Sentences read from a `.v` file via a :cmd:`Load` are considered a
+   single sentence. This command also handles proof management commands
+   (see Chapter :ref:`proofhandling`). For that, Back may have to undo more than
+   one sentence in order to reach a state where the proof management
+   information is available. For instance, when the last sentence is a
    :cmd:`Qed`, the management information about the closed proof has been
    discarded. In this case, :cmd:`Back` will then undo all the proof steps up to
    the statement of this proof.
 
-   If :n:`@num` is specified, the command undoes :n:`@num` vernacular commands.
 
    :cmd:`Back` will not reopen a closed proof, but instead will go to the state just before that
    proof.
@@ -759,53 +754,58 @@ Quitting and debugging
          (see Section `customization-by-environment-variables`).
 
 
-.. TODO : command is not a syntax entry
-
 .. cmd:: Time @sentence
 
-   This command executes the vernacular command :n:`@command` and displays the
+   Executes :n:`@sentence` and displays the
    time needed to execute it.
 
 
 .. cmd:: Redirect @string @sentence
 
-   This command executes the vernacular command :n:`@command`, redirecting its
-   output to ":n:`@string`.out".
+   Executes :n:`@sentence`, redirecting its
+   output to the file ":n:`@string`.out".
 
 
 .. cmd:: Timeout @num @sentence
 
-   This command executes the vernacular command :n:`@command`. If the command
-   has not terminated after the time specified by the :n:`@num` (time
-   expressed in seconds), then it is interrupted and an error message is
+   Executes :n:`@sentence`. If the operation
+   has not terminated after :n:`@num` seconds, then it is interrupted and an error message is
    displayed.
 
    .. opt:: Default Timeout @num
       :name: Default Timeout
 
-      This option controls a default timeout for subsequent commands, as if they
-      were passed to a :cmd:`Timeout` command. Commands already starting by a
-      :cmd:`Timeout` are unaffected.
+      If set, each :n:`@sentence` is treated as if it was prefixed with :cmd:`Timeout` :n:`@num`,
+      except that it doesn't apply to explicit :cmd:`Timeout` commands.  If unset,
+      no timeout is applied.
 
 
 .. cmd:: Fail @sentence
 
    For debugging scripts, sometimes it is desirable to know whether a
-   command or a tactic fails. If the given :n:`@command` fails, then
-   :n:`Fail @command` succeeds (excepts in the case of
-   critical errors, like a "stack overflow"), without changing the
-   proof state, and in interactive mode, the system prints a message
+   command or a tactic fails. If :n:`@sentence` fails, then
+   :n:`Fail @sentence` succeeds (except for
+   critical errors, such as "stack overflow"), without changing the
+   proof state.  In interactive mode, the system prints a message
    confirming the failure.
 
    .. exn:: The command has not failed!
 
-      If the given :n:`@command` succeeds, then :n:`Fail @command`
+      If the given :n:`@command` succeeds, then :n:`Fail @sentence`
       fails with this error message.
 
 .. note:: :cmd:`Time`, :cmd:`Redirect`, :cmd:`Timeout` and :cmd:`Fail` are
    :production:`control_command`\s; for these commands, goal selectors and
    attributes must be placed after the command name and before the inner
    :n:`@sentence``.  For example, `Time :1 auto.` or `Time Timeout 10 :1 auto.`.
+
+.. note::
+
+   :cmd:`Time`, :cmd:`Redirect`, :cmd:`Timeout` and :cmd:`Fail` are
+   :production:`control_command`\s. For these commands, attributes and goal
+   selectors, when specified, are part of the :n:`@sentence` argument, and thus come after
+   the control command prefix and before the inner command or tactic. For
+   example: `Time #[ local ] Definition foo := 0.` or `Fail Timeout 10 all: auto.`
 
 .. _controlling-display:
 
@@ -890,7 +890,7 @@ described first.
 .. cmd:: Opaque {+ @smart_qualid }
 
    This command accepts the :attr:`global` attribute.  By default, the scope
-   of :cmd:`Opaque` is limited to the current section or file.
+   of :cmd:`Opaque` is limited to the current section or module.
 
    This command has an effect on unfoldable constants, i.e. on constants
    defined by :cmd:`Definition` or :cmd:`Let` (with an explicit body), or by a command
@@ -909,16 +909,10 @@ described first.
       Sections :ref:`performingcomputations`, :ref:`tactics-automating`,
       :ref:`proof-editing-mode`
 
-   .. exn:: The reference @qualid was not found in the current environment.
-
-      There is no constant referred by :n:`@qualid` in the environment.
-      Nevertheless, if you asked :cmd:`Opaque` `foo` `bar` and if `bar` does
-      not exist, `foo` is set opaque.
-
 .. cmd:: Transparent {+ @smart_qualid }
 
    This command accepts the :attr:`global` attribute.  By default, the scope
-   of :cmd:`Transparent` is limited to the current section or file.
+   of :cmd:`Transparent` is limited to the current section or module.
 
    This command is the converse of :cmd:`Opaque` and it applies on unfoldable
    constants to restore their unfoldability after an Opaque command.
@@ -933,7 +927,7 @@ described first.
 
    .. exn:: The reference @smart_qualid was not found in the current environment.
 
-      There is no constant :n:`@smart_qualid` defined in the environment.
+      There is no constant named :n:`@qualid` in the environment.
 
       .. seealso::
 
@@ -972,13 +966,13 @@ described first.
       tactics (behaves like +∞, see next item).
     + :n:`@int` : levels indexed by an integer. Level 0 corresponds to the
       default behavior, which corresponds to transparent constants. This
-      level can also be referred to as transparent. Negative levels
+      level can also be referred to as ``transparent``. Negative levels
       correspond to constants to be expanded before normal transparent
       constants, while positive levels correspond to constants to be
       expanded after normal transparent constants.
     + ``expand`` : level of constants that should be expanded first (behaves
       like −∞)
-    + ``transparent`` : TBA
+    + ``transparent`` : Equivalent to level 0
 
 .. cmd:: Print Strategy @smart_qualid
 
@@ -996,11 +990,11 @@ described first.
 
 .. cmd:: Declare Reduction @ident := @red_expr
 
-   This command allows giving a short name to a reduction expression, for
+   Declares a short name for the reduction expression :n:`@red_expr`, for
    instance ``lazy beta delta [foo bar]``. This short name can then be used
-   in :n:`Eval @ident in` or ``eval`` directives. This command
-   accepts the
-   ``Local`` modifier, for discarding this reduction name at the end of the
+   in :n:`Eval @ident in` or ``eval`` constructs. This command
+   accepts the :attr:`local` attribute, which indicates that the reduction
+   will be discarded at the end of the
    file or module. For the moment, the name is not qualified. In
    particular declaring the same name in several modules or in several
    functor applications will be rejected if these declarations are not
@@ -1149,7 +1143,7 @@ in support libraries of plug-ins.
 Exposing constants to OCaml libraries
 ````````````````````````````````````````````````````````````````
 
-.. cmd:: Register @qualid as @qualid
+.. cmd:: Register @qualid__1 as @qualid__2
 
    This command exposes the constant :n:`@qualid__1` to OCaml libraries under
    the name :n:`@qualid__2`.  This constant can then be dynamically located
@@ -1231,8 +1225,12 @@ Registering primitive operations
       | #float64_next_up
       | #float64_next_down
 
-   Declares :n:`@ident__1` as the primitive operator :n:`#@ident__2`. When
+   Declares :n:`@ident` as the primitive operator :n:`@register_token`.
+   Note that no space is permitted after the `#`.  When
    running this command, the type of the primitive should be already known by
    the kernel (this is achieved through this command for primitive types and
    through the :cmd:`Register` command with the :g:`kernel` name-space for other
    types).
+
+   .. exn:: The type int must be registered before this construction can be typechecked.
+      :undocumented:
