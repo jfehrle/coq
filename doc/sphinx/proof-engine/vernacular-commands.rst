@@ -685,7 +685,7 @@ interactively, they cannot be part of a vernacular file loaded via
 
 .. cmd:: Back {? @num }
 
-   Undoes all the effects of the last :n:`@num` :n:`@sentence`\s.  If
+   Undoes all the effects of the last :n:`@num @sentence`\s.  If
    :n:`@num` is not specified, the command undoes one sentence.
    Sentences read from a `.v` file via a :cmd:`Load` are considered a
    single sentence.  While :cmd:`Back` can undo tactics and commands executed
@@ -693,10 +693,6 @@ interactively, they cannot be part of a vernacular file loaded via
    the statements executed within are thereafter considered a single sentence.
    :cmd:`Back` immediately following :cmd:`Qed` gets you back to the state
    just after the statement of the proof.
-
-
-   :cmd:`Back` will not reopen a closed proof, but instead will go to the state just before that
-   proof.
 
    .. exn:: Invalid backtrack.
 
@@ -1134,14 +1130,15 @@ in support libraries of plug-ins.
 .. _exposing-constants-to-ocaml-libraries:
 
 Exposing constants to OCaml libraries
-````````````````````````````````````````````````````````````````
+`````````````````````````````````````
 
 .. cmd:: Register @qualid__1 as @qualid__2
 
-   This command exposes the constant :n:`@qualid__1` to OCaml libraries under
-   the name :n:`@qualid__2`.  This constant can then be dynamically located
-   calling :n:`Coqlib.lib_ref "@qualid__2"`; i.e., there is no need to known
-   where is the constant defined (file, module, library, etc.).
+   Makes the constant :n:`@qualid__1` accessible to OCaml libraries under
+   the name :n:`@qualid__2`.  The constant can then be dynamically located
+   in OCaml code by
+   calling :n:`Coqlib.lib_ref "@qualid__2"`.  The OCaml code doesn't need
+   to know where the constant is defined (what file, module, library, etc.).
 
    As a special case, when the first segment of :n:`@qualid__2` is :g:`kernel`,
    the constant is exposed to the kernel. For instance, the `Int63` module
@@ -1151,26 +1148,26 @@ Exposing constants to OCaml libraries
 
       Register bool as kernel.ind_bool.
 
-   This makes the kernel aware of what is the type of boolean values. This
-   information is used for instance to define the return type of the
-   :g:`#int63_eq` primitive.
+   This makes the kernel aware of the `bool` type, which is used, for example,
+   to define the return type of the :g:`#int63_eq` primitive.
 
    .. seealso:: :ref:`primitive-integers`
 
 Inlining hints for the fast reduction machines
-````````````````````````````````````````````````````````````````
+``````````````````````````````````````````````
 
 .. cmd:: Register Inline @qualid
 
-   This command gives as a hint to the reduction machines (VM and native) that
+   Gives a hint to the reduction machines (VM and native) that
    the body of the constant :n:`@qualid` should be inlined in the generated code.
 
 Registering primitive operations
 ````````````````````````````````
 
-.. cmd:: Primitive @ident {? : @term } := # @ident__prim
+.. cmd:: Primitive @ident {? : @term } := #@ident__prim
 
-   Declares :n:`@ident` as the primitive type or primitive operator :n:`#@ident__prim` (defined in OCaml).
+   Makes the primitive type or primitive operator :n:`#@ident__prim` defined in OCaml
+   accessible in |Coq| commands and tactics.
    For internal use by implementors of |Coq|'s standard library or standard library
    replacements.  No space is allowed after the `#`.  Invalid values give a syntax
    error.
@@ -1179,17 +1176,13 @@ Registering primitive operations
    to support, respectively, the features described in :ref:`primitive-integers` and
    :ref:`primitive-floats`.
 
-   The type associated with an operator must be declared before declaring operations that
-   use that type.  For example, in `Int63.v`, `#int63_type` must be declared before the
-   associated operations.
-
-   When running this command, the type of the primitive should be already known by
-   the kernel (this is achieved through this command for primitive types and
-   through the :cmd:`Register` command with the :g:`kernel` name-space for other
-   types).
+   The types associated with an operator must be declared to the kernel before declaring operations
+   that use the type.  Do this with :cmd:`Primitive` for primitive types and
+   :cmd:`Register` with the :g:`kernel` prefix for other types.  For example,
+   in `Int63.v`, `#int63_type` must be declared before the associated operations.
 
    .. exn:: The type @ident must be registered before this construction can be typechecked.
       :undocumented:
 
-      The referenced type must be defined with :cmd:`Primitive` command before this
-      cmd:`Primitive` command (declaring an operation using the type) will succeed.
+      The type must be defined with :cmd:`Primitive` command before this
+      :cmd:`Primitive` command (declaring an operation using the type) will succeed.
