@@ -4,10 +4,80 @@ Conversion rules
 ----------------
 
 Coq has conversion rules that can be used to determine if two
-terms are equal by definition, or :term:`convertible`.
+terms are equal by definition in |CiC|, or :term:`convertible`.
 Conversion rules consist of reduction rules and expansion rules.
+
+Conversion rules can be used
+to determine if two terms are convertible by
+converting both terms to a normal form, then verifying they are syntactically
+equal (ignoring differences in the names of bound variables by
+:term:`alpha-convertibility <alpha-convertible>`).
+
 See :ref:`applyingconversionrules`,
 which describes tactics that apply these conversion rules.
+
+Conversion rules can be reductions or expansions.
+Reductions convert terms to something that is incrementally closer to its
+normal form.  For example, :term:`zeta-reduction` removes
+:n:`let @ident := @term__1 in @term__2` constructs from a term by replacing
+:n:`@ident` with :n:`@term__1` wherever :n:`@ident` appears in :n:`@term__2`.
+The resulting term may be longer or shorter than the original.
+
+.. coqtop:: all
+
+   Eval cbv zeta in let i := 1 in i + i.
+
+Expansions are reductions applied in the opposite direction,
+for example expanding `2 + 2` to `let i := 2 in i + i`.  While applying
+reductions gives a unique result, the associated
+expansion may not be unique.  For example, `2 + 2` could also be
+expanded to `let i := 2 in i + 2`.  Reductions that have a unique inverse
+expansion are also referred to as *contractions*.
+
+The normal form is defined as the result of applying a particular
+set of conversion rules (beta-, delta-, iota- and zeta-reduction and eta-expansion)
+repeatedly until it's no longer possible to apply any of them.
+
+Some reductions can be considered computations, for example reducing `2*3+4` with
+`cbv beta delta iota` to `10`, which requires applying several reduction rules
+repeatedly.
+
+The useful conversion rules are:
+
+   .. list-table::
+      :header-rows: 1
+
+      * - Conversion name
+        - Description
+
+      * - beta-reduction
+        - eliminates `fun`
+
+      * - delta-reduction
+        - replaces a defined symbol with its definition
+
+      * - cofix-reduction
+        - replace a `cofix` symbol with its definition
+
+      * - fix-reduction
+        - replaces a `fix` symbol with its definition
+
+      * - match-reduction
+        - eliminates `match`
+
+      * - iota-reduction
+        - match-, fix- and cofix-reduction together
+
+      * - zeta-reduction
+        - eliminates `let`
+
+      * - eta-expansion
+        - TBA
+
+:ref:`applyingconversionrules`
+describes tactics that only apply conversion rules.
+(Other tactics may use conversion rules in addition
+to other changes to the proof state.)
 
 α-conversion
 ~~~~~~~~~~~~
@@ -123,7 +193,7 @@ for :math:`x` an arbitrary variable name fresh in :math:`t`.
    .. math::
       λ x:T.~(t~x)~\not\triangleright_η~t
 
-   This is because, in general, the type of :math:`t` need not to be convertible
+   This is because, in general, the type of :math:`t` need not be convertible
    to the type of :math:`λ x:T.~(t~x)`. E.g., if we take :math:`f` such that:
 
    .. math::
