@@ -51,7 +51,7 @@ end
 
 *)
 
-(** Dynamic extension of rules
+(** Dynamic extension of rules  READ THIS
 
     For constr notations, dynamic addition of new rules is done in
     several steps:

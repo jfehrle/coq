@@ -30,10 +30,103 @@ let add_prod_count key n map =
   let count = try ProdMap.find key map with Not_found -> 0 in
   ProdMap.add key (count+n) map
 
+type ptree =
+[ `Token of string
+| `Prod of ptree list
+]
+
+open Loc
+
+let tok_loc : Loc.t option ref = ref None
+let stack : ptree list ref = ref []
+let print = ref false
+let ignore_stuff = ref false
+
+let rec print_item = function
+  | `Token s -> Printf.printf " %s " s
+  | `Prod l ->
+    Printf.printf "[";
+    List.iter (fun i -> print_item i) l;
+    Printf.printf "]"
+
+let print_stack () =
+  List.iter (fun p -> Printf.printf "  "; print_item p; Printf.printf "\n") !stack;
+  Printf.printf "\n"
+
+(* pop and reverse *)
+let popN n =
+  let rec aux n res =
+    match !stack, n with
+    | _, 0 -> res
+    | hd :: tl, _ -> stack := tl; aux (n-1) (hd :: res)
+    | [], _ -> Printf.printf "??\n"; aux (n-1) (`Token "??" :: res)  (* todo: not sure why this occurs*)
+  in
+  aux n []
+
+let check_stack () =
+  let len = List.length !stack in
+  if (len <> 1) then begin
+    Printf.printf "check_stack: stack size is %d\n" len;
+    (match !tok_loc with
+    | Some loc ->
+      Printf.printf "Near (line %i, %i-%i)\n%!" (loc.line_nb) (loc.bp-loc.bol_pos) (loc.ep-loc.bol_pos);
+    | _ -> ());
+    print_stack ();
+  end;
+  (ignore)(popN len)
+
 (* callback for parser actions in GRAMMAR EXTEND *)
-let parser_action file char =
-  if !stats_enabled then
-    prod_cnt_map := add_prod_count { file; char } 1 !prod_cnt_map
+let parser_action file char n =  (*todo: is line num for now*)
+(*  if !print then*)
+(*    Printexc.print_raw_backtrace stdout (Printexc.get_callstack 7); *)
+  if not !ignore_stuff then begin
+    if !print then
+      Printf.printf "Reduce %s %d %d\n" file char n;
+    let pfx = if n = 0 then [] else popN n in
+    stack := `Prod pfx :: !stack;
+    if !print then print_stack ();
+    if !stats_enabled then
+      prod_cnt_map := add_prod_count { file; char } 1 !prod_cnt_map
+  end
+
+let got_list ltype len =
+  if not !ignore_stuff then begin
+    if !print then
+      Printf.printf "got_list %s %d\n" ltype len;
+    let n = match ltype with
+      | "Sopt"
+      | "Slist0"
+      | "Slist1" -> len
+      | "Slist0sep"
+      | "Slist1sep" -> max (len+len-1) 0
+      | _ -> Printf.printf "Not handled: %s\n" ltype; assert false
+    in
+    let pfx = popN n in
+    stack := `Prod pfx :: !stack;
+    if !print then print_stack ()
+  end
+
+let got_token tok =
+(*  todo: ignore_stuff?? *)
+  if !print then
+    (match !tok_loc with
+    | Some loc ->
+      Printf.printf "(line %i, %i-%i) [%s]\n%!" (loc.line_nb) (loc.bp-loc.bol_pos) (loc.ep-loc.bol_pos) tok;
+    | None ->
+      Printf.printf "Token [%s]\n" tok);
+  stack := `Token tok :: !stack;
+  if !print then print_stack ()
+
+let got_loc loc t =
+  let src = match loc.fname with
+    | InFile fname -> ignore_stuff := false; fname
+    | ToplevelInput -> ignore_stuff := true; "ToplevelInput"
+  in
+  print := src = "./theories/Init/Logic.v" && loc.line_nb >= 16;
+  if !print then
+    Printf.printf "got_loc %s (line %i, %i-%i) [%s]\n%!"
+      src (loc.line_nb) (loc.bp-loc.bol_pos) (loc.ep-loc.bol_pos) t;
+  tok_loc := Some loc
 
 type extid = {
   plugin : string;

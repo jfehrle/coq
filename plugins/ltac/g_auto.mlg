@@ -77,7 +77,7 @@ ARGUMENT EXTEND auto_using
   RAW_PRINTED BY { pr_auto_using_raw env sigma }
   GLOB_PRINTED BY { pr_auto_using_glob env sigma }
 | [ "using" ne_uconstr_list_sep(l, ",") ] -> { l }
-| [ ] -> { [] }
+ | [ ] -> { [] }
 END
 
 (** Auto *)

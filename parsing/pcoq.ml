@@ -396,8 +396,10 @@ let extend_grammar_command tag g =
   | (_, st) :: _ -> st
   in
   let (rules, st) = modify g grammar_state in
+(*  rules are extend_rule list*)
   let () = List.iter iter_extend_sync rules in
   let nb = List.length rules in
+  Printf.printf "extend_grammar_command %d\n" nb;
   grammar_stack := (GramExt (nb, GrammarCommand.Dyn (tag, g)), st) :: !grammar_stack
 
 let extend_entry_command (type a) (type b) (tag : (a, b) entry_command) (g : a) : b Entry.t list =

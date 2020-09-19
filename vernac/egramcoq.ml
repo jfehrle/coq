@@ -484,7 +484,7 @@ let make_ty_rule assoc from forpat prods =
   | GramConstrTerminal tok :: rem ->
     let AnyTyRule r = make_ty_rule rem in
     AnyTyRule (TyNext (r, TyTerm tok))
-  | GramConstrNonTerminal (e, var) :: rem ->
+  | GramConstrNonTerminal (e, var) :: rem ->   (* here?? *)
     let AnyTyRule r = make_ty_rule rem in
     let TTAny e = interp_entry forpat e in
     let s = symbol_of_entry assoc from e in

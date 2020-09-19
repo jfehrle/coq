@@ -428,6 +428,7 @@ let create_ltac_quotation name cast (e, l) =
         (Symbol.token (CLexer.terminal ")")))
   in
   let action _ v _ _ _ loc = cast (Some loc, v) in
+(*  todo: need call to Stats.parser_action here*)
   let gram = (level, assoc, [Pcoq.Production.make rule action]) in
   Pcoq.grammar_extend Pltac.tactic_arg {pos=None; data=[gram]}
 

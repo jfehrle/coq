@@ -76,15 +76,15 @@ GRAMMAR EXTEND Gram
   GLOBAL: vernac_control quoted_attributes gallina_ext noedit_mode subprf;
   vernac_control: FIRST
     [ [ IDENT "Time"; c = vernac_control ->
-        { add_control_flag ~loc ~flag:(ControlTime false) c }
+        { Stats.check_stack (); add_control_flag ~loc ~flag:(ControlTime false) c }
       | IDENT "Redirect"; s = ne_string; c = vernac_control ->
-        { add_control_flag ~loc ~flag:(ControlRedirect s) c }
+        { Stats.check_stack (); add_control_flag ~loc ~flag:(ControlRedirect s) c }
       | IDENT "Timeout"; n = natural; c = vernac_control ->
-        { add_control_flag ~loc ~flag:(ControlTimeout n) c }
+        { Stats.check_stack (); add_control_flag ~loc ~flag:(ControlTimeout n) c }
       | IDENT "Fail"; c = vernac_control ->
-        { add_control_flag ~loc ~flag:ControlFail c }
+        { Stats.check_stack (); add_control_flag ~loc ~flag:ControlFail c }
       | v = decorated_vernac ->
-        { let (attrs, expr) = v in CAst.make ~loc { control = []; attrs; expr = expr } } ]
+        {  Stats.check_stack (); let (attrs, expr) = v in CAst.make ~loc { control = []; attrs; expr = expr } } ]
     ]
   ;
   decorated_vernac:

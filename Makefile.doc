@@ -264,6 +264,8 @@ doc/tools/docgram/orderedGrammar doc/tools/docgram/updated_rsts: doc/tools/docgr
 
 doc/tools/docgram/updated_rsts: doc/tools/docgram/orderedGrammar
 
+clib/stats.o: clib/stats.ml
+
 $(PRINT_STATS): clib/stats.cmo tools/print_stats.ml
 	$(SHOW)'OCAMLC -a $@'
 	$(HIDE)$(OCAMLC) -g -I clib -package str $^ -linkall -linkpkg -o $@

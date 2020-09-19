@@ -320,7 +320,7 @@ let rec get_symbols : type s trec k r. (s, trec, k, r) ty_rule -> (s, trec, unit
      let AnyS (r, pf) = get_symbols r in
      AnyS (TCns (MayRec2, s, r), RelS pf)
   | TNext (NoRec2, r, s) ->
-     let Belast (NoRec2, r, s) = belast_rule NoRec2 r s in
+     let Belast (NoRec2, r, s) = belast_rule NoRec2 r s in (*??*)
      let AnyS (r, pf) = get_symbols r in
      AnyS (TCns (NoRec2, s, r), RelS pf)
 
@@ -901,7 +901,7 @@ and print_level : type s. _ -> _ -> s ex_symbols list -> _ =
   fprintf ppf "@[<hov 0>[ ";
   let () =
     Format.pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf "%a| " pp_print_space ())
-      (fun ppf (ExS rule) -> print_rule ppf rule)
+      (fun ppf (ExS rule) -> print_rule ppf rule) (* print single rule *)
       ppf rules
   in
   fprintf ppf " ]@]"
@@ -928,10 +928,10 @@ let print_levels ppf elev =
     ppf elev
 
 let print_entry ppf e =
-  fprintf ppf "@[<v 0>[ ";
+  fprintf ppf "@[<v 0>[ "; (* "@[" defined in Format in OCaml doc*)
   begin match e.edesc with
     Dlevels elev -> print_levels ppf elev
-  | Dparser _ -> fprintf ppf "<parser>"
+  | Dparser _ -> fprintf ppf "<parser>"   (* maybe not called? *)
   end;
   fprintf ppf " ]@]"
 
@@ -1103,7 +1103,7 @@ let continue entry bp a s son p1 (strm__ : _ Stream.t) =
     try p1 strm__ with
       Stream.Failure -> raise (Stream.Error (tree_failed entry a s son))
   in
-  fun _ -> act a
+  fun _ -> (*Printf.printf "entry5 %s\n" entry.ename;*) act a
 
 let do_recover parser_of_tree entry nlevn alevn bp a s son
     (strm__ : _ Stream.t) =
@@ -1175,9 +1175,10 @@ let rec parser_of_tree : type s tr r. s ty_entry -> int -> int -> (s, tr, r) ty_
              let a = ps strm__ in
              let act =
                try p1 bp a strm__ with
-                 Stream.Failure ->
+                 Stream.Failure -> (*Printf.printf "entry None = %s\n" entry.ename;*)
                    raise (Stream.Error (tree_failed entry a s son))
              in
+(*             Printf.printf "entry Some = %s\n" entry.ename;*)
              act a)
       | Some (TokTree (last_tok, son, rev_tokl)) ->
           let lt = Stoken last_tok in
@@ -1235,7 +1236,13 @@ and parser_of_token_list : type s tr lt r f.
       match peek_nth n strm with
         Some tok ->
           let r = tematch tok in
-          for _i = 1 to n do Stream.junk strm done; r
+          for _i = 1 to n do
+            (match Stream.peek strm with
+            | Some tok -> (*Stats.got_loc ;*)
+              Stats.got_token (L.extract_string true tok)
+            | None -> ());
+            Stream.junk strm
+          done; r
       | None -> raise Stream.Failure
     in
     fun (strm : _ Stream.t) ->
@@ -1256,7 +1263,7 @@ and parser_of_token_list : type s tr lt r f.
          | None -> raise Stream.Failure
        in
        let plast = fun (strm : _ Stream.t) ->
-         let a = ps strm in let act = plast strm in act a in
+         let a = ps strm in let act = plast strm in (*Printf.printf "entry3 %s\n" entry.ename;*) act a in
        loop (n - 1) tokl plast in
   loop (n - 1) rev_tokl plast
 and parser_of_symbol : type s tr a.
@@ -1268,7 +1275,8 @@ and parser_of_symbol : type s tr a.
       let rec loop al (strm__ : _ Stream.t) =
         match try Some (ps al strm__) with Stream.Failure -> None with
           Some al -> loop al strm__
-        | _ -> al
+        | _ -> Stats.got_list "Slist0" (List.length al);
+               al
       in
       (fun (strm__ : _ Stream.t) ->
          let a = loop [] strm__ in List.rev a)
@@ -1284,7 +1292,8 @@ and parser_of_symbol : type s tr a.
                   raise (Stream.Error (symb_failed entry v sep symb))
             in
             kont al strm__
-        | _ -> al
+        | _ -> Stats.got_list "Slist0sep" (List.length al);
+               al
       in
       (fun (strm__ : _ Stream.t) ->
          match try Some (ps [] strm__) with Stream.Failure -> None with
@@ -1300,7 +1309,8 @@ and parser_of_symbol : type s tr a.
               (try Some (ps al strm__) with Stream.Failure -> None)
             with
               Some al -> kont al strm__
-            | _ -> al
+            | _ -> Stats.got_list "Slist0sep" (List.length al);
+                   al
             end
         | _ -> al
       in
@@ -1313,7 +1323,8 @@ and parser_of_symbol : type s tr a.
       let rec loop al (strm__ : _ Stream.t) =
         match try Some (ps al strm__) with Stream.Failure -> None with
           Some al -> loop al strm__
-        | _ -> al
+        | _ -> Stats.got_list "Slist1" (List.length al);
+               al
       in
       (fun (strm__ : _ Stream.t) ->
          let al = ps [] strm__ in
@@ -1335,7 +1346,8 @@ and parser_of_symbol : type s tr a.
                   a :: al
             in
             kont al strm__
-        | _ -> al
+        | _ -> Stats.got_list "Slist1sep" (List.length al);
+               al
       in
       (fun (strm__ : _ Stream.t) ->
          let al = ps [] strm__ in
@@ -1358,7 +1370,8 @@ and parser_of_symbol : type s tr a.
                   Some a -> kont (a :: al) strm__
                 | _ -> al
             end
-        | _ -> al
+         | _ -> Stats.got_list "Slist1sep" (List.length al);
+                al
       in
       (fun (strm__ : _ Stream.t) ->
          let al = ps [] strm__ in
@@ -1367,14 +1380,15 @@ and parser_of_symbol : type s tr a.
       let ps = parser_of_symbol entry nlevn s in
       (fun (strm__ : _ Stream.t) ->
          match try Some (ps strm__) with Stream.Failure -> None with
-           Some a -> Some a
-         | _ -> None)
+           Some a -> (*Printf.printf "OPT is Some\n";*) Stats.got_list "Sopt" 1; Some a
+         | _ -> (*Printf.printf "OPT is None\n";*) Stats.got_list "Sopt" 0; None)
   | Stree t ->
       let pt = parser_of_tree entry 1 0 t in
       (fun (strm__ : _ Stream.t) ->
          let bp = Stream.count strm__ in
          let a = pt strm__ in
          let ep = Stream.count strm__ in
+(*         Printf.printf "entry3 = %s\n" entry.ename;*)
          let loc = loc_of_token_interval bp ep in a loc)
   | Snterm e -> (fun (strm__ : _ Stream.t) -> e.estart 0 strm__)
   | Snterml (e, l) ->
@@ -1388,7 +1402,9 @@ and parser_of_token : type s a.
   let f = L.tok_match tok in
   fun strm ->
     match Stream.peek strm with
-      Some tok -> let r = f tok in Stream.junk strm; r
+      Some tok -> let r = f tok in Stream.junk strm;
+        (* no loc here *)
+        Stats.got_token (L.extract_string true tok); r
     | None -> raise Stream.Failure
 and parse_top_symb : type s tr a. s ty_entry -> (s, tr, a) ty_symbol -> a parser_t =
   fun entry symb ->
@@ -1422,6 +1438,7 @@ let rec start_parser_of_levels entry clevn =
                  let bp = Stream.count strm__ in
                  let act = p2 strm__ in
                  let ep = Stream.count strm__ in
+(*                 Printf.printf "entry = %s\n" entry.ename;*)
                  let a = act (loc_of_token_interval bp ep) in
                  entry.econtinue levn bp a strm)
           | _ ->
@@ -1433,6 +1450,7 @@ let rec start_parser_of_levels entry clevn =
                   match try Some (p2 strm__) with Stream.Failure -> None with
                     Some act ->
                       let ep = Stream.count strm__ in
+(*                      Printf.printf "entry2 = %s\n" entry.ename;*)
                       let a = act (loc_of_token_interval bp ep) in
                       entry.econtinue levn bp a strm
                   | _ -> p1 levn strm__
@@ -1459,6 +1477,8 @@ let rec continue_parser_of_levels entry clevn =
                 Stream.Failure ->
                   let act = p2 strm__ in
                   let ep = Stream.count strm__ in
+                  Printf.printf "entry4 %s %d %d\n" entry.ename clevn levn;
+(*                  Printexc.print_raw_backtrace stdout (Printexc.get_callstack 50);*)
                   let a = act a (loc_of_token_interval bp ep) in
                   entry.econtinue levn bp a strm
 
@@ -1544,7 +1564,7 @@ module Parsable = struct
     in
     floc := fun_loc;
     token_count := 0;
-    try let r = efun ts in restore (); r with
+    try let r = efun ts in restore (); r with (* efun is the entry function *)
       Stream.Failure ->
       let loc = get_loc () in
       restore ();
@@ -1653,7 +1673,7 @@ end = struct
 
   let stop = TStop
   let next r s = TNext (MayRec2, r, s)
-  let next_norec r s = TNext (NoRec2, r, s)
+  let next_norec r s = TNext (NoRec2, r, s)  (* For definitions *)
 
 end and Rules : sig
 
@@ -1670,7 +1690,13 @@ end
 module Production = struct
 
   type 'a t = 'a ty_production
-  let make p act = TProd (p, act)
+(* todo: maybe impossible to wrap a function and match its number of arguments *)
+(*  val make : ('a, _, 'f, Loc.t -> 'a) Rule.t -> 'f -> 'a t*)
+(*    let wrap act: 'f -> 'a t = (fun _ -> Printf.printf "Action\n"; act)*)
+(*    let make p act = TProd (p, (wrap act))  (* type error *)*)
+(*    let make p act = TProd (p,     let i : 'f = act in i)*)
+    let make p act = TProd (p, act)  (* original *)
+(*    let make p act = TProd (p, (Printf.printf "Action\n"; act))  prints at defn time *)
 
 end
 
@@ -1762,7 +1788,7 @@ let rec mk_rule tok =
   match tok with
   | [] ->
     let stop_e = Rule.stop in
-    TRules (stop_e, fun _ -> (* dropped anyway: *) "")
+    TRules (stop_e, fun _ -> (* dropped anyway: *) "")  (* not called *)
   | tkn :: rem ->
     let TRules (r, f) = mk_rule rem in
     let r = Rule.next_norec r (Symbol.token tkn) in

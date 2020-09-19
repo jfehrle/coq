@@ -688,7 +688,7 @@ let prod_entry_type = function
   | ETConstr (s,_,p) -> ETProdConstr (s,p)
   | ETPattern (_,n) -> ETProdPattern (match n with None -> 0 | Some n -> n)
 
-let make_production etyps symbols =
+let make_production etyps symbols =  (* no action function here *)
   let rec aux = function
     | [] -> [[]]
     | NonTerminal m :: l ->
@@ -715,6 +715,8 @@ let make_production etyps symbols =
         | _ ->
            user_err Pp.(str "Components of recursive patterns in notation must be terms or binders.") in
   let prods = aux symbols in
+  (* prods contains a list of lists *)
+  Printf.printf "Notation prods length = %d %d\n" (List.length prods) (List.length (List.hd prods));
   List.map define_keywords prods
 
 let rec find_symbols c_current c_next c_last = function
@@ -825,13 +827,14 @@ type syntax_extension_obj =
 let check_and_extend_constr_grammar ntn rule =
   try
     let ntn_for_grammar = rule.notgram_notation in
+(*    Printf.printf "ntn = %s\n" (snd rule.notgram_notation);  (* substituted notation string with "_" in place of vars *)*)
     if notation_eq ntn ntn_for_grammar then raise Not_found;
     let prec = rule.notgram_level in
     let oldparsing,oldprec = Notgram_ops.level_of_notation ntn_for_grammar in
     if not (Notgram_ops.level_eq prec oldprec) && oldparsing <> None then error_parsing_incompatible_level ntn ntn_for_grammar oldprec prec;
     if oldparsing = None then raise Not_found
   with Not_found ->
-    Egramcoq.extend_constr_grammar rule
+    Egramcoq.extend_constr_grammar rule  (* this is it? *)
 
 let cache_one_syntax_extension (pa_se,pp_se) =
   let ntn = pa_se.synext_notation in
@@ -848,7 +851,7 @@ let cache_one_syntax_extension (pa_se,pp_se) =
       None in
   (* Declare the parsing rule *)
   begin match oldparsing, pa_se.synext_notgram with
-  | None, Some grams -> List.iter (check_and_extend_constr_grammar ntn) grams
+  | None, Some grams -> List.iter (check_and_extend_constr_grammar ntn) grams  (* added here *)
   | _ -> (* The grammars rules are canonically derived from the string and the precedence*) ()
   end;
   (* Printing *)
@@ -883,7 +886,7 @@ let open_syntax_extension i o =
 let inSyntaxExtension : syntax_extension_obj -> obj =
   declare_object {(default_object "SYNTAX-EXTENSION") with
        open_function = simple_open open_syntax_extension;
-       cache_function = cache_syntax_extension;
+       cache_function = cache_syntax_extension;  (* *** *)
        subst_function = subst_syntax_extension;
        classify_function = classify_syntax_definition}
 
@@ -900,7 +903,7 @@ type notation_modifier = {
   level         : int option;
   custom        : notation_entry;
   etyps         : (Id.t * simple_constr_prod_entry_key) list;
-  subtyps       : (Id.t * production_level) list;
+  subtyps       : (Id.t * production_level) list;  (* ?? *)
 
   (* common to syn_data below *)
   only_parsing  : bool;
@@ -1329,7 +1332,11 @@ let compute_syntax_data ~local deprecation df modifiers =
   (* Notations for interp and grammar  *)
   let msgs,n = find_precedence mods.custom mods.level mods.etyps symbols onlyprint in
   let custom = make_custom_entry mods.custom n in
+  (* custom is Constrexpr.notation_entry_level *)
+(*  ntn_for_interp is Constrexpr.notation =*)
+(*             Constrexpr.notation_entry_level * Constrexpr.notation_key*)
   let ntn_for_interp = make_notation_key custom symbols in
+  Printf.printf "compute_syntax_data %s\n" (snd ntn_for_interp);
   let symbols_for_grammar =
     if custom = InConstrEntrySomeLevel then remove_curly_brackets symbols else symbols in
   let need_squash = not (List.equal Notation.symbol_eq symbols symbols_for_grammar) in
@@ -1347,6 +1354,10 @@ let compute_syntax_data ~local deprecation df modifiers =
   let i_typs = set_internalization_type sy_typs in
   check_locality_compatibility local mods.custom sy_typs;
   let pa_sy_data = (sy_typs_for_grammar,symbols_for_grammar) in
+(*  pa_sy_data is (Names.Id.t **)
+(*                          (Extend.production_level * Extend.production_position)*)
+(*                          Extend.constr_entry_key_gen)*)
+(*                         list * Notation.symbol list*)
   let pp_sy_data = (sy_typs,symbols) in
   let sy_fulldata = (ntn_for_grammar,(mods.custom,n,prec_for_grammar,List.map snd sy_typs_for_grammar),need_squash) in
   let df' = ((Lib.library_dp(),Lib.current_dirpath true),df) in
@@ -1393,12 +1404,12 @@ let compute_pure_syntax_data ~local df mods =
 type notation_obj = {
   notobj_local : bool;
   notobj_scope : scope_name option;
-  notobj_interp : interpretation;
+  notobj_interp : interpretation;  (**)
   notobj_coercion : entry_coercion_kind option;
   notobj_onlyparse : bool;
   notobj_onlyprint : bool;
   notobj_deprecation : Deprecation.t option;
-  notobj_notation : notation * notation_location;
+  notobj_notation : notation * notation_location; (* notation can be printed *)
   notobj_specific_pp_rules : syntax_printing_extension option;
 }
 
@@ -1452,6 +1463,10 @@ let cache_notation o =
   open_notation 1 o
 
 let subst_notation (subst, nobj) =
+  (*  returns a notation_obj*)
+(*  List.iter (fun item -> Printf.printf "subst_notation %s\n"*)
+(*      (Pp.string_of_ppcmds (Id.print(fst item))))*)
+(*    (fst nobj.notobj_interp);*)
   { nobj with notobj_interp = subst_interpretation subst nobj.notobj_interp; }
 
 let classify_notation nobj =
@@ -1517,6 +1532,11 @@ let recover_squash_syntax sy =
 let make_pa_rule level (typs,symbols) ntn need_squash =
   let assoc = recompute_assoc typs in
   let prod = make_production typs symbols in
+(*  prod is (Names.Id.t **)
+(*                    (Extend.production_level * Extend.production_position)*)
+(*                    Extend.constr_entry_key_gen)*)
+(*                   list * Notation.symbol list*)
+(*                 but an expression was expected of type int*)
   let sy = {
     notgram_level = level;
     notgram_assoc = assoc;
@@ -1606,7 +1626,7 @@ let add_notation_in_scope ~local deprecation df env c mods scope =
   let _ = check_reserved_format (fst sd.info) sy_pp_rules in
   (* Ready to change the global state *)
   List.iter (fun f -> f ()) sd.msgs;
-  Lib.add_anonymous_leaf (inSyntaxExtension (local, (sy_pa_rules,gen_sy_pp_rules)));
+  Lib.add_anonymous_leaf (inSyntaxExtension (local, (sy_pa_rules,gen_sy_pp_rules))); (* maybe here? *)
   Lib.add_anonymous_leaf (inNotation notation);
   sd.info
 

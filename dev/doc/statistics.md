@@ -11,7 +11,7 @@ When enabled, each `coqc` process generates a `<.v-filename>.stats` file in the
 any other `*.stats` file it finds in that directory.  The end result after
 multiple `coqc` runs is a single `*.stats` file.
 
-The code uses file renaming to ensure correct results when multiple `coqc`
+The code uses file renaming to ensure correct results when  multiple `coqc`
 processes are running simultaneously.  The `<.v-filename>` prefix (which is
 qualified relative to the current directory) is used as a convenient unique
 filename.
