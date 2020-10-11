@@ -456,6 +456,8 @@ and cvt_gram_sym_list l =
     Slist0 (cvt_gram_sym s) :: cvt_gram_sym_list tl
   | GSymbQualid ("LIST1", _) :: s :: tl ->
     Slist1 (cvt_gram_sym s) :: cvt_gram_sym_list tl
+  | GSymbQualid ("OPT", _) :: (GSymbQualid ("IDENT", None) as tok1) :: (GSymbString s as tok2) :: tl ->
+    Sopt (List.hd (cvt_gram_sym_list [tok1; tok2])) :: cvt_gram_sym_list tl
   | GSymbQualid ("OPT", _) :: s :: tl ->
     Sopt (cvt_gram_sym s) :: cvt_gram_sym_list tl
   | GSymbQualid ("IDENT", _) :: s2 :: tl when get_sym s2 = "" ->

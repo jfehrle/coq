@@ -155,6 +155,8 @@ function
   SymbList0 (parse_token ~in_anon tkn, Some (parse_token ~in_anon tkn'))
 | [GSymbQualid ("LIST1", None); tkn; GSymbQualid ("SEP", None); tkn'] ->
   SymbList1 (parse_token ~in_anon tkn, Some (parse_token ~in_anon tkn'))
+| [GSymbQualid ("OPT", None); GSymbQualid ("IDENT", None) as tok1; GSymbString s as tok2] ->
+  SymbOpt (parse_tokens ~in_anon [tok1; tok2])
 | [GSymbQualid ("OPT", None); tkn] ->
   SymbOpt (parse_token ~in_anon tkn)
 | [GSymbQualid (e, None)] when is_token e -> SymbToken (e, None)
