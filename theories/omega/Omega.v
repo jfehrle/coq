@@ -21,4 +21,5 @@ Require Export OmegaLemmas.
 Require Export PreOmega.
 Require Export ZArith_hints.
 
-Declare ML Module "omega_plugin".
+(* The plugin code was removed in 8.14:
+   Declare ML Module "omega_plugin". *)
