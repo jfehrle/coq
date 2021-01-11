@@ -23,3 +23,7 @@ Require Export ZArith_hints.
 
 (* The plugin code was removed in 8.14:
    Declare ML Module "omega_plugin". *)
+
+Require Import Lia.
+#[deprecated(since="8.12",note="Use lia instead.")]
+Ltac omega := lia.

@@ -159,6 +159,9 @@ and checked to be :math:`-1`.
    This tactic solves linear goals over :g:`Z` by searching for *linear* refutations and cutting planes.
    :tacn:`lia` provides support for :g:`Z`, :g:`nat`, :g:`positive` and :g:`N` by pre-processing via the :tacn:`zify` tactic.
 
+.. tacn:: omega
+
+   .. deprecated:: 8.12  Use :tacn:`lia` instead.
 
 High level view of `lia`
 ~~~~~~~~~~~~~~~~~~~~~~~~
