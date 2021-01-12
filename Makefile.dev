@@ -141,7 +141,6 @@ noreal: unicode logic arith bool zarith qarith lists sets fsets \
 ### 4) plugins
 ################
 
-OMEGAVO:=$(filter theories/omega/%, $(THEORIESVO))
 MICROMEGAVO:=$(filter theories/micromega/%, $(THEORIESVO))
 RINGVO:=$(filter theories/setoid_ring/%, $(THEORIESVO))
 NSATZVO:=$(filter theories/nsatz/%, $(THEORIESVO))
