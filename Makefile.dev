@@ -153,7 +153,6 @@ CCVO:=
 DERIVEVO:=$(filter theories/derive/%, $(THEORIESVO))
 LTACVO:=$(filter theories/ltac/%, $(THEORIESVO))
 
-omega: $(OMEGAVO) $(OMEGACMO)
 micromega: $(MICROMEGAVO) $(MICROMEGACMO) $(CSDPCERT)
 ring: $(RINGVO) $(RINGCMO)
 nsatz: $(NSATZVO) $(NSATZCMO)
@@ -164,7 +163,7 @@ rtauto: $(RTAUTOVO) $(RTAUTOCMO)
 btauto: $(BTAUTOVO) $(BTAUTOCMO)
 ltac: $(LTACVO) $(LTACCMO)
 
-.PHONY: omega micromega ring nsatz extraction
+.PHONY: micromega ring nsatz extraction
 .PHONY: funind cc rtauto btauto ltac
 
 # For emacs:
