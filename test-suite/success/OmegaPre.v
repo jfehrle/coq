@@ -1,4 +1,5 @@
 Require Import ZArith Nnat Lia.
+Require Export Zify.
 Open Scope Z_scope.
 
 (** Test of the zify preprocessor for (R)Omega *)

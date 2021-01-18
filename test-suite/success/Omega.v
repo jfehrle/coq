@@ -1,6 +1,7 @@
 
 Require Import Lia.
 Require Import ZArith.
+Require Import Zify.
 
 (* Submitted by Xavier Urbain 18 Jan 2002 *)
 

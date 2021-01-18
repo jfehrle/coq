@@ -16,9 +16,9 @@ Require Export ZArith_base.
 
 Require Export Zpow_def.
 
-(** Extra modules using [Omega] or [Ring]. *)
+(** Extra modules using [Ring]. *)
 
-Require Export Omega.
+Require Export ZArith_hints.
 Require Export Zcomplements.
 Require Export Zpower.
 Require Export Zdiv.
