@@ -31,7 +31,6 @@
    coq.plugins.funind
 
    coq.plugins.ssreflect
-   coq.plugins.ssrsearch
    coq.plugins.derive))
 
 (include_subdirs qualified)
