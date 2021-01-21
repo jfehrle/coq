@@ -18,6 +18,8 @@ Require Export Zpow_def.
 
 (** Extra modules using [Ring]. *)
 
+Require Export OmegaLemmas.
+Require Export PreOmega.
 Require Export ZArith_hints.
 Require Export Zcomplements.
 Require Export Zpower.
