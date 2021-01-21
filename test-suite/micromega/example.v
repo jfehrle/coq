@@ -7,7 +7,6 @@
 (************************************************************************)
 
 Require Import ZArith.
-Require Import Zify.
 Require Import Psatz.
 Open Scope Z_scope.
 Require Import ZMicromega.

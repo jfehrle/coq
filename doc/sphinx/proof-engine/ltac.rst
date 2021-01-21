@@ -1666,7 +1666,7 @@ Proving a subgoal as a separate lemma: abstract
    is chosen to get a fresh name.  If the proof is closed with :cmd:`Qed`, the auxiliary lemma
    is inlined in the final proof term.
 
-   This is useful with tactics such as :tacn:`lia` or
+   This is useful with tactics such as
    :tacn:`discriminate` that generate huge proof terms with many intermediate
    goals.  It can significantly reduce peak memory use.  In most cases it doesn't
    have a significant impact on run time.  One case in which it can reduce run time

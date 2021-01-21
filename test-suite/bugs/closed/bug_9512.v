@@ -25,8 +25,6 @@ Lemma foo : width p = 0%Z -> width p = 0%Z.
 (*   @eq Z (width p) Z0 *)
 
   assert_succeeds (enough True; [lia|]).
-  (* Tactic failure: <tactic closure> fails. *)
-  (* Tactic failure: <tactic closure> fails. *)
 
   lia.
   (* Tactic failure:  Cannot find witness. *)

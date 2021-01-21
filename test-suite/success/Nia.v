@@ -1,6 +1,5 @@
 Require Import Coq.ZArith.ZArith.
 Require Import Coq.micromega.Lia.
-Require Import Coq.omega.PreOmega.
 Open Scope Z_scope.
 
 (** Add [Z.to_euclidean_division_equations] to the end of [zify], just for this

@@ -132,3 +132,5 @@ Require  Import ZifyClasses ZifyInst.
 Require  Zify.
 
 Ltac Zify.zify_internal_to_euclidean_division_equations ::= Z.to_euclidean_division_equations.
+
+Ltac zify := Zify.zify.
