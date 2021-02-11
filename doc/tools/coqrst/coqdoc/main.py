@@ -28,7 +28,7 @@ from bs4 import BeautifulSoup
 from bs4.element import NavigableString
 
 COQDOC_OPTIONS = ['--body-only', '--no-glob', '--no-index', '--no-externals',
-                  '-s', '--html', '--stdout', '--utf8']
+                  '-s', '--html', '--stdout', '--utf8', '--parse-comments']
 
 COQDOC_SYMBOLS = ["->", "<-", "<->", "=>", "<=", ">=", "<>", "~", "/\\", "\\/", "|-", "*", "forall", "exists"]
 COQDOC_HEADER = "".join("(** remove printing {} *)".format(s) for s in COQDOC_SYMBOLS)
@@ -68,8 +68,22 @@ def lex(source):
         if isinstance(elem, NavigableString):
             yield [], elem
         elif elem.name == "span":
-            cls = "coqdoc-{}".format(elem['title'])
-            yield [cls], elem.string
+            if elem.string:
+                cls = "coqdoc-{}".format(elem.get("title", "comment"))
+                yield [cls], elem.string
+            else:
+                # handle multi-line comments
+                # todo: couldn't figure out how to make this recursive
+                for elem2 in elem.children:
+                    if isinstance(elem2, NavigableString):
+                        yield [], elem2
+                    if elem2.name == "span":
+                        cls = "coqdoc-{}".format(elem2.get("title", "comment"))
+                        yield [cls], elem2.string
+                    elif elem2.name == 'br':
+                        pass
+                    # else: # raises exception on multi-line comments
+                    #     raise ValueError(elem2)
         elif elem.name == 'br':
             pass
         else:

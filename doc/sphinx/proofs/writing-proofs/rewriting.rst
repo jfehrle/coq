@@ -2,6 +2,20 @@
 Reasoning with equalities
 =========================
 
+.. coqtop:: all
+
+   Goal True.
+   (* comment 1 *) idtac "v".
+     idtac "w". (* comment 2 *)
+     (* *) idtac "x". (* *)
+      (*   comment
+       3 *) idtac "y".
+      idtac "z". (*   comment
+       4 *)
+     (* just a comment *)
+   Abort. (* *)
+
+
 There are multiple notions of :gdef:`equality` in Coq:
 
 - :gdef:`Leibniz equality` is the standard
