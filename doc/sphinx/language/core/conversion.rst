@@ -57,10 +57,12 @@ The useful conversion rules are:
         - replaces a defined symbol with its definition
 
       * - cofix-reduction
-        - replace a `cofix` symbol with its definition
+        - replaces a `cofix` symbol with a :term:`beta-redex`;
+          recursive calls to the symbol are replaced with the `cofix` term
 
       * - fix-reduction
-        - replaces a `fix` symbol with its definition
+        - replaces a `fix` symbol with a :term:`beta-redex`;
+          recursive calls to the symbol are replaced with the `fix` term
 
       * - match-reduction
         - eliminates `match`
@@ -72,7 +74,7 @@ The useful conversion rules are:
         - eliminates `let`
 
       * - eta-expansion
-        - TBA
+        - replaces a term `f` of type `forall a : A, B` with `fun x : A => f x`
 
 :ref:`applyingconversionrules`
 describes tactics that only apply conversion rules.
@@ -211,6 +213,29 @@ for :math:`x` an arbitrary variable name fresh in :math:`t`.
 
    because the type of the reduced term :math:`∀ x:\Type(2),~\Type(1)` would not be
    convertible to the type of the original term :math:`∀ x:\Type(1),~\Type(1)`.
+
+Examples
+~~~~~~~~
+
+   .. example:: Simple delta, fix, beta and match reductions
+
+      ``+`` represents ``Nat.add``:
+
+      .. coqtop:: all abort
+
+         Print Nat.add.
+         Goal 1 + 1 = 2.
+         cbv delta.
+         cbv fix.
+         cbv beta.
+         cbv match.
+
+      The term can be fully reduced with `cbv`:
+
+      .. coqtop:: all abort
+
+         Goal 1 + 1 = 2.
+         cbv.
 
 .. _proof-irrelevance:
 
