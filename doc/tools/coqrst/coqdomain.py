@@ -891,6 +891,7 @@ class AnsiColorsParser():
     # This class is a fork of the original ansi.py, released under a BSD license in sphinx-contribs
 
     COLOR_PATTERN = re.compile('\x1b\\[([^m]+)m')
+    WHITE_PATTERN = re.compile('\x1b(37|39)m')
 
     def __init__(self):
         self.new_nodes, self.pending_nodes = [], []
@@ -910,9 +911,11 @@ class AnsiColorsParser():
     def colorize_str(self, raw):
         """Parse raw (an ANSI-colored output string from Coqtop) into Sphinx nodes."""
         last_end = 0
+        raw = re.sub(AnsiColorsParser.WHITE_PATTERN, "", raw)
         for match in AnsiColorsParser.COLOR_PATTERN.finditer(raw):
             self._add_text(raw, last_end, match.start())
             last_end = match.end()
+            print("match = ", match.group(1), "\n")
             classes = ansicolors.parse_ansi(match.group(1))
             if 'ansi-reset' in classes:
                 self._finalize_pending_nodes()

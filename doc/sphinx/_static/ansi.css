@@ -69,7 +69,7 @@
 }
 
 .ansi-fg-white {
-    color: #2e3436;
+     color: #ffffff;
 }
 
 .ansi-fg-light-black {
@@ -142,4 +142,22 @@
 
 .ansi-bg-default {
     background-color: transparent;
+}
+
+.ansi-diff-added {
+    background-color: #b6f1c0;
+    text-decoration: underline;
+}
+
+.ansi-diff-removed {
+    background-color: #f6b9c1;
+    text-decoration: line-through;
+}
+
+.ansi-diff-added-bg {
+    background-color: #e9feee;
+}
+
+.ansi-diff-removed-bg {
+    background-color: #fce9eb;
 }

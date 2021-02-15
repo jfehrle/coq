@@ -91,7 +91,19 @@ def parse_ansi(code):
                  leading ‘^[[’ or the final ‘m’
     """
     classes = []
-    parse_style([int(c) for c in code.split(';')], 0, classes)
+    if code == "37":
+        pass # ignore white fg
+    elif code == "48;2;0;141;0;4":
+        classes.append("diff-added")
+    elif code == "48;2;170;0;0;4":
+        classes.append("diff-removed")
+    elif code == "48;2;0;91;0":
+        classes.append("diff-added-bg")
+    elif code == "48;2;91;0;0":
+        classes.append("diff-removed-bg")
+    # elif code == "48;2;0;91;0;24"   # end+turn off underlining
+    else:
+        parse_style([int(c) for c in code.split(';')], 0, classes)
     return ["ansi-" + cls for cls in classes]
 
 if __name__ == '__main__':

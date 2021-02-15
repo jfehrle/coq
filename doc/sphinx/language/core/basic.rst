@@ -408,6 +408,13 @@ boldface label "Attribute:".  Attributes are listed in the
    This warning is configured to behave as an error by default.  You
    may turn it into a normal warning by using the :opt:`Warnings` option:
 
+   .. coqtop:: all
+
+      Set Diffs "removed".
+      Goal 1 + 1 = 2.
+      cbv.
+      Abort.
+
    .. coqtop:: none
 
       Set Silent.
