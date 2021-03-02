@@ -1076,3 +1076,120 @@ which supports additional fine-tuning.
       tactics to persist information about conversion hints in the
       proof term. See `#12200
       <https://github.com/coq/coq/issues/12200>`_ for more details.
+
+Equality
+--------
+
+.. tacn:: f_equal
+
+   For a goal with the form :n:`f a__1 ... a__n = g b__1 ... b__n`, creates
+   subgoals :n:`f = g` and :n:`a__i = b__i` for the `n` arguments. Subgoals
+   that can be proven by :tacn:`reflexivity` or :tacn:`congruence` are solved
+   automatically.
+
+.. tacn:: reflexivity
+
+   For a goal with the form `t=u`, verifies that `t` and `u` are :term:`convertible`,
+   and if so,
+   solves the goal.  If not, it fails.  It is equivalent to ``apply refl_equal``.
+
+   .. exn:: The conclusion is not a substitutive equation.
+      :undocumented:
+
+   .. exn:: Unable to unify ... with ...
+      :undocumented:
+
+.. tacn:: symmetry {? in @goal_occurrences }
+
+   Changes a goal that has the form :g:`t = u` into :g:`u = t`.  :n:`@goal_occurrences`
+   may be used to make the change in the selected hypotheses and/or the conclusion.
+   The `at` clause of :n:`@goal_occurrences` is not supported.
+
+.. tacn:: transitivity @one_term
+
+   Changes a goal that has the form :g:`t=u`
+   into the two subgoals :n:`t=@one_term` and :n:`@one_term=u`.
+
+   .. tacn:: etransitivity
+
+      This tactic behaves like :tacn:`transitivity`, using a fresh evar instead of
+      a concrete :token:`one_term`.
+
+Equality and inductive sets
+---------------------------
+
+We describe in this section some special purpose tactics dealing with
+equality and inductive sets or types. These tactics use the
+equality `eq:forall (A:Type), A -> A -> Prop`, simply written with the infix
+symbol `=`.
+
+.. tacn:: decide equality
+
+   Solves goals of the form :g:`forall x y : R, {x = y} + {~ x = y}`,
+   where :g:`R` is an inductive type such that its constructors do not take
+   proofs or functions as arguments, nor objects in dependent types. It
+   also solves goals of the form :g:`{x = y} + {~ x = y}` as well as variants
+   using `\\/` instead of `+`, or that reverse the order of the disjunction.
+
+.. tacn:: compare @one_term__1 @one_term__2
+
+   Compares two :n:`@one_term`\s of an
+   inductive datatype. If :g:`G` is the current goal, it leaves the
+   sub-goals :n:`@one_term__1 = @one_term__2 -> G` and :n:`~ @one_term__1 = @one_term__2 -> G`.
+   The type of the :n:`@one_term`\s must satisfy the same restrictions as in the
+   tactic ``decide equality``.
+
+.. tacn:: simplify_eq {? @destruction_arg }
+
+   Let :n:`@term` be the proof of a statement with the conclusion :n:`@term__1 = @term__2`.
+   If :n:`@term__1` and :n:`@term__2` are structurally different (in the sense
+   described for the tactic :tacn:`discriminate`), then the tactic
+   ``simplify_eq`` behaves as :n:`discriminate @term`, otherwise it behaves as
+   :n:`injection @term`.
+
+   If the current goal has form :g:`t1 <> t2`, it behaves as
+   :n:`intro @ident; simplify_eq @ident`.
+
+   :n:`simplify_eq @natural` is equivalent to :n:`intros until @natural` then
+   :n:`simplify_eq @ident` where :n:`@ident` is the identifier for the last
+   introduced hypothesis.
+
+   If :n:`@bindings` are provided in :n:`@destruction_arg`, they are used to
+   instantiate parameters or hypotheses of :n:`@term`.
+
+.. note::
+   If some quantified hypothesis of the goal is named :n:`@ident`,
+   then :n:`simplify_eq @ident` first introduces the hypothesis in the local
+   context using :n:`intros until @ident`.
+
+.. tacn:: esimplify_eq {? @destruction_arg }
+
+   This works the same as :tacn:`simplify_eq` but if the type of :n:`@term` or the
+   type of the hypothesis referred to by :n:`@natural` has uninstantiated
+   parameters, these parameters are left as existential variables.
+
+.. tacn:: dependent rewrite {? {| -> | <- } } @one_term {? in @ident }
+
+   If :n:`@ident` has type
+   :g:`(existT B a b)=(existT B a' b')` in the local context (i.e. each
+   :n:`@term` of the equality has a sigma type :g:`{ a:A & (B a)}`) this tactic
+   rewrites :g:`a` into :g:`a'` and :g:`b` into :g:`b'` in the current goal.
+   This tactic works even if :g:`B` is also a sigma type. This kind of
+   equalities between dependent pairs may be derived by the
+   :tacn:`injection` and :tacn:`inversion` tactics.
+
+   :n:`{| -> | <- }`
+     `->` uses the equality from left to right, which is the default.
+     `<-` uses the equality from right to left.
+
+   .. note::
+
+      The `inversion_sigma` tactic defined in the standard library splits all hypotheses in
+      the form `existT _ _ _ = existT _ _ _` into equalities that can be used
+      directly by :tacn:`rewrite` or :tacn:`subst`.  It is not subject to the same
+      errors as `dependent rewrite`, such as "Cannot find a well-typed generalization
+      of the goal that makes the proof progress." on::
+
+         Goal existT (fun T => T) nat 1 = existT (fun T => T) nat 2 -> 1 = 2.
+         intro H.
+         dependent rewrite H.
