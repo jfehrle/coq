@@ -33,7 +33,7 @@ Notation " `  t " := (proj1_sig t) (at level 10, t at next level) : program_scop
 
 (** Coerces objects to their support before comparing them. *)
 
-Notation " x '`=' y " := ((x :>) = (y :>)) (at level 70) : program_scope.
+(* Notation " x '`=' y " := ((x :>) = (y :>)) (at level 70) : program_scope. *)
 
 Require Import Coq.Bool.Sumbool.
 
