@@ -35,9 +35,10 @@ The normal form is defined as the result of applying a particular
 set of conversion rules (beta-, delta-, iota- and zeta-reduction and eta-expansion)
 repeatedly until it's no longer possible to apply any of them.
 
-Some reductions can be considered computations, for example reducing `2*3+4` with
-`cbv beta delta iota` to `10`, which requires applying several reduction rules
-repeatedly.
+Sometimes the result of a reduction tactic will be a simple value, for example reducing
+`2*3+4` with `cbv beta delta iota` to `10`, which requires applying several
+reduction rules repeatedly.  In other cases, it may yield an expression containing
+variables, axioms or opaque contants that can't be reduced.
 
 The useful conversion rules are:
 
