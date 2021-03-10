@@ -1202,7 +1202,7 @@ The move tactic.
          Goal not False.
          move.
 
-   More precisely, the :tacn:`move` tactic inspects the goal and does nothing
+   More precisely, the :tacn:`move (ssreflect)` tactic inspects the goal and does nothing
    (:tacn:`idtac`) if an introduction step is possible, i.e. if the goal is a
    product or a ``let … in``, and performs :tacn:`hnf` otherwise.
 
@@ -3775,7 +3775,7 @@ involves the following steps:
    ``forall n, F1 n = F2 n`` for ``eq_map``).
 
 3. If so :tacn:`under` puts these n goals in head normal form (using
-   the defective form of the tactic :tacn:`move`), then executes
+   the defective form of the tactic :tacn:`move (ssreflect)`), then executes
    the corresponding intro pattern :n:`@i_pattern__i` in each goal.
 
 4. Then :tacn:`under` checks that the first n subgoals
@@ -5665,6 +5665,7 @@ Tactics
 respectively.
 
 .. tacn:: move
+   :name: move (ssreflect)
 
    :tacn:`idtac` or :tacn:`hnf` (see  :ref:`bookkeeping_ssr`)
 

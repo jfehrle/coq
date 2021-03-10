@@ -6,9 +6,7 @@ Conversion rules
 Coq has conversion rules that can be used to determine if two
 terms are equal by definition in |CiC|, or :term:`convertible`.
 Conversion rules consist of reduction rules and expansion rules.
-
-Conversion rules can be used
-to determine if two terms are convertible by
+Equality is determined by
 converting both terms to a normal form, then verifying they are syntactically
 equal (ignoring differences in the names of bound variables by
 :term:`alpha-convertibility <alpha-convertible>`).
@@ -16,9 +14,8 @@ equal (ignoring differences in the names of bound variables by
 See :ref:`applyingconversionrules`,
 which describes tactics that apply these conversion rules.
 
-Conversion rules can be reductions or expansions.
-Reductions convert terms to something that is incrementally closer to its
-normal form.  For example, :term:`zeta-reduction` removes
+:gdef:`Reductions <reduction>` convert terms to something that is incrementally
+closer to its normal form.  For example, :term:`zeta-reduction` removes
 :n:`let @ident := @term__1 in @term__2` constructs from a term by replacing
 :n:`@ident` with :n:`@term__1` wherever :n:`@ident` appears in :n:`@term__2`.
 The resulting term may be longer or shorter than the original.
@@ -27,12 +24,12 @@ The resulting term may be longer or shorter than the original.
 
    Eval cbv zeta in let i := 1 in i + i.
 
-Expansions are reductions applied in the opposite direction,
+:gdef:`Expansions <expansion>` are reductions applied in the opposite direction,
 for example expanding `2 + 2` to `let i := 2 in i + i`.  While applying
 reductions gives a unique result, the associated
 expansion may not be unique.  For example, `2 + 2` could also be
 expanded to `let i := 2 in i + 2`.  Reductions that have a unique inverse
-expansion are also referred to as *contractions*.
+expansion are also referred to as :gdef:`contractions <contraction>`.
 
 The normal form is defined as the result of applying a particular
 set of conversion rules (beta-, delta-, iota- and zeta-reduction and eta-expansion)
