@@ -141,7 +141,8 @@ project compcert "https://github.com/AbsInt/CompCert" "master"
 ########################################################################
 # VST
 ########################################################################
-project vst "https://github.com/PrincetonUniversity/VST" "master"
+# todo: 2021 03 11: switch back to master once vst merges the compcert3.9 branch
+project vst "https://github.com/PrincetonUniversity/VST" "compcert3.9"
 
 ########################################################################
 # cross-crypto
