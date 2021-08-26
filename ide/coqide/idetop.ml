@@ -25,7 +25,7 @@ module CompactedDecl = Context.Compacted.Declaration
 (** Signal handling: we postpone ^C during input and output phases,
     but make it directly raise a Sys.Break during evaluation of the request. *)
 
-let catch_break = ref false
+let catch_break =  ref false
 
 let init_signal_handler () =
   let f _ = if !catch_break then raise Sys.Break else Control.interrupt := true in
