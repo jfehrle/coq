@@ -29,7 +29,6 @@ class type proof_view =
     method refresh : force:bool -> unit
     method clear : unit -> unit
     method set_goals : goals -> unit
-    method set_debug_goal : Pp.t -> unit
   end
 
 (* tag is the tag to be hooked, item is the item covered by this tag, make_menu
@@ -223,16 +222,6 @@ let proof_view () =
 
     method set_goals gls = goals <- gls; debug_goal <- None
 
-    method set_debug_goal msg =
-      (* Appearance is a bit different from the regular goals display.
-         That's probably a feature rather than a bug--it will remind the user
-         they're in the debugger. *)
-      self#clear ();
-      debug_goal <- Some msg;
-      let tags = [] in
-      let width = Ideutils.textview_width view in
-      Ideutils.insert_xml buffer ~tags (Richpp.richpp_of_pp ~width msg);
-
     method refresh ~force =
       (* We need to block updates here due to the following race:
          insertion of messages may create a vertical scrollbar, this
@@ -244,11 +233,8 @@ let proof_view () =
       let needed = force || last_width <> width in
       if needed then begin
         last_width <- width;
-        match debug_goal with
-        | None ->
-          let dummy _ () = () in
-          display (mode_tactic dummy) view goals None
-        | Some msg -> self#set_debug_goal msg
+        let dummy _ () = () in
+        display (mode_tactic dummy) view goals None
       end
   end
   in
