@@ -3,12 +3,6 @@
 Record types
 ----------------
 
-The :cmd:`Record` construction is a :term:`command` allowing the definition of
-records as is done in many programming languages. Its syntax is described in the
-grammar below. In fact, the :cmd:`Record` :term:`command` is more general than
-the usual record types, since it allows also for “manifest”expressions. In this
-sense, the :cmd:`Record` construction allows defining“signatures”.
-
 .. _record_grammar:
 
 .. cmd:: {| Record | Structure } @record_definition
@@ -22,45 +16,121 @@ sense, the :cmd:`Record` construction allows defining“signatures”.
       field_body ::= {* @binder } @of_type
       | {* @binder } @of_type := @term
       | {* @binder } := @term
+
+   The :cmd:`Record` command defines types similar to :gdef:`records`
+   in programming languages. Those types describes tuples whose
+   components, called :gdef:`fields <field>`, can be accessed by
+   :gdef:`projection`. Such types can also be used to describe
+   mathematical structures, such as groups or rings, hence the
+   synonym :cmd:`Structure`.
+
+   A :n:`@record_definition` defines a record named by
+   :n:`@ident_decl`. The fields are given by the semicolon-separated
+   list of :n:`@record_field` where :n:`@name` is the name of the
+   field. Fields can be :gdef:`abstract <abstract field>` as in
+   :n:`@name {* @binder } @of_type` or :gdef:`manifest <manifest
+   field>`, that is explicitly specified, as in :n:`@name {* @binder } @of_type := @term`.
+   Fields have a type given by :n:`@of_type` (when absent, as in :n:`@name {* @binder } := @term`,
+   the type is inferred automatically).  In manifest
+   fields, :n:`@term` is called the *body* of the field. The body
+   and type of a field can be dependent from previous fields and the
+   order of the fields is thus important.
+
+   To a record is associated a constructor. The name of this
+   constructor is provided by the occurrence of :n:`@ident` after
+   :n:`:=`. When omitted, the constructor name defaults to
+   :n:`Build_@ident` where :n:`@ident` is the record name.
+
+   A record type belongs to a sort which is given by :token:`sort`. If
+   omitted, the default sort is Type.
+
+   A sequence of :n:`@binder` parameters may be applied to the record as a whole or
+   to individual fields. In the first case, this declares the
+   *parameters* of the record. In the second case, this is a notation
+   to generalize over binders in the field. That is, :n:`@name {+ @binder } : @type` is
+   equivalent to :n:`@name : forall {+ @binder } , @type` and
+   similarly for the other forms of :n:`@field_body`.
+
+   When possible, the :cmd:`Record` command associates to each
+   field of the record a projection for accessing the instance
+   of the field in an object of type :token:`ident`.  These
+   projections are given the names of the corresponding fields. If a
+   field is named `_` then no projection is built for it.
+
+   If given, the :n:`as @ident` part in the syntax of records
+   specifies the name to use for referring to the argument corresponding to the
+   record in the type of projections.
+
+   If :n:`{? > }` provided, the constructor name is automatically declared as
+   a coercion from the class of the last field type to the record name
+   (this may fail if the uniform inheritance condition is not
+   satisfied). See :ref:`coercions`.
+
+   Notations can be attached to fields using the :n:`@decl_notations` annotation.
+
+   The command :cmd:`Record` supports the :attr:`universes(polymorphic)`,
+   :attr:`universes(template)`, :attr:`universes(cumulative)`,
+   :attr:`private(matching)` and :attr:`projections(primitive)` attributes.
+
+Syntax of Record Terms
+~~~~~~~~~~~~~~~~~~~~~~
+
+   .. prodn::
       term_record ::= %{%| {*; @field_def } {? ; } %|%}
       field_def ::= @qualid {* @binder } := @term
 
-   Each :n:`@record_definition` defines a record named by :n:`@ident_decl`.
-   The constructor name is given by :n:`@ident`.
-   If the constructor name is not specified, then the default name :n:`Build_@ident` is used,
-   where :n:`@ident` is the record name. If given, the :n:`as @ident`
-   part specifies the name to use for inhabitants of the record in the
-   type of projections (see below).
+   Objects in record types can be written using either an *applicative
+   syntax* of the form :n:`@term_application` or a *record syntax* of
+   the form :n:`@term_record`.
 
-   If :token:`sort` is omitted, the default sort is Type.
-   Notice that the type of an identifier can depend on a previously-given identifier. Thus the
-   order of the fields is important. :n:`@binder` parameters may be applied to the record as a whole
-   or to individual fields.
+   In the applicative form, it takes the
+   form :n:`@qualid {? @univ_annot } {+ @arg }` or
+   :n:`@@qualid {?  @univ_annot } {+ @term1 }` where :n:`@qualid`
+   refers to the constructor. That is, the constructor is seen as a
+   function and the instances for the abstract fields are given in
+   order as arguments of the constructor.
+
+   In the record form, the
+   instance of an abstract field is given as body of the
+   corresponding field name and the instances can be given in any
+   order. If a field is omitted, its instance is implicitly considered
+   to be the :n:`_` placeholder. It can then be filled automatically
+   by unification or by using obligations (see :ref:`programs`).
+
+.. FIXME: move this to the main grammar in the spec chapter
+
+Syntax of Record Projections
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+   .. insertprodn term_projection term_projection
+
+   .. prodn::
+      term_projection ::= @term0 .( @qualid {? @univ_annot } {* @arg } )
+      | @term0 .( @ @qualid {? @univ_annot } {* @term1 } )
+
+   The projection from an object can be written using either an
+   *applicative syntax* of the form :n:`@term_application` (more
+   precisely :n:`@qualid {?  @univ_annot } {+ @arg }` or
+   :n:`@@qualid {?  @univ_annot } {+ @term1 }`) or a *projection
+   syntax* of the form :n:`@term_projection`. In both cases,
+   :n:`@qualid` is the name of the projection.
+
+   The syntax :n:`@term0.(@qualid)` is equivalent to :n:`@qualid @term0`,
+   the syntax :n:`@term0.(@qualid {+ @arg })` to :n:`@qualid {+ @arg } @term0`
+   and the syntax :n:`@term0.(@@qualid {+ @term0 })`
+   to :n:`@@qualid {+ @term0 } @term0`.  In each case,
+   :token:`term0` is the projected object and the other arguments are
+   the parameters of the inductive type.
+
+   Since the projected object is part of the notation, it is always
+   considered an explicit argument of :token:`qualid`, even if it is
+   formally declared as implicit (see :ref:`ImplicitArguments`),
 
    .. todo
       "Record foo2:Prop := { a }." gives the error "Cannot infer this placeholder of type "Type",
       while "Record foo2:Prop := { a:Type }." gives the output "foo2 is defined.
       a cannot be defined because it is informative and foo2 is not."
       Your thoughts?
-
-   :n:`{? > }`
-     If provided, the constructor name is automatically declared as
-     a coercion from the class of the last field type to the record name
-     (this may fail if the uniform inheritance condition is not
-     satisfied).  See :ref:`coercions`.
-
-   Notations can be attached to fields using the :n:`@decl_notations` annotation.
-
-   :cmd:`Record` and :cmd:`Structure` are synonyms.
-
-   This command supports the :attr:`universes(polymorphic)`,
-   :attr:`universes(template)`, :attr:`universes(cumulative)`,
-   :attr:`private(matching)` and :attr:`projections(primitive)` attributes.
-
-More generally, a record may have explicitly defined (a.k.a. manifest)
-fields. For instance, we might have:
-:n:`Record @ident {* @binder } : @sort := { @ident__1 : @type__1 ; @ident__2 := @term__2 ; @ident__3 : @type__3 }`.
-in which case the correctness of :n:`@type__3` may rely on the instance :n:`@term__2` of :n:`@ident__2` and :n:`@term__2` may in turn depend on :n:`@ident__1`.
 
 .. example::
 
@@ -80,16 +150,9 @@ in which case the correctness of :n:`@type__3` may rely on the instance :n:`@ter
    Note here that the fields ``Rat_bottom_cond`` depends on the field ``bottom``
    and ``Rat_irred_cond`` depends on both ``top`` and ``bottom``.
 
-Let us now see the work done by the :cmd:`Record` command. First the command
-generates a variant type definition with just one constructor:
-:n:`Variant @ident {* @binder } : @sort := @ident__0 {* @binder }`.
-
-To build an object of type :token:`ident`, provide the constructor
-:n:`@ident__0` with the appropriate number of terms filling the fields of the record.
-
 .. example::
 
-   Let us define the rational :math:`1/2`:
+   Let us define the rational :math:`1/2` using either the applicative or record syntax:
 
     .. coqtop:: in
 
@@ -97,19 +160,34 @@ To build an object of type :token:`ident`, provide the constructor
        Admitted.
 
        Definition half := mkRat true 1 2 (O_S 1) one_two_irred.
-       Check half.
 
-Alternatively, the following syntax allows creating objects by using named fields, as
-shown in this grammar. The fields do not have to be in any particular order, nor do they have
-to be all present if the missing ones can be inferred or prompted for
-(see :ref:`programs`).
+       Definition half' :=
+         {| sign := true;
+            Rat_bottom_cond := O_S 1;
+            Rat_irred_cond := one_two_irred |}.
 
-.. coqtop:: all
+.. example::
 
-  Definition half' :=
-    {| sign := true;
-       Rat_bottom_cond := O_S 1;
-       Rat_irred_cond := one_two_irred |}.
+   Let us define a function by pattern matching over a record:
+
+   .. coqtop:: all
+
+      Eval compute in (
+        match half with
+        | {| sign := true; top := n |} => n
+        | _ => 0
+        end).
+
+.. example::
+
+   Let us project fields of a record, using either the applicative or projection syntax:
+
+   .. coqtop:: all
+
+      Eval compute in top half.
+      Eval compute in bottom half.
+      Eval compute in Rat_bottom_cond half.
+      Eval compute in half.(top).
 
 The following settings let you control the display format for types:
 
@@ -130,38 +208,9 @@ You can override the display format for specified types by adding entries to the
    This :term:`table` specifies a set of qualids which are displayed as constructors.  Use the
    :cmd:`Add` and :cmd:`Remove` commands to update the set of qualids.
 
-This syntax can also be used for pattern matching.
-
-.. coqtop:: all
-
-   Eval compute in (
-     match half with
-     | {| sign := true; top := n |} => n
-     | _ => 0
-     end).
-
-The :term:`command` generates also, when it is possible, the projection
-functions for destructuring an object of type :token:`ident`. These
-projection functions are given the names of the corresponding
-fields. If a field is named `_` then no projection is built
-for it. In our example:
-
-.. coqtop:: all
-
-  Eval compute in top half.
-  Eval compute in bottom half.
-  Eval compute in Rat_bottom_cond half.
-
-An alternative syntax for projections based on a dot notation is
-available:
-
-.. coqtop:: all
-
-   Eval compute in half.(top).
-
 .. flag:: Printing Projections
 
-   This :term:`flag` activates the dot notation for printing.
+   This :term:`flag` activates the dot notation for printing (off by default).
 
    .. example::
 
@@ -170,41 +219,25 @@ available:
          Set Printing Projections.
          Check top half.
 
-.. FIXME: move this to the main grammar in the spec chapter
-
-.. _record_projections_grammar:
-
-Syntax of Record Projections
-
-  .. insertprodn term_projection term_projection
-
-  .. prodn::
-     term_projection ::= @term0 .( @qualid {? @univ_annot } {* @arg } )
-     | @term0 .( @ @qualid {? @univ_annot } {* @term1 } )
-
-The corresponding grammar rules are given in the preceding grammar. When :token:`qualid`
-denotes a projection, the syntax :n:`@term0.(@qualid)` is equivalent to :n:`@qualid @term0`,
-the syntax :n:`@term0.(@qualid {+ @arg })` to :n:`@qualid {+ @arg } @term0`.
-and the syntax :n:`@term0.(@@qualid {+ @term0 })` to :n:`@@qualid {+ @term0 } @term0`.
-In each case, :token:`term0` is the projected object and the
-other arguments are the parameters of the inductive type.
-
-Since the projected object is part of the notation,
-it is always considered an explicit argument of :token:`qualid`,
-even if it is formally declared as implicit (see :ref:`ImplicitArguments`),
-
-
-.. note:: Records defined with the :cmd:`Record` command are not allowed to be
-   recursive (references to the record's name in the type of its field
-   raises an  error). To define recursive records, one can use the
+.. note:: Records defined with the :cmd:`Record` command are not supposed to be
+   recursive. To define recursive records, one can use the
    :cmd:`Inductive` and :cmd:`CoInductive` commands, resulting in an inductive or coinductive record.
    Definition of mutually inductive or coinductive records are also allowed, as long
    as all of the types in the block are records.
 
 .. note:: Induction schemes are automatically generated for inductive records.
-   Automatic generation of induction schemes for non-recursive records
+   Automatic generation of elimination schemes for non-recursive records
    defined with the :cmd:`Record` command can be activated with the
    :flag:`Nonrecursive Elimination Schemes` flag (see :ref:`proofschemes-induction-principles`).
+
+.. note:: Records exist in two flavors. In the first
+   implementation, a record :n:`@ident` with parameters :n:`{* @binder }`,
+   constructor :n:`@ident__0`, and fields :n:`{* @name @field_body }`
+   is represented as a variant type with a single
+   constructor: :n:`Variant @ident {* @binder } : @sort := @ident__0
+   {* ( @name @field_body ) }` and projections are defined by case analysis.
+   In the second implementation, records have
+   primitive projections: see :ref:`primitive_projections`.
 
 .. warn:: @ident cannot be defined.
 
