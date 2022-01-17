@@ -3,6 +3,13 @@
 Record types
 ----------------
 
+The :cmd:`Record` command defines types similar to :gdef:`records`
+in programming languages. Those types describes tuples whose
+components, called :gdef:`fields <field>`, can be accessed by
+:gdef:`projection`. Such types can also be used to describe
+mathematical structures, such as groups or rings, hence the
+synonym :cmd:`Structure`.
+
 .. _record_grammar:
 
 .. cmd:: {| Record | Structure } @record_definition
@@ -17,15 +24,8 @@ Record types
       | {* @binder } @of_type := @term
       | {* @binder } := @term
 
-   The :cmd:`Record` command defines types similar to :gdef:`records`
-   in programming languages. Those types describes tuples whose
-   components, called :gdef:`fields <field>`, can be accessed by
-   :gdef:`projection`. Such types can also be used to describe
-   mathematical structures, such as groups or rings, hence the
-   synonym :cmd:`Structure`.
-
    Defines the record named
-   :n:`@ident_decl`. :n:`@name` is the name of each
+   :n:`@ident_decl`. For each field, :n:`@name` is the name of the
    field. Fields can be :gdef:`abstract <abstract field>` as in
    :n:`@name {* @binder } @of_type` or :gdef:`manifest <manifest
    field>`, that is explicitly specified, as in :n:`@name {* @binder } @of_type := @term`.
@@ -43,7 +43,7 @@ Record types
    A record type belongs to a sort which is given by :token:`sort`. If
    omitted, the default sort is Type.
 
-   :n:`@binder` parameters may be applied to the record as a whole to declare
+   A sequence of :n:`@binder` may be applied to the record as a whole to declare
    the *parameters* of the record. They may also be applied to individual fields.
    For example, :n:`{+ @binder } : @of_type` is
    equivalent to :n:`forall {+ @binder } , @of_type` and
@@ -137,7 +137,7 @@ Record Projections
    .. coqtop:: reset all
 
       Record Rat : Set := mkRat
-       { sign : bool
+       { sign : bool (* false if negative *)
        ; top : nat
        ; bottom : nat
        ; Rat_bottom_cond : 0 <> bottom
@@ -157,8 +157,10 @@ Record Projections
        Theorem one_two_irred : forall x y z:nat, x * y = 1 /\ x * z = 2 -> x = 1.
        Admitted.
 
+       (* Applicative form: values for fields should be given in order *)
        Definition half := mkRat true 1 2 (O_S 1) one_two_irred.
 
+       (* Record form: omitting inferrable fields top and bottom *)
        Definition half' :=
          {| sign := true;
             Rat_bottom_cond := O_S 1;
