@@ -24,17 +24,16 @@ Record types
    mathematical structures, such as groups or rings, hence the
    synonym :cmd:`Structure`.
 
-   A :n:`@record_definition` defines a record named by
-   :n:`@ident_decl`. The fields are given by the semicolon-separated
-   list of :n:`@record_field` where :n:`@name` is the name of the
+   Defines the record named
+   :n:`@ident_decl`. :n:`@name` is the name of each
    field. Fields can be :gdef:`abstract <abstract field>` as in
    :n:`@name {* @binder } @of_type` or :gdef:`manifest <manifest
    field>`, that is explicitly specified, as in :n:`@name {* @binder } @of_type := @term`.
    Fields have a type given by :n:`@of_type` (when absent, as in :n:`@name {* @binder } := @term`,
    the type is inferred automatically).  In manifest
    fields, :n:`@term` is called the *body* of the field. The body
-   and type of a field can be dependent from previous fields and the
-   order of the fields is thus important.
+   and type of a field can depend on previous fields, so the order
+   of fields in the definition may matter.
 
    To a record is associated a constructor. The name of this
    constructor is provided by the occurrence of :n:`@ident` after
@@ -44,11 +43,10 @@ Record types
    A record type belongs to a sort which is given by :token:`sort`. If
    omitted, the default sort is Type.
 
-   A sequence of :n:`@binder` parameters may be applied to the record as a whole or
-   to individual fields. In the first case, this declares the
-   *parameters* of the record. In the second case, this is a notation
-   to generalize over binders in the field. That is, :n:`@name {+ @binder } : @type` is
-   equivalent to :n:`@name : forall {+ @binder } , @type` and
+   :n:`@binder` parameters may be applied to the record as a whole to declare
+   the *parameters* of the record. They may also be applied to individual fields.
+   For example, :n:`{+ @binder } : @of_type` is
+   equivalent to :n:`forall {+ @binder } , @of_type` and
    similarly for the other forms of :n:`@field_body`.
 
    When possible, the :cmd:`Record` command associates to each
@@ -61,7 +59,7 @@ Record types
    specifies the name to use for referring to the argument corresponding to the
    record in the type of projections.
 
-   If :n:`{? > }` provided, the constructor name is automatically declared as
+   If :n:`{? > }` is provided, the constructor is automatically declared as
    a coercion from the class of the last field type to the record name
    (this may fail if the uniform inheritance condition is not
    satisfied). See :ref:`coercions`.
@@ -72,7 +70,7 @@ Record types
    :attr:`universes(template)`, :attr:`universes(cumulative)`,
    :attr:`private(matching)` and :attr:`projections(primitive)` attributes.
 
-Syntax of Record Terms
+Constructing records
 ~~~~~~~~~~~~~~~~~~~~~~
 
    .. prodn::
@@ -99,7 +97,7 @@ Syntax of Record Terms
 
 .. FIXME: move this to the main grammar in the spec chapter
 
-Syntax of Record Projections
+Record Projections
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
    .. insertprodn term_projection term_projection
