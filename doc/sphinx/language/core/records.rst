@@ -5,8 +5,8 @@ Record types
 
 The :cmd:`Record` command defines types similar to :gdef:`records`
 in programming languages. Those types describes tuples whose
-components, called :gdef:`fields <field>`, can be accessed by
-:gdef:`projection`. Such types can also be used to describe
+components, called :gdef:`fields <field>`, can be accessed with
+:gdef:`projections <projection>`. Records can also be used to describe
 mathematical structures, such as groups or rings, hence the
 synonym :cmd:`Structure`.
 
@@ -15,90 +15,163 @@ synonym :cmd:`Structure`.
 .. cmd:: {| Record | Structure } @record_definition
    :name: Record; Structure
 
-   .. insertprodn record_definition field_def
+   .. insertprodn record_definition field_type
 
    .. prodn::
       record_definition ::= {? > } @ident_decl {* @binder } {? : @sort } {? := {? @ident } %{ {*; @record_field } {? ; } %} {? as @ident } }
-      record_field ::= {* #[ {*, @attribute } ] } @name {? @field_body } {? %| @natural } {? @decl_notations }
-      field_body ::= {* @binder } @of_type
+      record_field ::= {* #[ {*, @attribute } ] } @name {? @field_type } {? %| @natural }
+      field_type ::= {* @binder } @of_type
       | {* @binder } @of_type := @term
       | {* @binder } := @term
 
-   Defines the record named
-   :n:`@ident_decl`. For each field, :n:`@name` is the name of the
-   field. Fields can be :gdef:`abstract <abstract field>` as in
-   :n:`@name {* @binder } @of_type` or :gdef:`manifest <manifest
-   field>`, that is explicitly specified, as in :n:`@name {* @binder } @of_type := @term`.
-   Fields have a type given by :n:`@of_type` (when absent, as in :n:`@name {* @binder } := @term`,
-   the type is inferred automatically).  In manifest
-   fields, :n:`@term` is called the *body* of the field. The body
-   and type of a field can depend on previous fields, so the order
-   of fields in the definition may matter.
+   Defines a record type and creates projections for each field that has a name other
+   than `_`. The field body and type can depend on previous
+   fields, so the order of fields in the definition may matter.
 
-   To a record is associated a constructor. The name of this
-   constructor is provided by the occurrence of :n:`@ident` after
-   :n:`:=`. When omitted, the constructor name defaults to
-   :n:`Build_@ident` where :n:`@ident` is the record name.
+   :n:`{? > }`
+     If specified, the constructor is declared as
+     a coercion from the class of the last field type to the record name
+     (this may fail if the uniform inheritance condition is not
+     satisfied). See :ref:`coercions`.
 
-   A record type belongs to a sort which is given by :token:`sort`. If
-   omitted, the default sort is Type.
+   :n:`@ident_decl`
+     The name of the record.
 
-   A sequence of :n:`@binder` may be applied to the record as a whole to declare
-   the *parameters* of the record. They may also be applied to individual fields.
-   For example, :n:`{+ @binder } : @of_type` is
-   equivalent to :n:`forall {+ @binder } , @of_type` and
-   similarly for the other forms of :n:`@field_body`.
+   :n:`{* @binder }`
+     :n:`@binder`\s may be used to declare the *parameters* of the record.
 
-   When possible, the :cmd:`Record` command associates to each
-   field of the record a projection for accessing the instance
-   of the field in an object of type :token:`ident`.  These
-   projections are given the names of the corresponding fields. If a
-   field is named `_` then no projection is built for it.
+   :n:`: @sort`
+     The sort the record belongs to.  The default is :n:`Type`.
 
-   If given, the :n:`as @ident` part in the syntax of records
-   specifies the name to use for referring to the argument corresponding to the
-   record in the type of projections.
+   :n:`:= {? @ident }`
+     :n:`@ident` is the name of the record constructor.  If omitted,
+     the name defaults to :n:`Build_@ident` where :n:`@ident` is the record name.
 
-   If :n:`{? > }` is provided, the constructor is automatically declared as
-   a coercion from the class of the last field type to the record name
-   (this may fail if the uniform inheritance condition is not
-   satisfied). See :ref:`coercions`.
+   :n:`as {? @ident}`
+     Specifies the name used to refer to the argument corresponding to the
+     record in the type of projections.
 
-   Notations can be attached to fields using the :n:`@decl_notations` annotation.
+     .. todo PR: clarify above description, maybe give an example
+
+   In :n:`@record_field`:
+
+     :n:`@name` is the field name.  Since field names define projections, you can't
+     reuse the same field name in two different records in the same scope.
+
+     :n:`field_type` can be omitted only when the type of the field can be inferred
+     from other fields. For example: the type of :n:`n` can be inferred from
+     :n:`npos` in :n:`Record positive := { n; npos : 0 < n }`.
+
+     :n:`| @natural`
+       Specifies the priority of the field.  It is only allowed in :cmd:`Class` commands.
+
+   In :n:`@field_type`:
+
+     :n:`{+ @binder } : @of_type` is equivalent to :n:`forall {+ @binder } , @of_type`
+     and similarly for the other forms of :n:`@field_type`.
+
+     .. todo PR: is the above correct for "binder := term"?
+
+     :n:`:= @term`, if present, gives the value of the field, which may depend
+     on the fields that appear before it.  Such fields are not included in the
+     record constructor.
+
+     .. todo PR: what attributes are allowed on fields?  "The command :cmd:`Record` supports"
+        below applies to the command as a whole?
 
    The command :cmd:`Record` supports the :attr:`universes(polymorphic)`,
    :attr:`universes(template)`, :attr:`universes(cumulative)`,
    :attr:`private(matching)` and :attr:`projections(primitive)` attributes.
 
+   .. example:: Defining a record
+
+      The set of rational numbers may be defined as:
+
+      .. coqtop:: reset all
+
+         Record Rat : Set := mkRat
+          { negative : bool
+          ; top : nat
+          ; bottom : nat
+          ; Rat_bottom_nonzero : 0 <> bottom
+          ; Rat_irreducible :
+              forall x y z:nat, (x * y) = top /\ (x * z) = bottom -> x = 1
+          }.
+
+      The :n:`Rat_*` fields depend on :n:`top` and :n:`bottom`.
+      :n:`Rat_bottom_nonzero` is a proof that :n:`bottom` (the denominator)
+      is not zero.  :n:`Rat_irreducible` is a proof that the fraction is in
+      lowest terms.
+
+   .. todo PR: below: "not supposed to" or "must not"?
+
+   .. note:: Records defined with the :cmd:`Record` command are not supposed to be
+      recursive. To define recursive records, use the
+      :cmd:`Inductive` and :cmd:`CoInductive` commands, resulting in an inductive or coinductive record.
+      Definition of mutually inductive or coinductive records are also allowed, as long
+      as all of the types in the block are records.
+
+   .. note:: Induction schemes are automatically generated for inductive records.
+      Automatic generation of elimination schemes for non-recursive records
+      defined with the :cmd:`Record` command can be activated with the
+      :flag:`Nonrecursive Elimination Schemes` flag (see :ref:`proofschemes-induction-principles`).
+
+   .. todo PR: below: huh?
+
+   .. note:: Records exist in two flavors. In the first,
+      a record :n:`@ident` with parameters :n:`{* @binder }`,
+      constructor :n:`@ident__0`, and fields :n:`{* @name @field_type }`
+      is represented as a variant type with a single
+      constructor: :n:`Variant @ident {* @binder } : @sort := @ident__0
+      {* ( @name @field_type ) }` and projections are defined by case analysis.
+      In the second implementation, records have
+      primitive projections: see :ref:`primitive_projections`.
+
 Constructing records
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
+
+   .. insertprodn term_record field_def
 
    .. prodn::
       term_record ::= %{%| {*; @field_def } {? ; } %|%}
       field_def ::= @qualid {* @binder } := @term
 
-   Objects in record types can be written using either an *applicative
-   syntax* of the form :n:`@term_application` or a *record syntax* of
-   the form :n:`@term_record`.
+   Instances of record types can be constructed using either *record syntax*
+   (:n:`@term_record`, shown here) or with *applicative syntax* (see :n:`@term_application`)
+   using the constructor.
 
-   In the applicative form, it takes the
-   form :n:`@qualid {? @univ_annot } {+ @arg }` or
-   :n:`@@qualid {?  @univ_annot } {+ @term1 }` where :n:`@qualid`
-   refers to the constructor. That is, the constructor is seen as a
-   function and the instances for the abstract fields are given in
-   order as arguments of the constructor.
+   .. todo PR: what does it mean if you provide a qualid in field_def that's not just an ident?
+      Is that just to pick out a field defined in another section?
 
-   In the record form, the
-   instance of an abstract field is given as body of the
-   corresponding field name and the instances can be given in any
-   order. If a field is omitted, its instance is implicitly considered
-   to be the :n:`_` placeholder. It can then be filled automatically
-   by unification or by using obligations (see :ref:`programs`).
+   In the record form, the fields can be given in any order.  Fields that can be
+   inferred by unification or by using obligations (see :ref:`programs`) may be omitted.
 
-.. FIXME: move this to the main grammar in the spec chapter
+   .. todo PR: what is the difference between "mkRat ..." and "@mkRat ..."?
 
-Record Projections
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   In applicative form, all fields of the record must be passed, in order,
+   as arguments to the constructor.
+
+   .. example:: Constructing 1/2 as a record
+
+      Constructing the rational :math:`1/2` using either the record or applicative syntax:
+
+      .. coqtop:: in
+
+         Theorem one_two_irred : forall x y z:nat, x * y = 1 /\ x * z = 2 -> x = 1.
+         Admitted.
+
+         (* Record form: top and bottom can be inferred from other fields *)
+         Definition half' :=
+           {| negative := false;
+              Rat_bottom_nonzero := O_S 1;
+              Rat_irreducible := one_two_irred |}.
+
+         (* Applicative form: use the constructor and provide values for all the fields
+            in order *)
+         Definition half := mkRat true 1 2 (O_S 1) one_two_irred.
+
+Accessing fields (projections)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
    .. insertprodn term_projection term_projection
 
@@ -106,97 +179,62 @@ Record Projections
       term_projection ::= @term0 .( @qualid {? @univ_annot } {* @arg } )
       | @term0 .( @ @qualid {? @univ_annot } {* @term1 } )
 
-   The projection from an object can be written using either an
-   *applicative syntax* of the form :n:`@term_application` (more
-   precisely :n:`@qualid {?  @univ_annot } {+ @arg }` or
-   :n:`@@qualid {?  @univ_annot } {+ @term1 }`) or a *projection
-   syntax* of the form :n:`@term_projection`. In both cases,
-   :n:`@qualid` is the name of the projection.
+   The value of a field can be accessed using *projection syntax* (:n:`@term_projection`,
+   shown here) or with *applicative syntax* (see :n:`@term_application`) using the
+   projection function associated with the field.
+   Glossing over some syntactic details, the two forms are:
 
-   The syntax :n:`@term0.(@qualid)` is equivalent to :n:`@qualid @term0`,
-   the syntax :n:`@term0.(@qualid {+ @arg })` to :n:`@qualid {+ @arg } @term0`
-   and the syntax :n:`@term0.(@@qualid {+ @term0 })`
-   to :n:`@@qualid {+ @term0 } @term0`.  In each case,
-   :token:`term0` is the projected object and the other arguments are
-   the parameters of the inductive type.
+   - :n:`@qualid__record.(@qualid__field {* @arg })` (projective) and
+
+   - :n:`@qualid__field {* @arg } @qualid__record` (applicative)
+
+   where the :n:`@arg`\s are the parameters of the inductive type.
 
    Since the projected object is part of the notation, it is always
    considered an explicit argument of :token:`qualid`, even if it is
-   formally declared as implicit (see :ref:`ImplicitArguments`),
+   formally declared as implicit (see :ref:`ImplicitArguments`).
 
-   .. todo
-      "Record foo2:Prop := { a }." gives the error "Cannot infer this placeholder of type "Type",
-      while "Record foo2:Prop := { a:Type }." gives the output "foo2 is defined.
-      a cannot be defined because it is informative and foo2 is not."
-      Your thoughts?
+   .. todo PR
+      "Record foo2:Prop := { x:Type }." gives the output "foo2 is defined.
+      x cannot be defined because it is informative and foo2 is not."
+      What does this mean?
 
-.. example::
+   .. example::
 
-   The set of rational numbers may be defined as:
+      .. todo PR: maybe make this an example of matching?
 
-   .. coqtop:: reset all
+      Let us define a function by pattern matching over a record:
 
-      Record Rat : Set := mkRat
-       { sign : bool (* false if negative *)
-       ; top : nat
-       ; bottom : nat
-       ; Rat_bottom_cond : 0 <> bottom
-       ; Rat_irred_cond :
-           forall x y z:nat, (x * y) = top /\ (x * z) = bottom -> x = 1
-       }.
+      .. coqtop:: all
 
-   Note here that the fields ``Rat_bottom_cond`` depends on the field ``bottom``
-   and ``Rat_irred_cond`` depends on both ``top`` and ``bottom``.
+         Eval compute in (
+           match half with
+           | {| negative := false; top := n |} => n
+           | _ => 0
+           end).
 
-.. example::
+   .. example:: Accessing record fields
 
-   Let us define the rational :math:`1/2` using either the applicative or record syntax:
+      Let us project fields of a record, using either the applicative or projection syntax:
 
-    .. coqtop:: in
+      .. coqtop:: all
 
-       Theorem one_two_irred : forall x y z:nat, x * y = 1 /\ x * z = 2 -> x = 1.
-       Admitted.
+         (* projection form *)
+         Eval compute in half.(top).
 
-       (* Applicative form: values for fields should be given in order *)
-       Definition half := mkRat true 1 2 (O_S 1) one_two_irred.
+         (* applicative form *)
+         Eval compute in top half.
+         Eval compute in bottom half.
+         Eval compute in Rat_bottom_nonzero half.
 
-       (* Record form: omitting inferrable fields top and bottom *)
-       Definition half' :=
-         {| sign := true;
-            Rat_bottom_cond := O_S 1;
-            Rat_irred_cond := one_two_irred |}.
-
-.. example::
-
-   Let us define a function by pattern matching over a record:
-
-   .. coqtop:: all
-
-      Eval compute in (
-        match half with
-        | {| sign := true; top := n |} => n
-        | _ => 0
-        end).
-
-.. example::
-
-   Let us project fields of a record, using either the applicative or projection syntax:
-
-   .. coqtop:: all
-
-      Eval compute in top half.
-      Eval compute in bottom half.
-      Eval compute in Rat_bottom_cond half.
-      Eval compute in half.(top).
-
-The following settings let you control the display format for types:
+The following settings let you control the display format for record types:
 
 .. flag:: Printing Records
 
    When this :term:`flag` is on (this is the default),
    use the record syntax (shown above) as the default display format.
 
-You can override the display format for specified types by adding entries to these tables:
+You can override the display format for specified record types by adding entries to these tables:
 
 .. table:: Printing Record @qualid
 
@@ -219,23 +257,12 @@ You can override the display format for specified types by adding entries to the
          Set Printing Projections.
          Check top half.
 
-.. note:: Records defined with the :cmd:`Record` command are not supposed to be
-   recursive. To define recursive records, one can use the
-   :cmd:`Inductive` and :cmd:`CoInductive` commands, resulting in an inductive or coinductive record.
-   Definition of mutually inductive or coinductive records are also allowed, as long
-   as all of the types in the block are records.
-
-.. note:: Induction schemes are automatically generated for inductive records.
-   Automatic generation of elimination schemes for non-recursive records
-   defined with the :cmd:`Record` command can be activated with the
-   :flag:`Nonrecursive Elimination Schemes` flag (see :ref:`proofschemes-induction-principles`).
-
 .. note:: Records exist in two flavors. In the first
    implementation, a record :n:`@ident` with parameters :n:`{* @binder }`,
-   constructor :n:`@ident__0`, and fields :n:`{* @name @field_body }`
+   constructor :n:`@ident__0`, and fields :n:`{* @name @field_type }`
    is represented as a variant type with a single
    constructor: :n:`Variant @ident {* @binder } : @sort := @ident__0
-   {* ( @name @field_body ) }` and projections are defined by case analysis.
+   {* ( @name @field_type ) }` and projections are defined by case analysis.
    In the second implementation, records have
    primitive projections: see :ref:`primitive_projections`.
 

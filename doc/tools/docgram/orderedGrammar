@@ -682,10 +682,10 @@ record_definition: [
 ]
 
 record_field: [
-| LIST0 ( "#[" LIST0 attribute SEP "," "]" ) name OPT field_body OPT [ "|" natural ] OPT decl_notations
+| LIST0 ( "#[" LIST0 attribute SEP "," "]" ) name OPT field_type OPT [ "|" natural ]
 ]
 
-field_body: [
+field_type: [
 | LIST0 binder of_type
 | LIST0 binder of_type ":=" term
 | LIST0 binder ":=" term
