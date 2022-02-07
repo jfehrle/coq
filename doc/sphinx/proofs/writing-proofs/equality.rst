@@ -146,7 +146,7 @@ Rewriting with Leibniz and setoid equality
 
    :n:`@occurrences`
      If :n:`@occurrences` specifies multiple occurrences, the tactic succeeds if
-     any of them can be rewritten.  If not specified, only the first occurrence
+     all of them can be rewritten.  If not specified, only the first occurrence
      in the conclusion is replaced.
 
      .. note::
