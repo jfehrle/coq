@@ -2831,6 +2831,7 @@ RENAME: [
 | q_strategy_flag q_reductions
 | destruction_arg induction_arg
 | field_body field_spec
+| field_def field_val
 ]
 
 simple_tactic: [

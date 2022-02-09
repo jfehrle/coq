@@ -4,7 +4,7 @@ Record types
 ----------------
 
 The :cmd:`Record` command defines types similar to :gdef:`records`
-in programming languages. Those types describes tuples whose
+in programming languages. Those types describe tuples whose
 components, called :gdef:`fields <field>`, can be accessed with
 :gdef:`projections <projection>`. Records can also be used to describe
 mathematical structures, such as groups or rings, hence the
@@ -30,7 +30,7 @@ synonym :cmd:`Structure`.
 
    Use the :cmd:`Inductive` and :cmd:`CoInductive` commands to define recursive
    (inductive or coinductive) records.  These commands also permit defining
-   mutually inductive or coinductive records, provided all of
+   mutually recusrive records provided that all of
    the types in the block are records.  These commands automatically generate
    induction schemes.  Enable the :flag:`Nonrecursive Elimination Schemes` flag
    to enable automatic generation of elimination schemes for :cmd:`Record`.
@@ -43,7 +43,7 @@ synonym :cmd:`Structure`.
      satisfied). See :ref:`coercions`.
 
    :n:`@ident_decl`
-     The :n:`@ident` within is the name of the record.
+     The :n:`@ident` within is the record name.
 
    :n:`{* @binder }`
      :n:`@binder`\s may be used to declare the *parameters* of the record.
@@ -67,7 +67,7 @@ synonym :cmd:`Structure`.
 
      :n:`@name` is the field name.  Since field names define projections, you can't
      reuse the same field name in two different records in the same scope.  This
-     :ref:`example <reuse_field_name>` shows how to use the reuse the same field
+     :ref:`example <reuse_field_name>` shows how to reuse the same field
      name in multiple records.
 
      :n:`@field_spec` can be omitted only when the type of the field can be inferred
@@ -80,13 +80,13 @@ synonym :cmd:`Structure`.
    In :n:`@field_spec`:
 
      - :n:`{+ @binder } : @of_type` is equivalent to
-       :n:`forall {+ @binder } , @of_type`
+       :n:`: forall {+ @binder } , @of_type`
 
-     - :n:`{* @binder } := @term` is equivalent to
-       :n:`fun {* @binder } => @term`
+     - :n:`{+ @binder } := @term` is equivalent to
+       :n:`:= fun {* @binder } => @term`
 
-     - :n:`{* @binder } @of_type := @term` is equivalent to
-       :n:`forall {* @binder } , @type := fun {* @binder } => @term`
+     - :n:`{+ @binder } @of_type := @term` is equivalent to
+       :n:`: forall {* @binder } , @type := fun {* @binder } => @term`
 
      :n:`:= @term`, if present, gives the value of the field, which may depend
      on the fields that appear before it.  Since their values are already defined,
@@ -145,25 +145,26 @@ synonym :cmd:`Structure`.
 Constructing records
 ~~~~~~~~~~~~~~~~~~~~
 
-   .. insertprodn term_record field_def
+   .. insertprodn term_record field_val
 
    .. prodn::
-      term_record ::= %{%| {*; @field_def } {? ; } %|%}
-      field_def ::= @qualid {* @binder } := @term
+      term_record ::= %{%| {*; @field_val } {? ; } %|%}
+      field_val ::= @qualid {* @binder } := @term
 
-   Instances of record types can be constructed using either *record syntax*
-   (:n:`@term_record`, shown here) or with *applicative syntax* (see :n:`@term_application`)
-   using the constructor.
+   Instances of record types can be constructed using either *record form*
+   (:n:`@term_record`, shown here) or *application form* (see :n:`@term_application`)
+   using the constructor.  The associated record definition is selected using the
+   provided field names or constructor name, both of which are global.
 
    In the record form, the fields can be given in any order.  Fields that can be
    inferred by unification or by using obligations (see :ref:`programs`) may be omitted.
 
-   In applicative form, all fields of the record must be passed, in order,
+   In application form, all fields of the record must be passed, in order,
    as arguments to the constructor.
 
    .. example:: Constructing 1/2 as a record
 
-      Constructing the rational :math:`1/2` using either the record or applicative syntax:
+      Constructing the rational :math:`1/2` using either the record or application syntax:
 
       .. coqtop:: in
 
@@ -176,8 +177,8 @@ Constructing records
               Rat_bottom_nonzero := O_S 1;
               Rat_irreducible := one_two_irred |}.
 
-         (* Applicative form: use the constructor and provide values for all the fields
-            in order.  "mkRat" is the Record command *)
+         (* Application form: use the constructor and provide values for all the fields
+            in order.  "mkRat" is defined by the Record command *)
          Definition half' := mkRat true 1 2 (O_S 1) one_two_irred.
 
 Accessing fields (projections)
@@ -189,15 +190,15 @@ Accessing fields (projections)
       term_projection ::= @term0 .( @qualid {? @univ_annot } {* @arg } )
       | @term0 .( @ @qualid {? @univ_annot } {* @term1 } )
 
-   The value of a field can be accessed using *projective syntax* (:n:`@term_projection`,
-   shown here) or with *applicative syntax* (see :n:`@term_application`) using the
+   The value of a field can be accessed using *projection form* (:n:`@term_projection`,
+   shown here) or with *application form* (see :n:`@term_application`) using the
    projection function associated with the field.  Don't forget the parentheses for the
-   projective form.
+   projection form.
    Glossing over some syntactic details, the two forms are:
 
-   - :n:`@qualid__record.( {? @ } @qualid__field {* @arg })` (projective) and
+   - :n:`@qualid__record.( {? @ } @qualid__field {* @arg })` (projection) and
 
-   - :n:`{? @ } @qualid__field {* @arg } @qualid__record` (applicative)
+   - :n:`{? @ } @qualid__field {* @arg } @qualid__record` (application)
 
    where the :n:`@arg`\s are the parameters of the inductive type.  If :n:`@` is
    specified, all implicit arguments must be provided.
@@ -216,22 +217,20 @@ Accessing fields (projections)
 
    .. example:: Accessing record fields
 
-      Let us project fields of a record, using either the applicative or projection syntax:
-
       .. coqtop:: all
 
          (* projection form *)
          Eval compute in half.(top).
 
-      .. coqtop: in
+      .. coqtop:: in
 
          Goal True.
 
-      .. coqtop: all
+      .. coqtop:: all
 
          let x := eval compute in half.(top) in idtac x.
 
-         (* applicative form *)
+         (* application form *)
          Eval compute in top half.
          Eval compute in bottom half.
          Eval compute in Rat_bottom_nonzero half.
@@ -280,14 +279,15 @@ You can override the display format for specified record types by adding entries
 
 .. flag:: Printing Projections
 
-   This :term:`flag` activates the dot notation for printing (off by default).
+   Activates the projection form (dot notation) for printing projections (off by default).
 
    .. example::
 
       .. coqtop:: all
 
+         Check top half.  (* off: application form *)
          Set Printing Projections.
-         Check top half.
+         Check top half.  (* on:  projection form *)
 
 .. note:: Records exist in two flavors. In the first
    implementation, a record :n:`@ident` with parameters :n:`{* @binder }`,
