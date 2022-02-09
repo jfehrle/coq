@@ -15,18 +15,26 @@ synonym :cmd:`Structure`.
 .. cmd:: {| Record | Structure } @record_definition
    :name: Record; Structure
 
-   .. insertprodn record_definition field_type
+   .. insertprodn record_definition field_spec
 
    .. prodn::
       record_definition ::= {? > } @ident_decl {* @binder } {? : @sort } {? := {? @ident } %{ {*; @record_field } {? ; } %} {? as @ident } }
-      record_field ::= {* #[ {*, @attribute } ] } @name {? @field_type } {? %| @natural }
-      field_type ::= {* @binder } @of_type
-      | {* @binder } @of_type := @term
+      record_field ::= {* #[ {*, @attribute } ] } @name {? @field_spec } {? %| @natural }
+      field_spec ::= {* @binder } @of_type
       | {* @binder } := @term
+      | {* @binder } @of_type := @term
 
-   Defines a record type and creates projections for each field that has a name other
-   than `_`. The field body and type can depend on previous
+   Defines a non-recursive record type, creating projections for each field
+   that has a name other than `_`. The field body and type can depend on previous
    fields, so the order of fields in the definition may matter.
+
+   Use the :cmd:`Inductive` and :cmd:`CoInductive` commands to define recursive
+   (inductive or coinductive) records.  These commands also permit defining
+   mutually inductive or coinductive records, provided all of
+   the types in the block are records.  These commands automatically generate
+   induction schemes.  Enable the :flag:`Nonrecursive Elimination Schemes` flag
+   to enable automatic generation of elimination schemes for :cmd:`Record`.
+   See :ref:`proofschemes-induction-principles`.
 
    :n:`{? > }`
      If specified, the constructor is declared as
@@ -35,7 +43,7 @@ synonym :cmd:`Structure`.
      satisfied). See :ref:`coercions`.
 
    :n:`@ident_decl`
-     The name of the record.
+     The :n:`@ident` within is the name of the record.
 
    :n:`{* @binder }`
      :n:`@binder`\s may be used to declare the *parameters* of the record.
@@ -55,31 +63,36 @@ synonym :cmd:`Structure`.
 
    In :n:`@record_field`:
 
-     :n:`@name` is the field name.  Since field names define projections, you can't
-     reuse the same field name in two different records in the same scope.
+     :n:`@attribute`, if specified, can only be :n:`canonical`.
 
-     :n:`field_type` can be omitted only when the type of the field can be inferred
+     :n:`@name` is the field name.  Since field names define projections, you can't
+     reuse the same field name in two different records in the same scope.  This
+     :ref:`example <reuse_field_name>` shows how to use the reuse the same field
+     name in multiple records.
+
+     :n:`@field_spec` can be omitted only when the type of the field can be inferred
      from other fields. For example: the type of :n:`n` can be inferred from
      :n:`npos` in :n:`Record positive := { n; npos : 0 < n }`.
 
      :n:`| @natural`
        Specifies the priority of the field.  It is only allowed in :cmd:`Class` commands.
 
-   In :n:`@field_type`:
+   In :n:`@field_spec`:
 
-     :n:`{+ @binder } : @of_type` is equivalent to :n:`forall {+ @binder } , @of_type`
-     and similarly for the other forms of :n:`@field_type`.
+     - :n:`{+ @binder } : @of_type` is equivalent to
+       :n:`forall {+ @binder } , @of_type`
 
-     .. todo PR: is the above correct for "binder := term"?
+     - :n:`{* @binder } := @term` is equivalent to
+       :n:`fun {* @binder } => @term`
+
+     - :n:`{* @binder } @of_type := @term` is equivalent to
+       :n:`forall {* @binder } , @type := fun {* @binder } => @term`
 
      :n:`:= @term`, if present, gives the value of the field, which may depend
-     on the fields that appear before it.  Such fields are not included in the
-     record constructor.
+     on the fields that appear before it.  Since their values are already defined,
+     such fields cannot be specified when constructing a record.
 
-     .. todo PR: what attributes are allowed on fields?  "The command :cmd:`Record` supports"
-        below applies to the command as a whole?
-
-   The command :cmd:`Record` supports the :attr:`universes(polymorphic)`,
+   The :cmd:`Record` command supports the :attr:`universes(polymorphic)`,
    :attr:`universes(template)`, :attr:`universes(cumulative)`,
    :attr:`private(matching)` and :attr:`projections(primitive)` attributes.
 
@@ -103,27 +116,29 @@ synonym :cmd:`Structure`.
       is not zero.  :n:`Rat_irreducible` is a proof that the fraction is in
       lowest terms.
 
-   .. todo PR: below: "not supposed to" or "must not"?
+.. _reuse_field_name:
 
-   .. note:: Records defined with the :cmd:`Record` command are not supposed to be
-      recursive. To define recursive records, use the
-      :cmd:`Inductive` and :cmd:`CoInductive` commands, resulting in an inductive or coinductive record.
-      Definition of mutually inductive or coinductive records are also allowed, as long
-      as all of the types in the block are records.
+   .. example:: Reusing a field name in multiple records
 
-   .. note:: Induction schemes are automatically generated for inductive records.
-      Automatic generation of elimination schemes for non-recursive records
-      defined with the :cmd:`Record` command can be activated with the
-      :flag:`Nonrecursive Elimination Schemes` flag (see :ref:`proofschemes-induction-principles`).
+      .. coqtop:: in
 
-   .. todo PR: below: huh?
+         Module A. Record R := { f : nat }. End A.
+         Module B. Record S := { f : nat }. End B.
+
+      .. coqtop:: all
+
+         Check {| A.f := 0 |}.
+         Check {| B.f := 0 |}.
+
+   .. todo below: huh?  Hugo sez "the model to think about primitive projections
+      is not fully stabilized"
 
    .. note:: Records exist in two flavors. In the first,
       a record :n:`@ident` with parameters :n:`{* @binder }`,
-      constructor :n:`@ident__0`, and fields :n:`{* @name @field_type }`
+      constructor :n:`@ident__0`, and fields :n:`{* @name @field_spec }`
       is represented as a variant type with a single
       constructor: :n:`Variant @ident {* @binder } : @sort := @ident__0
-      {* ( @name @field_type ) }` and projections are defined by case analysis.
+      {* ( @name @field_spec ) }` and projections are defined by case analysis.
       In the second implementation, records have
       primitive projections: see :ref:`primitive_projections`.
 
@@ -140,13 +155,8 @@ Constructing records
    (:n:`@term_record`, shown here) or with *applicative syntax* (see :n:`@term_application`)
    using the constructor.
 
-   .. todo PR: what does it mean if you provide a qualid in field_def that's not just an ident?
-      Is that just to pick out a field defined in another section?
-
    In the record form, the fields can be given in any order.  Fields that can be
    inferred by unification or by using obligations (see :ref:`programs`) may be omitted.
-
-   .. todo PR: what is the difference between "mkRat ..." and "@mkRat ..."?
 
    In applicative form, all fields of the record must be passed, in order,
    as arguments to the constructor.
@@ -161,14 +171,14 @@ Constructing records
          Admitted.
 
          (* Record form: top and bottom can be inferred from other fields *)
-         Definition half' :=
+         Definition half :=
            {| negative := false;
               Rat_bottom_nonzero := O_S 1;
               Rat_irreducible := one_two_irred |}.
 
          (* Applicative form: use the constructor and provide values for all the fields
-            in order *)
-         Definition half := mkRat true 1 2 (O_S 1) one_two_irred.
+            in order.  "mkRat" is the Record command *)
+         Definition half' := mkRat true 1 2 (O_S 1) one_two_irred.
 
 Accessing fields (projections)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -179,39 +189,30 @@ Accessing fields (projections)
       term_projection ::= @term0 .( @qualid {? @univ_annot } {* @arg } )
       | @term0 .( @ @qualid {? @univ_annot } {* @term1 } )
 
-   The value of a field can be accessed using *projection syntax* (:n:`@term_projection`,
+   The value of a field can be accessed using *projective syntax* (:n:`@term_projection`,
    shown here) or with *applicative syntax* (see :n:`@term_application`) using the
-   projection function associated with the field.
+   projection function associated with the field.  Don't forget the parentheses for the
+   projective form.
    Glossing over some syntactic details, the two forms are:
 
-   - :n:`@qualid__record.(@qualid__field {* @arg })` (projective) and
+   - :n:`@qualid__record.( {? @ } @qualid__field {* @arg })` (projective) and
 
-   - :n:`@qualid__field {* @arg } @qualid__record` (applicative)
+   - :n:`{? @ } @qualid__field {* @arg } @qualid__record` (applicative)
 
-   where the :n:`@arg`\s are the parameters of the inductive type.
+   where the :n:`@arg`\s are the parameters of the inductive type.  If :n:`@` is
+   specified, all implicit arguments must be provided.
 
    Since the projected object is part of the notation, it is always
    considered an explicit argument of :token:`qualid`, even if it is
    formally declared as implicit (see :ref:`ImplicitArguments`).
 
-   .. todo PR
-      "Record foo2:Prop := { x:Type }." gives the output "foo2 is defined.
-      x cannot be defined because it is informative and foo2 is not."
-      What does this mean?
+   .. exn:: @ident cannot be defined because it is informative and @ident is not
 
-   .. example::
-
-      .. todo PR: maybe make this an example of matching?
-
-      Let us define a function by pattern matching over a record:
-
-      .. coqtop:: all
-
-         Eval compute in (
-           match half with
-           | {| negative := false; top := n |} => n
-           | _ => 0
-           end).
+      For example, :n:`Record foo:Prop := { x:Type }` generates the message
+      "x cannot be defined ... and foo is not".  Proofs (objects of sort :n:`Prop`)
+      are supposed to be non-distinguishable.  If you have two inhabitants of
+      :n:`Type`, such as :n:`%{%| x := nat %|%}` and :n:`%{%| x := bool %|%}`, they are
+      distinguishable (i.e. informative) and are therefore prohibited.
 
    .. example:: Accessing record fields
 
@@ -222,10 +223,41 @@ Accessing fields (projections)
          (* projection form *)
          Eval compute in half.(top).
 
+      .. coqtop: in
+
+         Goal True.
+
+      .. coqtop: all
+
+         let x := eval compute in half.(top) in idtac x.
+
          (* applicative form *)
          Eval compute in top half.
          Eval compute in bottom half.
          Eval compute in Rat_bottom_nonzero half.
+
+   .. example:: Matching on records
+
+      .. coqtop:: all
+
+         Eval compute in (
+           match half with
+           | {| negative := false; top := n |} => n
+           | _ => 0
+           end).
+
+   .. example:: Accessing anonymous record fields with match
+
+      .. coqtop:: in
+
+         Record T := const { _ : nat }.
+         Definition gett x := match x with const n => n end.
+         Definition inst := const 3.
+
+      .. coqtop:: all
+
+         Eval compute in gett inst.
+
 
 The following settings let you control the display format for record types:
 
@@ -259,10 +291,10 @@ You can override the display format for specified record types by adding entries
 
 .. note:: Records exist in two flavors. In the first
    implementation, a record :n:`@ident` with parameters :n:`{* @binder }`,
-   constructor :n:`@ident__0`, and fields :n:`{* @name @field_type }`
+   constructor :n:`@ident__0`, and fields :n:`{* @name @field_spec }`
    is represented as a variant type with a single
    constructor: :n:`Variant @ident {* @binder } : @sort := @ident__0
-   {* ( @name @field_type ) }` and projections are defined by case analysis.
+   {* ( @name @field_spec ) }` and projections are defined by case analysis.
    In the second implementation, records have
    primitive projections: see :ref:`primitive_projections`.
 
@@ -294,7 +326,7 @@ During the definition of the one-constructor inductive definition, all
 the errors of inductive definitions, as described in Section
 :ref:`gallina-inductive-definitions`, may also occur.
 
-.. seealso:: Coercions and records in section :ref:`coercions-classes-as-records` of the chapter devoted to coercions.
+.. seealso:: Coercions and records in section :ref:`coercions-classes-as-records`.
 
 .. _primitive_projections:
 

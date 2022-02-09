@@ -2830,7 +2830,7 @@ RENAME: [
 | delta_flag delta_reductions
 | q_strategy_flag q_reductions
 | destruction_arg induction_arg
-| field_body field_type
+| field_body field_spec
 ]
 
 simple_tactic: [
