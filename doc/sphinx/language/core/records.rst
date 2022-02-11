@@ -30,7 +30,7 @@ synonym :cmd:`Structure`.
 
    Use the :cmd:`Inductive` and :cmd:`CoInductive` commands to define recursive
    (inductive or coinductive) records.  These commands also permit defining
-   mutually recusrive records provided that all of
+   mutually recursive records provided that all of
    the types in the block are records.  These commands automatically generate
    induction schemes.  Enable the :flag:`Nonrecursive Elimination Schemes` flag
    to enable automatic generation of elimination schemes for :cmd:`Record`.
@@ -57,9 +57,8 @@ synonym :cmd:`Structure`.
 
    :n:`as {? @ident}`
      Specifies the name used to refer to the argument corresponding to the
-     record in the type of projections.
-
-     .. todo PR: clarify above description, maybe give an example
+     record in the type of projections.  If not specified, the name is the first
+     letter of the record name.  See :ref:`example <record_as_clause>`.
 
    In :n:`@record_field`:
 
@@ -129,6 +128,18 @@ synonym :cmd:`Structure`.
 
          Check {| A.f := 0 |}.
          Check {| B.f := 0 |}.
+
+.. _record_as_clause:
+
+   .. example:: Using the "as" clause in a record definition
+
+      .. coqtop:: all
+
+         Record foo := { bar : nat } as HIMOM.
+         About bar.
+         Arguments bar {HIMOM}.   (* make "foo" an implicit parameter *)
+         Check bar.
+         Check (bar (HIMOM:={|bar:=0|})).
 
    .. todo below: huh?  Hugo sez "the model to think about primitive projections
       is not fully stabilized"
@@ -332,6 +343,8 @@ the errors of inductive definitions, as described in Section
 
 Primitive Projections
 ~~~~~~~~~~~~~~~~~~~~~
+
+Note: the design of primitive projections is still evolving.
 
 When the :flag:`Primitive Projections` flag is on or the
 :attr:`projections(primitive)` attribute is supplied for a :n:`Record` definition, its
