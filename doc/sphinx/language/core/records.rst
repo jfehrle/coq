@@ -135,11 +135,13 @@ synonym :cmd:`Structure`.
 
       .. coqtop:: all
 
-         Record foo := { bar : nat } as HIMOM.
-         About bar.
-         Arguments bar {HIMOM}.   (* make "foo" an implicit parameter *)
-         Check bar.
-         Check (bar (HIMOM:={|bar:=0|})).
+         Record MyRecord := { myfield : nat } as VarName.
+         About myfield. (* observe the MyRecord variable is named VarName *)
+         
+         (* This allows us to make VarName implicit for instance, without having to rename the variable as would be the case without the as clause. *)
+         Arguments myfield {VarName}.   (* make "VarName" an implicit parameter *)
+         Check myfield.
+         Check (myfield (VarName:={| myfield := 0 |})).
 
    .. todo below: huh?  Hugo sez "the model to think about primitive projections
       is not fully stabilized"
