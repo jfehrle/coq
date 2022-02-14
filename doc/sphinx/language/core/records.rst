@@ -1,7 +1,7 @@
 .. _record-types:
 
 Record types
-----------------
+------------
 
 The :cmd:`Record` command defines types similar to :gdef:`records`
 in programming languages. Those types describe tuples whose
@@ -9,6 +9,9 @@ components, called :gdef:`fields <field>`, can be accessed with
 :gdef:`projections <projection>`. Records can also be used to describe
 mathematical structures, such as groups or rings, hence the
 synonym :cmd:`Structure`.
+
+Defining record types
+~~~~~~~~~~~~~~~~~~~~~
 
 .. _record_grammar:
 
@@ -62,10 +65,10 @@ synonym :cmd:`Structure`.
 
    In :n:`@record_field`:
 
-     :n:`@attribute`, if specified, can only be :n:`canonical`.
+     :n:`@attribute`, if specified, can only be :attr:`canonical`.
 
      :n:`@name` is the field name.  Since field names define projections, you can't
-     reuse the same field name in two different records in the same scope.  This
+     reuse the same field name in two different records in the same module.  This
      :ref:`example <reuse_field_name>` shows how to reuse the same field
      name in multiple records.
 
@@ -136,12 +139,54 @@ synonym :cmd:`Structure`.
       .. coqtop:: all
 
          Record MyRecord := { myfield : nat } as VarName.
-         About myfield. (* observe the MyRecord variable is named VarName *)
+         About myfield. (* observe the MyRecord variable is named "VarName" *)
          
-         (* This allows us to make VarName implicit for instance, without having to rename the variable as would be the case without the as clause. *)
+         (* make "VarName" implicit without having to rename the variable,
+            which would be necessary without the "as" clause *)
          Arguments myfield {VarName}.   (* make "VarName" an implicit parameter *)
          Check myfield.
          Check (myfield (VarName:={| myfield := 0 |})).
+
+   .. exn:: Records declared with the keyword Record or Structure cannot be recursive.
+
+      The record name :token:`ident` appears in the type of its fields, but uses
+      the :cmd:`Record` command. Use  the :cmd:`Inductive` or
+      :cmd:`CoInductive` command instead.
+
+   .. exn:: Cannot handle mutually (co)inductive records.
+
+      Records cannot be defined as part of mutually inductive (or
+      coinductive) definitions, whether with records only or mixed with
+      standard definitions.
+
+   .. exn:: @ident already exists
+
+      The fieldname :n:`@ident` is already defined as a global.
+
+   .. warn:: @ident cannot be defined.
+
+     It can happen that the definition of a projection is impossible.
+     This message is followed by an explanation of this impossibility.
+     There may be two reasons:
+
+     #. The :term:`body` of :token:`ident` uses an incorrect elimination for
+        :token:`ident` (see :cmd:`Fixpoint` and :ref:`Destructors`).
+     #. The type of the projections :token:`ident` depends on previous
+        projections which themselves could not be defined.
+
+   .. warn:: @ident__field cannot be defined because it is informative and @ident__record is not
+
+      For example, :n:`Record foo:Prop := { x:Type }` generates the message
+      "x cannot be defined ... and foo is not".  Proofs (objects of sort :n:`Prop`)
+      are supposed to be non-distinguishable.  If you have two inhabitants of
+      :n:`Type`, such as :n:`%{%| x := nat %|%}` and :n:`%{%| x := bool %|%}`, they are
+      distinguishable (i.e. informative) and are therefore prohibited.
+
+   During the definition of the one-constructor inductive definition, all
+   the errors of inductive definitions, as described in Section
+   :ref:`gallina-inductive-definitions`, may also occur.
+
+   .. seealso:: Coercions and records in section :ref:`coercions-classes-as-records`.
 
    .. todo below: huh?  Hugo sez "the model to think about primitive projections
       is not fully stabilized"
@@ -220,14 +265,6 @@ Accessing fields (projections)
    considered an explicit argument of :token:`qualid`, even if it is
    formally declared as implicit (see :ref:`ImplicitArguments`).
 
-   .. exn:: @ident cannot be defined because it is informative and @ident is not
-
-      For example, :n:`Record foo:Prop := { x:Type }` generates the message
-      "x cannot be defined ... and foo is not".  Proofs (objects of sort :n:`Prop`)
-      are supposed to be non-distinguishable.  If you have two inhabitants of
-      :n:`Type`, such as :n:`%{%| x := nat %|%}` and :n:`%{%| x := bool %|%}`, they are
-      distinguishable (i.e. informative) and are therefore prohibited.
-
    .. example:: Accessing record fields
 
       .. coqtop:: all
@@ -245,8 +282,6 @@ Accessing fields (projections)
 
          (* application form *)
          Eval compute in top half.
-         Eval compute in bottom half.
-         Eval compute in Rat_bottom_nonzero half.
 
    .. example:: Matching on records
 
@@ -302,45 +337,6 @@ You can override the display format for specified record types by adding entries
          Set Printing Projections.
          Check top half.  (* on:  projection form *)
 
-.. note:: Records exist in two flavors. In the first
-   implementation, a record :n:`@ident` with parameters :n:`{* @binder }`,
-   constructor :n:`@ident__0`, and fields :n:`{* @name @field_spec }`
-   is represented as a variant type with a single
-   constructor: :n:`Variant @ident {* @binder } : @sort := @ident__0
-   {* ( @name @field_spec ) }` and projections are defined by case analysis.
-   In the second implementation, records have
-   primitive projections: see :ref:`primitive_projections`.
-
-.. warn:: @ident cannot be defined.
-
-  It can happen that the definition of a projection is impossible.
-  This message is followed by an explanation of this impossibility.
-  There may be three reasons:
-
-  #. The name :token:`ident` already exists in the global environment (see :cmd:`Axiom`).
-  #. The :term:`body` of :token:`ident` uses an incorrect elimination for
-     :token:`ident` (see :cmd:`Fixpoint` and :ref:`Destructors`).
-  #. The type of the projections :token:`ident` depends on previous
-     projections which themselves could not be defined.
-
-.. exn:: Records declared with the keyword Record or Structure cannot be recursive.
-
-   The record name :token:`ident` appears in the type of its fields, but uses
-   the :cmd:`Record` command. Use  the :cmd:`Inductive` or
-   :cmd:`CoInductive` command instead.
-
-.. exn:: Cannot handle mutually (co)inductive records.
-
-   Records cannot be defined as part of mutually inductive (or
-   coinductive) definitions, whether with records only or mixed with
-   standard definitions.
-
-During the definition of the one-constructor inductive definition, all
-the errors of inductive definitions, as described in Section
-:ref:`gallina-inductive-definitions`, may also occur.
-
-.. seealso:: Coercions and records in section :ref:`coercions-classes-as-records`.
-
 .. _primitive_projections:
 
 Primitive Projections
@@ -349,7 +345,7 @@ Primitive Projections
 Note: the design of primitive projections is still evolving.
 
 When the :flag:`Primitive Projections` flag is on or the
-:attr:`projections(primitive)` attribute is supplied for a :n:`Record` definition, its
+:attr:`projections(primitive)` attribute is supplied for a :cmd:`Record` definition, its
 :g:`match` construct is disabled. To eliminate the record type, one must
 use its defined primitive projections.
 

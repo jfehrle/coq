@@ -122,8 +122,8 @@ Function application
 equivalent to :n:`( … ( @term1__fun @term1__1 ) … ) @term1__n`:
 associativity is to the left.
 
-The :n:`@ @qualid_annotated {+ @term1 }` form requires that all arguments,
-including implicit ones, must be given.  Otherwise, implicit arguments need
+The :n:`@ @qualid_annotated {+ @term1 }` form requires specifying all arguments,
+including implicit ones.  Otherwise, implicit arguments need
 not be given.  See :ref:`ImplicitArguments`.
 
 The notations :n:`(@ident := @term)` and :n:`(@natural := @term)`
