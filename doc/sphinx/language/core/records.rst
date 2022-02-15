@@ -153,43 +153,34 @@ Defining record types
       the :cmd:`Record` command. Use  the :cmd:`Inductive` or
       :cmd:`CoInductive` command instead.
 
-   .. exn:: Cannot handle mutually (co)inductive records.
-
-      Records cannot be defined as part of mutually inductive (or
-      coinductive) definitions, whether with records only or mixed with
-      standard definitions.
-
    .. exn:: @ident already exists
 
       The fieldname :n:`@ident` is already defined as a global.
 
+   .. warn:: @ident__1 cannot be defined because the projection @ident__2 was not defined
+      :undocumented:
+
    .. warn:: @ident cannot be defined.
 
-     It can happen that the definition of a projection is impossible.
-     This message is followed by an explanation of this impossibility.
-     There may be two reasons:
+      The projection cannot be defined.  This message is followed by an explanation
+      of why it's not possible, such as:
 
-     #. The :term:`body` of :token:`ident` uses an incorrect elimination for
-        :token:`ident` (see :cmd:`Fixpoint` and :ref:`Destructors`).
-     #. The type of the projections :token:`ident` depends on previous
-        projections which themselves could not be defined.
+      #. The :term:`body` of :token:`ident` uses an incorrect elimination for
+         :token:`ident` (see :cmd:`Fixpoint` and :ref:`Destructors`).
 
    .. warn:: @ident__field cannot be defined because it is informative and @ident__record is not
 
+      The projection for the named field can't be defined.
       For example, :n:`Record foo:Prop := { x:Type }` generates the message
       "x cannot be defined ... and foo is not".  Proofs (objects of sort :n:`Prop`)
       are supposed to be non-distinguishable.  If you have two inhabitants of
       :n:`Type`, such as :n:`%{%| x := nat %|%}` and :n:`%{%| x := bool %|%}`, they are
       distinguishable (i.e. informative) and are therefore prohibited.
 
-   During the definition of the one-constructor inductive definition, all
-   the errors of inductive definitions, as described in Section
-   :ref:`gallina-inductive-definitions`, may also occur.
-
    .. seealso:: Coercions and records in section :ref:`coercions-classes-as-records`.
 
-   .. todo below: huh?  Hugo sez "the model to think about primitive projections
-      is not fully stabilized"
+   .. todo below: Need a better description for Variant and primitive projections.
+      Hugo says "the model to think about primitive projections is not fully stabilized".
 
    .. note:: Records exist in two flavors. In the first,
       a record :n:`@ident` with parameters :n:`{* @binder }`,
@@ -199,6 +190,10 @@ Defining record types
       {* ( @name @field_spec ) }` and projections are defined by case analysis.
       In the second implementation, records have
       primitive projections: see :ref:`primitive_projections`.
+
+   During the definition of the one-constructor inductive definition, all
+   the errors of inductive definitions, as described in Section
+   :ref:`gallina-inductive-definitions`, may also occur.
 
 Constructing records
 ~~~~~~~~~~~~~~~~~~~~
@@ -261,7 +256,7 @@ Accessing fields (projections)
    where the :n:`@arg`\s are the parameters of the inductive type.  If :n:`@` is
    specified, all implicit arguments must be provided.
 
-   Since the projected object is part of the notation, it is always
+   In projection form, since the projected object is part of the notation, it is always
    considered an explicit argument of :token:`qualid`, even if it is
    formally declared as implicit (see :ref:`ImplicitArguments`).
 
@@ -271,14 +266,6 @@ Accessing fields (projections)
 
          (* projection form *)
          Eval compute in half.(top).
-
-      .. coqtop:: in
-
-         Goal True.
-
-      .. coqtop:: all
-
-         let x := eval compute in half.(top) in idtac x.
 
          (* application form *)
          Eval compute in top half.
@@ -305,6 +292,8 @@ Accessing fields (projections)
 
          Eval compute in gett inst.
 
+Settings for printing records
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following settings let you control the display format for record types:
 
