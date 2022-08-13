@@ -70,7 +70,9 @@ let apply_subdir f path name =
 let readdir dir = try Sys.readdir dir with any -> [||]
 
 let process_directory f path =
-  Array.iter (apply_subdir f path) (readdir path)
+  let dirs = readdir path in
+  Array.sort String.compare dirs;
+  Array.iter (apply_subdir f path) dirs
 
 let process_subdirectories f path =
   let f = function FileDir (path,base) -> f path base | FileRegular _ -> () in

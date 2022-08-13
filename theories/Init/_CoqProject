@@ -1,2 +1,2 @@
--R .. Coq
+-R . Coq.Init
 -arg -noinit
