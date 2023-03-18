@@ -1805,6 +1805,37 @@ let () =
   } in
   define_ml_object Tac2quote.wit_reference obj
 
+LOST 2 ROUTINES
+(* routines to copy prev_chunks between Ltac1 and Ltac2 *)
+let call_from_ltac2_to_1 ist2 =
+  let open Ltac_plugin.Tacinterp in
+  let ist1 = default_ist () in
+  if DebugCommon.get_debug () then begin
+    let prev_chunks = match ist2.stack with
+    | None -> []
+    | Some stack ->
+      if stack = [] then ist2.prev_chunks
+      else (Tac2debug.get_chunk ist2) :: ist2.prev_chunks
+    in
+    let extra = TacStore.set ist1.extra f_trace { empty_trace with prev_chunks } in
+    { ist1 with extra }
+  end else
+    ist1
+
+let call_from_ltac1_to_2 ist1 =
+  let open Ltac_plugin.Tacinterp in
+  let env = Tac2interp.empty_environment () in
+  if DebugCommon.get_debug () then begin
+    let prev_chunks = match TacStore.get ist1.extra f_trace with
+    | None -> []
+    | Some trace ->
+      if trace.stack = [] then trace.prev_chunks
+      else (Ltac_plugin.Tactic_debug.get_chunk ist1.lfun trace) :: trace.prev_chunks
+    in
+    { env with prev_chunks }
+  end else
+    env
+
 (** Ltac2 in terms *)
 
 let () =
@@ -1828,7 +1859,7 @@ let interp_constr_var_as_constr ?loc env sigma tycon id =
   let ist = Tac2interp.get_env @@ GlobEnv.lfun env in
   let env = GlobEnv.renamed_env env in
   let c = Id.Map.find id ist.env_ist in
-  let c = Tac2ffi.to_constr c in
+  let c = Tac2ffi.to_constr c.e in
   let t = Retyping.get_type_of env sigma c in
   let j = { Environ.uj_val = c; uj_type = t } in
   match tycon with
@@ -1847,7 +1878,7 @@ let interp_preterm_var_as_constr ?loc env sigma tycon id =
   let ist = Tac2interp.get_env @@ GlobEnv.lfun env in
   let env = GlobEnv.renamed_env env in
   let c = Id.Map.find id ist.env_ist in
-  let {closure; term} = Tac2ffi.to_preterm c in
+  let {closure; term} = Tac2ffi.to_preterm c.e in
   let vars = {
     ltac_constrs = closure.typed;
     ltac_uconstrs = closure.untyped;
@@ -1892,7 +1923,7 @@ let () =
     in
     let ist = Tac2interp.get_env ist.Ltac_pretype.ltac_genargs in
     let c = Id.Map.find id ist.env_ist in
-    let c = Tac2ffi.to_pattern c in
+    let c = Tac2ffi.to_pattern c.e in
     c
   in
   Patternops.register_interp_pat wit_ltac2_var_quotation interp
@@ -1916,6 +1947,7 @@ let () =
   Genprint.register_noval_print0 wit_ltac2_var_quotation pr_raw pr_glb
 
 let () =
+  BROKEN?
   let subs ntnvars globs (ids, tac as orig) =
     if Id.Set.is_empty ids then
       (* closed tactic *)

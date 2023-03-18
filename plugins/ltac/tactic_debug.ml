@@ -35,27 +35,11 @@ let explain_logic_error e = CErrors.print e
 let explain_logic_error_no_anomaly e = CErrors.print_no_report e
 
 
-type breakpoint = {
-  dirpath : string;  (* module dirpath *)
-  offset : int;
-}
+type varmap = Geninterp.Val.t Names.Id.Map.t
 
-module BPSet = CSet.Make(struct
-  type t = breakpoint
-  let compare b1 b2 =
-    let c1 = Int.compare b1.offset b2.offset in
-    if c1 <> 0 then c1 else String.compare b1.dirpath b2.dirpath
-  end)
-
-let breakpoints = ref BPSet.empty
-
-
-(** add or remove a single breakpoint.  Maps the breakpoint from
-  IDE format (absolute path name, offset) to (module dirpath, offset)
-  opt - true to add, false to remove
-  ide_bpt - the breakpoint (absolute path name, offset)
-  *)
-let update_bpt fname offset opt =
+MOVE/FIX THROUGH get_vars
+let fmt_vars1 : varmap list -> int -> DebuggerTypes.db_vars_rty = fun varmaps framenum ->
+  let varmap = List.nth varmaps framenum in
   let open Names in
   let dp =
     if fname = "ToplevelInput" then  (* todo: or None? *)
@@ -202,38 +186,9 @@ let get_vars framenum =
   let vars = List.nth debugger_state.varmaps framenum in
   List.map (fun b ->
       let (id, v) = b in
+      (* todo: print more detail with Taccoerce.pr_value as in TacInterp.interp_app? (need env/sigma) *)
       (Id.to_string id, Pptactic.pr_value Constrexpr.LevelSome v)
-    ) (Id.Map.bindings vars)
-
-[@@@ocaml.warning "-32"]
-let cmd_to_str cmd =
-  let open DebugHook.Action in
-  match cmd with
-  | Continue -> "Continue"
-  | StepIn -> "StepIn"
-  | StepOver -> "StepOver"
-  | StepOut -> "StepOut"
-  | Skip -> "Skip"
-  | Interrupt -> "Interrput"
-  | Help -> "Help"
-  | UpdBpts _ -> "UpdBpts"
-  | Configd -> "Configd"
-  | GetStack -> "GetStack"
-  | GetVars _ -> "GetVars"
-  | RunCnt _ -> "RunCnt"
-  | RunBreakpoint _ -> "RunBreakpoint"
-  | Command _ -> "Command"
-  | Failed -> "Failed"
-  | Ignore -> "Ignore"
-[@@@ocaml.warning "+32"]
-
-let action = ref DebugHook.Action.StepOver
-
-let break = ref false
-(* causes the debugger to stop at the next step *)
-
-let get_break () = !break
-let set_break b = break := b
+    ) (Id.Map.bindings varmap)
 
 (* Communications with the outside world *)
 module Comm = struct
@@ -245,34 +200,10 @@ module Comm = struct
      initialization is unconditionally done for example in coqc.
      Improving this would require some tweaks in tacinterp which
      are out of scope for the current refactoring. *)
-  let init () =
-    let open DebugHook in
-    match Intf.get () with
-    | Some intf ->
-      if Intf.(intf.isTerminal) then
-        action := Action.StepIn
-      else begin
-        set_break false;
-        breakpoints := BPSet.empty;
-        (hook ()).Intf.submit_answer (Answer.Init);
-        while
-          let cmd = (hook ()).Intf.read_cmd () in
-          let open DebugHook.Action in
-          match cmd with
-          | UpdBpts updates -> upd_bpts updates; true
-          | Configd -> action := Action.Continue; false
-          | _ -> failwith "Action type not allowed"
-        do () done
-      end
-    | None -> ()
-      (* CErrors.user_err
-       *   (Pp.str "Your user interface does not support the Ltac debugger.") *)
-
   open DebugHook.Intf
   open DebugHook.Answer
 
   let prompt g = wrap (fun () -> (hook ()).submit_answer (Prompt g))
-  let goal g = wrap (fun () -> (hook ()).submit_answer (Goal g))
   let output g = wrap (fun () -> (hook ()).submit_answer (Output g))
 
   (* routines for deferring output; output is sent only if
@@ -289,23 +220,8 @@ module Comm = struct
   [@@@ocaml.warning "-32"]
   let print g = (hook ()).submit_answer (Output (str g))
   [@@@ocaml.warning "+32"]
-  let isTerminal () = (hook ()).isTerminal
-  let read = wrap (fun () ->
-    let rec l () =
-      let cmd = (hook ()).read_cmd () in
-      let open DebugHook.Action in
-      match cmd with
-      | Ignore -> l ()
-      | UpdBpts updates -> upd_bpts updates; l ()
-      | GetStack ->
-        ((hook)()).submit_answer (Stack (format_stack (get_stack ())));
-        l ()
-      | GetVars framenum ->
-        ((hook)()).submit_answer (Vars (get_vars framenum));
-        l ()
-      | _ -> action := cmd; cmd
-    in
-    l ())
+  let isTerminal = DebugCommon.isTerminal
+  let read = wrap (fun () -> DebugCommon.read ())
 
 end
 
@@ -313,6 +229,7 @@ let defer_output = Comm.defer_output
 
 (* Prints the goal *)
 
+MOVE 2
 let db_pr_goal gl =
   let env = Proofview.Goal.env gl in
   let sigma = Tacmach.project gl in
@@ -382,74 +299,54 @@ let tac_loc tac =
 (*  Printf.printf "  %s\n%!" (fst rv);*)
   rv, loc
 
-let print_loc desc loc =
-  let open Loc in
-  match loc with
-  | Some loc ->
-    let src = (match loc.fname with
-    | InFile {file} -> file
-    | ToplevelInput -> "ToplevelInput")
-    in
-    Printf.sprintf "%s: %s %d/%d %d:%d\n" desc src loc.bp loc.line_nb
-      (loc.bp - loc.bol_pos_last) (loc.ep - loc.bol_pos_last)
-  | None -> Printf.sprintf "%s: loc is None" desc
-
 let print_loc_tac tac =
   let (desc, loc) = tac_loc tac in
-  print_loc desc loc
+  DebugCommon.print_loc desc loc
 [@@@ocaml.warning "+32"]
 
-let cvt_stack stack =
-  List.map (fun k ->
-    let (loc, k) = k in
-    (* todo: compare to explain_ltac_call_trace below *)
-    match k with
-    | LtacNameCall l -> KerName.to_string l, loc
-    | LtacMLCall _ -> "??? LtacMLCall", loc
-      (* LtacMLCall should not even show the stack frame, but profiling may need it *)
-    | LtacNotationCall l -> "??? LtacNotationCall", loc
-      (* LtacNotationCall should not even show the stack frame, but profiling may need it *)
-    | LtacAtomCall _ -> "??? LtacAtomCall", loc (* not found in stack *)
-    | LtacVarCall (kn, id, e) ->
-      let fn_name =
-        match kn with
-        | Some kn -> KerName.to_string kn
-        | None -> "" (* anonymous function *)
-      in
-      fn_name, loc
-    | LtacConstrInterp _ -> "", loc
-    ) stack
+let cvt_frame f =
+  let (loc, k) = f in
+  (* todo: compare to explain_ltac_call_trace below *)
+  match k with
+  | LtacNameCall l -> KerName.to_string l, loc
+  | LtacMLCall _ -> "??? LtacMLCall", loc
+    (* LtacMLCall should not even show the stack frame, but profiling may need it *)
+  | LtacNotationCall l -> "??? LtacNotationCall", loc
+    (* LtacNotationCall should not even show the stack frame, but profiling may need it *)
+  | LtacAtomCall _ -> "??? LtacAtomCall", loc (* not found in stack *)
+  | LtacVarCall (kn, id, e) ->
+    let fn_name =
+      match kn with
+      | Some kn -> KerName.to_string kn
+      | None -> "" (* anonymous function *)
+    in
+    fn_name, loc
+  | LtacConstrInterp _ -> "", loc
 
-(* Each list entry contains multiple trace frames. *)
-let trace_chunks : ltac_trace list ref = ref [([], [])]
-let push_chunk trace = trace_chunks := trace :: !trace_chunks
-let pop_chunk trace = trace_chunks := List.tl !trace_chunks
+let fmt_stack1 : ltac_stack -> unit -> string list = fun frames () ->
+  List.map (fun f -> let s, _ = cvt_frame f in s) frames
 
-let prev_stack = ref (Some [])  (* previous stopping point in debugger *)
-let prev_trace_chunks : ltac_trace list ref = ref [([], [])]
+let get_chunk varmap trace =
+  let {locs; stack; varmaps } = trace in
+  DebugCommon.{ locs;
+                stack_f = (fmt_stack1 stack);
+                vars_f = (fmt_vars1 (varmap :: varmaps)) }
 
-
-let save_loc tac varmap trace =
-(*  Comm.print (print_loc_tac tac);*)
-  let stack, varmaps = match trace with
-    | Some (stack, varmaps) -> stack, varmaps
-    | None -> [], []
+let save_history loc varmap trace =
+  let trace =  match trace with
+  | Some trace -> trace
+  | None -> { locs=[]; stack=[]; varmaps=[]; prev_chunks=[]}
   in
-  debugger_state.cur_loc <- CAst.(tac.loc);
-  let (pstack, pvars) = List.fold_right (fun (s,v) (os, ov) -> (s @ os), (v @ ov))
-    !trace_chunks ([],[]) in
-  debugger_state.stack <- cvt_stack (stack @ pstack);
-  debugger_state.varmaps <- varmap :: (varmaps @ pvars)
+  let chunk = get_chunk varmap trace in
+  DebugCommon.save_in_history chunk trace.prev_chunks loc
 
-(* Prints the goal and the command to be executed *)
-let goal_com tac varmap trace =
-  save_loc tac varmap trace;
-  Proofview.tclTHEN
-    db_pr_goal
-    (if Comm.isTerminal () || debugger_state.cur_loc = None then
-      (Proofview.tclLIFT (Comm.output (str "Going to execute:" ++ fnl () ++ prtac tac)))
-    else
-      Proofview.tclLIFT (Proofview.NonLogical.return ()))
+(* Prints the goal and the tactic to be executed *)
+let pr_goal_tac tac =
+  DebugCommon.pr_goals ();
+  (if Comm.isTerminal () then
+    Proofview.tclLIFT (Comm.output (str "Going to execute:" ++ fnl () ++ prtac tac))
+  else
+    Proofview.tclLIFT (Proofview.NonLogical.return ()))
 
 (* [run (new_ref _)] gives us a ref shared among [NonLogical.t]
    expressions. It avoids parameterizing everything over a
@@ -473,14 +370,11 @@ let () =
 
 (* (Re-)initialize debugger. is_tac controls whether to set the action *)
 let db_initialize is_tac =
-  if Sys.os_type = "Unix" then
-    Sys.set_signal Sys.sigusr1 (Sys.Signal_handle
-      (fun _ -> set_break true));
   let open Proofview.NonLogical in
   let x = (skip:=0) >> (skipped:=0) >> (idtac_breakpt:=None) in
   if is_tac then begin
     idtac_bpt_stop.contents <- false;
-    make Comm.init >> x
+    make DebugCommon.init >> x
   end else x
 
 (* Prints the run counter *)
@@ -496,50 +390,50 @@ let print_run_ctr print =
   else
     return ()
 
-(* Prints the prompt *)
-let rec prompt level =
+let rec read_loop level =
+  let not_in_history () =
+    if DebugCommon.in_history () then begin
+      Feedback.msg_info Pp.(str "Command invalid while in history");
+      false
+    end else true
+  in
   let runnoprint = print_run_ctr false in
     let open Proofview.NonLogical in
     let nl = if Stdlib.(!batch) then "\n" else "" in
     Comm.print_deferred () >>
     Comm.prompt (tag "message.prompt"
-                   @@ fnl () ++ str "TcDebug (" ++ int level ++ str (") > " ^ nl)) >>
-    if Stdlib.(!batch) && Comm.isTerminal () then return (DebugOn (level+1)) else
-    let exit = (skip:=0) >> (skipped:=0) >> raise (Sys.Break, Exninfo.null) in
-    Comm.read >>= fun inst ->
-    let open DebugHook.Action in
-    match inst with
-    | Continue
-    | StepIn
-    | StepOver
-    | StepOut -> return (DebugOn (level+1))
-    | Skip -> return DebugOff
-    | Interrupt -> Proofview.NonLogical.print_char '\b' >> exit  (* todo: why the \b? *)
-    | Help -> help () >> prompt level
-    | UpdBpts updates -> failwith "UpdBpts"  (* handled in init() loop *)
-    | Configd -> failwith "Configd" (* handled in init() loop *)
-    | GetStack -> failwith "GetStack" (* handled in read() loop *)
-    | GetVars _ -> failwith "GetVars" (* handled in read() loop *)
-    | RunCnt num -> (skip:=num) >> (skipped:=0) >>
-        runnoprint >> return (DebugOn (level+1))
-    | RunBreakpoint s -> (idtac_breakpt:=(Some s)) >> (* todo: look in Continue? *)
-        runnoprint >> return (DebugOn (level+1))
-    | Command _ -> failwith "Command"  (* not possible *)
-    | Failed -> prompt level
-    | Ignore -> failwith "Ignore" (* not possible *)
+                   @@ fnl () ++ str (Printf.sprintf "TcDebug (%d) > %s" level nl)) >>
+    if Stdlib.(!batch) && Comm.isTerminal () then return (DebugOn (level+1))
+    else begin
+      Comm.read >>= fun action ->
+      let open DebugHook.Action in
+      match action with
+      | Continue | StepIn | StepOver | StepOut -> return (DebugOn (level+1))
+      | Interrupt -> Proofview.NonLogical.print_char '\b' >>   (* todo: why the \b? *)
+          (skip:=0) >> (skipped:=0) >> raise (Sys.Break, Exninfo.null)
+      | Help -> help () >> read_loop level
+      | Skip ->
+        if not_in_history () then return DebugOff
+        else read_loop level
+      | RunCnt num ->
+        if not_in_history () then
+          (skip:=num) >> (skipped:=0) >> runnoprint >> return (DebugOn (level+1))
+        else read_loop level
+      | RunBreakpoint s ->
+        if not_in_history () then
+          (idtac_breakpt:=(Some s)) >> runnoprint >> return (DebugOn (level+1))
+        else
+          read_loop level
+      | Failed -> read_loop level
 
-let at_breakpoint tac =
-  let open Loc in
-  let check_bpt dirpath offset =
-(*    Printf.printf "In tactic_debug, dirpath = %s offset = %d\n%!" dirpath offset;*)
-    BPSet.mem { dirpath; offset } !breakpoints
-  in
-  match CAst.(tac.loc) with
-  | Some {fname=InFile {dirpath=Some dirpath}; bp} -> check_bpt dirpath bp
-  | Some {fname=ToplevelInput;                 bp} -> check_bpt "Top"   bp
-  | _ -> false
-
+      | Configd (* handled in init() loop *)
+      | ContinueRev | StepInRev | StepOverRev | StepOutRev
+      | UpdBpts _ | GetStack | GetVars _ | Subgoals _ (* handled in read() loop *)
+      | Command _  | Ignore -> (* not possible *)
+        failwith ("ltac1 invalid action: " ^ (DebugHook.Action.to_string action))
+    end
 [@@@ocaml.warning "-32"]
+
 open Tacexpr
 
 let pr_call_kind n k =
@@ -548,7 +442,7 @@ let pr_call_kind n k =
   | LtacMLCall _ -> "LtacMLCall"
   | LtacNotationCall _ -> "LtacNotationCall"
   | LtacNameCall l ->
-    let name = (KerName.to_string l) ^ (print_loc "" loc) in
+    let name = (KerName.to_string l) ^ (DebugCommon.print_loc "" loc) in
     Printf.printf "%s\n%!" name; Feedback.msg_notice (Pp.str name); "LtacNameCall"
   | LtacAtomCall _ -> "LtacAtomCall"
   | LtacVarCall _ -> "LtacVarCall"
@@ -585,39 +479,27 @@ let dump_varmaps msg varmaps =
    that. *)
 let debug_prompt lev tac f varmap trace =
   (* trace omits the currently-running tactic, so add separately *)
-  let stack, varmaps = match trace with
-    | Some (stack, varmaps) -> Some stack, Some (varmap :: varmaps)
-    | None -> None, Some [varmap] in
   let runprint = print_run_ctr true in
   let open Proofview.NonLogical in
   let (>=) = Proofview.tclBIND in
   (* What to print and to do next *)
+  let loc = CAst.(tac.loc) in
   let newlevel =
     Proofview.tclLIFT !skip >= fun s ->
+      save_history loc varmap trace;
       let stop_here () =
+(*
+  let locs, stack, varmaps = match trace with
+    | Some {locs; stack; varmaps} -> locs, Some stack, Some (varmap :: varmaps)
+    | None -> [], None, Some [varmap] in
+*)
 (*        dump_stack "at debug_prompt" stack;*)
 (*        dump_varmaps "at debug_prompt" varmaps;*)
-        prev_stack.contents <- stack;
-        prev_trace_chunks.contents <- trace_chunks.contents;
-        Proofview.tclTHEN (goal_com tac varmap trace) (Proofview.tclLIFT (prompt lev))
+        Proofview.tclTHEN (pr_goal_tac tac) (Proofview.tclLIFT (read_loop lev))
       in
-      let stacks_info stack p_stack =
-        (* performance impact? *)
-        let st_chunks =  StdList.map (fun (s, _) -> s) trace_chunks.contents in
-        let st =      StdList.concat ((Option.default [] stack) :: st_chunks) in
-        let prev_st_chunks = StdList.map (fun (s, _) -> s) prev_trace_chunks.contents in
-        let st_prev = StdList.concat ((Option.default [] p_stack) :: prev_st_chunks) in
-        let l_cur, l_prev = StdList.length st, StdList.length st_prev in
-        st, st_prev, l_cur, l_prev
-      in
-      let p_stack = prev_stack.contents in
-      if action.contents = DebugHook.Action.Continue && at_breakpoint tac then
-        (* todo: skip := 0 *)
+      if DebugCommon.stop_in_debugger loc then
         stop_here ()
-      else if get_break () then begin
-        set_break false;
-        stop_here ()
-      end else if s = 1 then begin
+      else if s = 1 then begin
         Proofview.tclLIFT ((skip := 0) >> runprint) >=
         (fun () -> stop_here ())
       end else if s > 0 then
@@ -633,45 +515,24 @@ let debug_prompt lev tac f varmap trace =
         Proofview.tclLIFT !idtac_breakpt >= fun idtac_breakpt ->
           if Option.has_some idtac_breakpt then
             Proofview.tclLIFT(runprint >> return (DebugOn (lev+1)))
-          else begin
-            let open DebugHook.Action in
-            let stop = match action.contents with
-              | Continue -> false
-              | StepIn   -> true
-              | StepOver -> let st, st_prev, l_cur, l_prev = stacks_info stack p_stack in
-                            if l_cur = 0 || l_cur < l_prev then true (* stepped out *)
-                            else if l_prev = 0 (*&& l_cur > 0*) then false
-                            else
-                              let peq = StdList.nth st (l_cur - l_prev) == (StdList.hd st_prev) in
-                              (l_cur > l_prev && (not peq)) ||  (* stepped out *)
-                              (l_cur = l_prev && peq)  (* stepped over *)
-              | StepOut  -> let st, st_prev, l_cur, l_prev = stacks_info stack p_stack in
-                            if l_cur < l_prev then true
-                            else if l_prev = 0 then false
-                            else
-                              StdList.nth st (l_cur - l_prev) != (StdList.hd st_prev)
-              | Skip | RunCnt _ | RunBreakpoint _ -> false (* handled elsewhere *)
-              | _ -> failwith "action op"
-            in
-            if stop then begin
-              stop_here ()
-            end else
-              Proofview.tclLIFT (Comm.clear_queue () >>
-              return (DebugOn (lev+1)))
-          end
-    in
-  newlevel >= fun newlevel ->
-  (* What to execute *)
-  Proofview.tclOR
-    (f newlevel)
-    begin fun (reraise, info) ->
-      Proofview.tclTHEN
-        (Proofview.tclLIFT begin
-          (skip:=0) >> (skipped:=0) >>
-          Comm.defer_output (fun () -> str "Level " ++ int lev ++ str ": " ++ explain_logic_error reraise)
-        end)
-        (Proofview.tclZERO ~info reraise)
-    end
+          else
+            Proofview.tclLIFT (Comm.clear_queue () >>
+            return (DebugOn (lev+1)))
+  in
+
+  Proofview.tclTHEN (DebugCommon.save_goals loc (fun () -> ()) ()) newlevel >=
+  fun level ->
+    (* What to execute *)
+    Proofview.tclOR (* not tclORELSE? why create a backtracking point here? *)
+      (f level)
+      begin fun (reraise, info) ->
+        Proofview.tclTHEN
+          (Proofview.tclLIFT begin
+            (skip:=0) >> (skipped:=0) >>
+            Comm.defer_output (fun () -> str "Level " ++ int lev ++ str ": " ++ explain_logic_error reraise)
+          end)
+          (Proofview.tclZERO ~info reraise)
+      end
 
 let is_debug db =
   let open Proofview.NonLogical in

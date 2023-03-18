@@ -328,13 +328,14 @@ let diff_goal_info ~short o_info n_info =
     if short then [] else diff_hyps o_idents_in_lines o_hyp_map n_idents_in_lines n_hyp_map in
   (hyp_diffs_list, concl_pp)
 
-let unwrap g_s =
-  match g_s with
-  | Some g_s -> goal_info g_s
-  | None -> ([], CString.Map.empty, Pp.mt ())
-
 let diff_goal ?(short=false) ?og_s ng =
-  diff_goal_info ~short (unwrap og_s) (goal_info ng)
+  let ng_info = goal_info ng in
+  let og_info = match og_s with
+  | Some g_s -> goal_info g_s
+  | None -> if !DebuggerTypes.read_in_debug then ng_info (* show no diff (post-"only 1: tac" case) *)
+            else ([], CString.Map.empty, Pp.mt ()) (* show as new (Goal/Theorem case) *)
+  in
+  diff_goal_info ~short og_info ng_info
 
 (*** Code to determine which calls to compare between the old and new proofs ***)
 
@@ -372,17 +373,40 @@ let db_goal_map op np ng_to_og =
 
 type goal_map = Evd.evar_map * Evar.t Evar.Map.t
 
-let map_goal g (osigma, map) = match GoalMap.find_opt g map with
-| None -> None
-| Some g -> Some (make_goal (Global.env ()) osigma g)
+type goal_map_args = {
+  oall_goals: Evar.Set.t;
+  nall_goals: Evar.Set.t;
+  osigma:     Evd.evar_map;
+  nsigma:     Evd.evar_map;
+  oto_constr: unit -> Constrexpr.constr_expr_r;
+  nto_constr: unit -> Constrexpr.constr_expr_r;
+  nhas_fg_goals: bool;
+}
+
+(* for use while not in the Ltac debugger *)
+let default_goal_map_args oldp newp =
+  {
+    oall_goals=Proof.all_goals oldp;
+    nall_goals=Proof.all_goals newp;
+    osigma=(Proof.data oldp).sigma;
+    nsigma=(Proof.data newp).sigma;
+    oto_constr=(fun () -> to_constr oldp);
+    nto_constr=(fun () -> to_constr newp);
+    nhas_fg_goals = (Proof.data newp).goals <> [];
+  }
+
 (* if not found, returning None treats the goal as new and it will be diff highlighted;
     returning Some { it = g; sigma = sigma } will compare the new goal
     to itself and it won't be highlighted *)
+let map_goal g (osigma, map) = match GoalMap.find_opt g map with
+| None -> None
+| Some g -> Some (make_goal (Global.env ()) osigma g)
 
 (* Create a map from new goals to old goals for proof diff. *)
-let make_goal_map op np =
-  let ogs = Proof.all_goals op in
-  let ngs = Proof.all_goals np in
+let make_goal_map_i goal_map_args =
+  let open Evar.Set in
+  let ogs = goal_map_args.oall_goals in
+  let ngs = goal_map_args.nall_goals in
   let { Proof.sigma } = Proof.data np in
 
   let fold_old_evar oevk acc =
@@ -406,9 +430,26 @@ let make_goal_map op np =
   in
   Evar.Set.fold fold_old_evar ogs Evar.Map.empty
 
-let make_goal_map op np =
-  let map = make_goal_map op np in
-  ((Proof.data op).Proof.sigma, map)
+[@@@ocaml.warning "-32"]
+let pr_goal_map map goal_map_args =
+  let pr_goals title goals sigma =
+    Printf.eprintf "%s: " title;
+    let goals = elements goals in
+    List.iter (fun g -> Printf.eprintf "%d -> %s  " (Evar.repr g) (goal_to_evar g sigma)) goals;
+    Printf.eprintf "\n%!"
+  in
+  pr_goals "\nold goals" goal_map_args.oall_goals goal_map_args.osigma;
+  pr_goals "new goals" goal_map_args.nall_goals goal_map_args.nsigma;
+  Printf.eprintf "Goal map: ";
+  GoalMap.iter (fun ng og -> Printf.eprintf "%d -> %d  " (Evar.repr ng) (Evar.repr og)) map;
+  Printf.eprintf "\n%!";
+[@@@ocaml.warning "+32"]
+
+let make_goal_map goal_map_args =
+  let map = if Evar.Set.is_empty goal_map_args.nall_goals then GoalMap.empty
+    else make_goal_map_i goal_map_args in
+(*  pr_goal_map map goal_map_args; *)
+  (goal_map_args.osigma, map)
 
 let notify_proof_diff_failure msg =
   Feedback.msg_notice Pp.(str "Unable to compute diffs: " ++ str msg)
@@ -417,7 +458,8 @@ let diff_proofs ~diff_opt ?old proof =
   let pp_proof p =
     let sigma, env = Proof.get_proof_context p in
     let pprf = Proof.partial_proof p in
-    Pp.prlist_with_sep Pp.fnl (pr_econstr_env env sigma) pprf in
+    Pp.prlist_with_sep Pp.fnl (pr_econstr_env env sigma) pprf
+  in
   match diff_opt with
   | DiffOff -> pp_proof proof
   | _ -> begin

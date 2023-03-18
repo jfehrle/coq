@@ -69,6 +69,9 @@ let init () =
 \n    <menuitem action='Previous tab' />\
 \n    <menuitem action='Next tab' />\
 \n    <separator/>\
+\n    <menuitem action='Previous goal' />\
+\n    <menuitem action='Next goal' />\
+\n    <separator/>\
 \n    <menuitem action='Zoom in' />\
 \n    <menuitem action='Zoom out' />\
 \n    <menuitem action='Zoom fit' />\
@@ -147,6 +150,9 @@ let init () =
 \n    <menuitem action='Continue' />\
 \n    <menuitem action='Step in' />\
 \n    <menuitem action='Step out' />\
+\n    <menuitem action='Continue back' />\
+\n    <menuitem action='Step in back' />\
+\n    <menuitem action='Step out back' />\
 \n    <menuitem action='Break' />\
 \n    <separator/>\
 \n    <menuitem action='Show debug panel' />\

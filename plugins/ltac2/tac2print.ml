@@ -35,6 +35,8 @@ let t_list =
 
 let c_nil = change_kn_label t_list (Id.of_string_soft "[]")
 let c_cons = change_kn_label t_list (Id.of_string_soft "::")
+let t_array =
+  KerName.make Tac2env.coq_prefix (Label.of_id (Id.of_string "array"))
 
 (** Type printing *)
 
@@ -263,7 +265,7 @@ let pr_partial_pat pat = pr_partial_pat_gen E5 pat
 let rec partial_pat_of_glb_pat pat =
   let open PartialPat in
   let pat = match pat with
-    | GPatVar x -> Var x
+    | GPatVar (x,_) -> Var x
     | GPatAtm x -> Atom x
     | GPatRef (ctor,pats) -> Ref (ctor, List.map partial_pat_of_glb_pat pats)
     | GPatOr pats -> Or (List.map partial_pat_of_glb_pat pats)
@@ -274,7 +276,7 @@ let rec partial_pat_of_glb_pat pat =
 let pr_glb_pat pat = pr_partial_pat (partial_pat_of_glb_pat pat)
 
 let rec avoid_glb_pat avoid = function
-  | GPatVar x -> Termops.add_vname avoid x
+  | GPatVar (x,_) -> Termops.add_vname avoid x
   | GPatAtm _ -> avoid
   | GPatRef (_, pats) -> List.fold_left avoid_glb_pat avoid pats
   | GPatOr [] -> assert false
@@ -286,7 +288,7 @@ let pr_glbexpr_gen lvl ~avoid c =
   | GTacAtm atm -> pr_atom atm
   | GTacVar id -> Id.print id
   | GTacRef gr -> pr_tacref avoid gr
-  | GTacFun (nas, c) ->
+  | GTacFun (nas, _, c) ->
     let avoid = List.fold_left Termops.add_vname avoid nas in
     let nas = pr_sequence pr_name nas in
     let paren = match lvl with
@@ -295,20 +297,21 @@ let pr_glbexpr_gen lvl ~avoid c =
     in
     paren (hov 0 (hov 2 (str "fun" ++ spc () ++ nas) ++ spc () ++ str "=>" ++ spc () ++
       pr_glbexpr E5 avoid c))
-  | GTacApp (c, cl) ->
+  | GTacApp (c, cl, _) ->
     let paren = match lvl with
     | E0 -> paren
     | E1 | E2 | E3 | E4 | E5 -> fun x -> x
     in
     paren (hov 2 (pr_glbexpr E1 avoid c ++ spc () ++ (pr_sequence (pr_glbexpr E0 avoid) cl)))
+  | GTacAls (e,_,_) -> pr_glbexpr lvl avoid e
   | GTacLet (isrec, bnd, e) ->
     let paren = match lvl with
     | E0 | E1 | E2 | E3 | E4 -> paren
     | E5 -> fun x -> x
     in
     let pprec = if isrec then str "rec " else mt () in
-    let avoidbnd = List.fold_left (fun avoid (na,_) -> Termops.add_vname avoid na) avoid bnd in
-    let pr_bnd (na, e) =
+    let avoidbnd = List.fold_left (fun avoid (na,_, _) -> Termops.add_vname avoid na) avoid bnd in
+    let pr_bnd (na, e, t) =
       let avoid = if isrec then avoidbnd else avoid in
       (* negative offset: the box starts at the | in "let |x := ..."
          but we want to print with offset 2 from the start of "let" *)
@@ -329,24 +332,26 @@ let pr_glbexpr_gen lvl ~avoid c =
       begin match Tac2env.interp_type kn with
       | _, GTydDef None -> str "<abstr>"
       | _, GTydDef _ | _, GTydRec _ | _, GTydOpn -> assert false
-      | _, GTydAlg { galg_constructors = def } ->
-        let br = order_branches cst_br ncst_br def in
-        let pr_branch (cstr, vars, p) =
-          let cstr = change_kn_label kn cstr in
-          let cstr = pr_constructor cstr in
-          let avoid = List.fold_left Termops.add_vname avoid vars in
-          let vars = match vars with
-            | [] -> mt ()
-            | _ -> spc () ++ pr_sequence pr_name vars
-          in
-          hov 4 (str "|" ++ spc () ++ hov 0 (cstr ++ vars ++ spc () ++ str "=>") ++ spc () ++
-                 hov 2 (pr_glbexpr E5 avoid p))
+      in
+      let br = order_branches cst_br ncst_br def in
+      let pr_branch (cstr, vars, p) =
+        let cstr = change_kn_label kn cstr in
+        let cstr = pr_constructor cstr in
+        let avoid = List.fold_left Termops.add_vname avoid vars in
+        let vars = match vars with
+        | [] -> mt ()
+        | _ -> spc () ++ pr_sequence pr_name vars
         in
-        prlist_with_sep spc pr_branch br
-      end
+        hov 4 (str "|" ++ spc () ++ hov 0 (cstr ++ vars ++ spc () ++ str "=>") ++ spc () ++
+          hov 2 (pr_glbexpr E5 avoid p)) ++ spc ()
+      in
+      let br = List.map (fun (a,b,c) -> (a, List.map (fun (d,e) -> d) b, c)) br in
+      prlist pr_branch br
     | Tuple n ->
       let (vars, p) = if Int.equal n 0 then ([||], cst_br.(0)) else ncst_br.(0) in
+      let vars = Array.map (fun (a,b) -> a) vars in
       let avoid = Array.fold_left Termops.add_vname avoid vars in
+(*        (fun (v,_) -> pr_name v) vars *)
       let p = pr_glbexpr E5 avoid p in
       let vars = prvect_with_sep (fun () -> str "," ++ spc ()) pr_name vars in
       hov 4 (str "|" ++ spc () ++ hov 0 (paren vars ++ spc () ++ str "=>") ++ spc () ++ p)
@@ -855,9 +860,17 @@ let register_val_printer kn pr =
 
 open Tac2ffi
 
-let rec pr_valexpr_gen env sigma lvl v t = match kind t with
-| GTypVar _ -> str "<poly>"
-| GTypRef (Other kn, params) ->
+let rec pr_valexpr_gen env sigma maptv lvl v t = match kind t with
+| GTypVar tv as ty ->
+  begin match maptv with
+    | Some f ->
+      let t2 = f ty in
+      begin match t2 with
+        | GTypVar _ -> str "<poly>" (* type is not bound *)
+        | _ -> pr_valexpr env sigma maptv v t2
+      end
+    | None -> str "<poly>"
+  end| GTypRef (Other kn, params) ->
   let pr = try Some (KNmap.find kn !printers) with Not_found -> None in
   begin match pr with
   | Some pr ->
@@ -866,7 +879,9 @@ let rec pr_valexpr_gen env sigma lvl v t = match kind t with
   | None ->
     let n, repr = Tac2env.interp_type kn in
     if KerName.equal kn t_list then
-      pr_val_list env sigma (to_list (fun v -> repr_to valexpr v) v) (List.hd params)
+      pr_val_list env sigma (to_list (fun v -> repr_to Tac2ffi.valexpr v) v) (List.hd params) maptv
+    else if KerName.equal kn t_array then
+      pr_val_array env sigma maptv (to_array (fun v -> repr_to Tac2ffi.valexpr v) v) (List.hd params)
     else match repr with
     | GTydDef None -> str "<abstr>"
     | GTydDef (Some _) ->
@@ -883,11 +898,11 @@ let rec pr_valexpr_gen env sigma lvl v t = match kind t with
         let (n, args) = Tac2ffi.to_block v in
         let (_, id, tpe) = find_constructor n false alg.galg_constructors in
         let knc = change_kn_label kn id in
-        let args = pr_constrargs env sigma params args tpe in
+        let args = pr_constrargs env sigma params args tpe maptv in
         paren (pr_constructor knc ++ spc () ++ args)
     | GTydRec rcd ->
       let (_, args) = Tac2ffi.to_block v in
-      pr_record env sigma params args rcd
+      pr_record env sigma params args rcd maptv
     | GTydOpn ->
       begin match Tac2ffi.to_open v with
       | (knc, [||]) -> pr_constructor knc
@@ -897,7 +912,7 @@ let rec pr_valexpr_gen env sigma lvl v t = match kind t with
           | E1 | E2 | E3 | E4 | E5 -> fun x -> x
         in
         let data = Tac2env.interp_constructor knc in
-        let args = pr_constrargs env sigma params args data.Tac2env.cdata_args in
+        let args = pr_constrargs env sigma params args data.Tac2env.cdata_args maptv in
         paren (pr_constructor knc ++ spc () ++ args)
       end
   end
@@ -906,34 +921,40 @@ let rec pr_valexpr_gen env sigma lvl v t = match kind t with
 | GTypRef (Tuple _, tl) ->
   let blk = Array.to_list (snd (to_block v)) in
   if List.length blk == List.length tl then
-    let prs = List.map2 (fun v t -> pr_valexpr_gen env sigma E1 v t) blk tl in
+    let prs = List.map2 (fun v t -> pr_valexpr_gen env sigma maptv E1 v t) blk tl in
     hv 2 (str "(" ++ prlist_with_sep pr_comma (fun p -> p) prs ++ str ")")
   else
     str "<unknown>"
 
-and pr_constrargs env sigma params args tpe =
+and pr_constrargs env sigma params args tpe maptv =
   let subst = Array.of_list params in
   let tpe = List.map (fun t -> subst_type subst t) tpe in
   let args = Array.to_list args in
   let args = List.combine args tpe in
-  pr_sequence (fun (v, t) -> pr_valexpr_gen env sigma E0 v t) args
+  pr_sequence (fun (v, t) -> pr_valexpr_gen env sigma maptv E0 v t) args
 
-and pr_record env sigma params args rcd =
+and pr_record env sigma params args rcd maptv =
   let subst = Array.of_list params in
   let map (id, _, tpe) = (id, subst_type subst tpe) in
   let rcd = List.map map rcd in
   let args = Array.to_list args in
   let fields = List.combine rcd args in
   let pr_field ((id, t), arg) =
-    Id.print id ++ spc () ++ str ":=" ++ spc () ++ pr_valexpr_gen env sigma E1 arg t
+    Id.print id ++ spc () ++ str ":=" ++ spc () ++ pr_valexpr_gen env sigma maptv E1 arg t
   in
   str "{" ++ spc () ++ prlist_with_sep pr_semicolon pr_field fields ++ spc () ++ str "}"
 
-and pr_val_list env sigma args tpe =
-  let pr v = pr_valexpr_gen env sigma E4 v tpe in
-  hov 1 (str "[" ++ prlist_with_sep pr_semicolon pr args ++ str "]")
+and pr_val_list env sigma args tpe maptv =
+  let pr v = pr_valexpr_gen env sigma maptv E4 v tpe in
+  if List.is_empty args then str "[]" else
+    hov 1 (str "[" ++ prlist_with_sep pr_semicolon pr args ++ str "]")
 
-let pr_valexpr env sigma v t = pr_valexpr_gen env sigma E5 v t
+and pr_val_array env sigma maptv arr tpe =
+  let pr v = pr_valexpr env sigma maptv v tpe in
+  if Array.length arr = 0 then str "[| |]" else
+    hv 2 (str "[|" ++ spc () ++ prvect_with_sep pr_semicolon pr arr ++ spc() ++ str "|]")
+
+let pr_valexpr  ?maptv env sigma v t = pr_valexpr_gen env sigma maptv E5 v t
 
 let register_init n f =
   let kn = KerName.make Tac2env.rocq_prefix (Label.make n) in

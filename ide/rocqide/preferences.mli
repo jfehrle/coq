@@ -52,6 +52,7 @@ val list_tags : unit -> tag preference Util.String.Map.t
 
 val get_unicode_bindings_local_file : unit -> string option
 val get_unicode_bindings_default_file : unit -> string option
+val is_action : Gdk.keysym * Gdk.Tags.modifier list -> string -> bool
 
 val str_to_mod_list : string -> Gdk.Tags.modifier list
 val mod_list_to_str : Gdk.Tags.modifier list -> string
