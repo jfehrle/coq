@@ -15,6 +15,7 @@ open Names
 open Proofview.Notations
 open Tac2expr
 open Tac2ffi
+open Tac2debug
 
 exception LtacError = Tac2ffi.LtacError
 
@@ -46,10 +47,18 @@ let with_frame frame tac =
 
 type environment = Tac2env.environment = {
   env_ist : valexpr Id.Map.t;
+  (* stack frames (valid when debugger is enabled) *)
+  locs : Loc.t option list;
+  stack : (string * Loc.t option) list option;
+  (* variable value maps for each stack frame *)
+  varmaps : valexpr Id.Map.t list;
 }
 
-let empty_environment = {
+let empty_environment () = {
   env_ist = Id.Map.empty;
+  locs = [];
+  stack = if DebugCommon.get_debug () then Some [] else None;
+  varmaps = [];
 }
 
 type closure = {
@@ -65,7 +74,7 @@ type closure = {
 
 let push_name ist id v = match id with
 | Anonymous -> ist
-| Name id -> { env_ist = Id.Map.add id v ist.env_ist }
+| Name id -> { ist with env_ist = Id.Map.add id v ist.env_ist }
 
 let get_var ist id =
   try Id.Map.find id ist.env_ist with Not_found ->
@@ -122,19 +131,54 @@ and match_pattern_against_or ist pats v =
     try match_pattern_against ist pat v
     with NoMatch -> match_pattern_against_or ist pats v
 
-let rec interp (ist : environment) = function
+let init () = () (* TODO: needed? *)
+
+let rec interp (ist : environment) e =
+(*  let p = "I" in *)
+(*  dump_expr2 ~p e; *)
+match e with
 | GTacAtm (AtmInt n) -> return (Tac2ffi.of_int n)
 | GTacAtm (AtmStr s) -> return (Tac2ffi.of_string s)
 | GTacVar id -> return (get_var ist id)
 | GTacRef kn ->
   let data = get_ref ist kn in
-  return (eval_pure Id.Map.empty (Some kn) data)
+  let rv = return (eval_pure ist Id.Map.empty (Some kn) data) in
+  rv
 | GTacFun (ids, e) ->
   let cls = { clos_ref = None; clos_env = ist.env_ist; clos_var = ids; clos_exp = e } in
-  let f = interp_closure cls in
+  let f = interp_closure ist cls in
   return f
-| GTacApp (f, args) ->
-  interp ist f >>= fun f ->
+| GTacAls (GTacApp (f, args, _), loc) ->
+  interp ist (GTacApp (f, args, loc))
+| GTacAls _ ->
+  failwith "invalid GTacAls";
+| GTacApp (f, args, loc) ->
+  let fname = match f with
+  | GTacRef kn -> let s = KerName.to_string kn in if false then Printf.eprintf "kn = %s\n%!" s; s
+  | _ -> "???"
+  in
+(*  Printf.eprintf "fname = %s not starts_with = %b\n%!" fname (Bool.not (starts_with "Ltac2." fname)); *)
+(*  TODO: if "Ltac2.", stop on first expr (or skip if loc is nested) *)
+(*  Can check in stack *)
+  (* todo: is there a more robust way to check this? *)
+  let is_primitive kn =
+    match f with
+    | GTacRef kn ->
+      (match get_ref ist kn with
+      | GTacFun (_, GTacPrm _) -> true
+      | _ -> false)
+    | _ -> false
+  in
+  let stop = if DebugCommon.get_debug () then stop_stuff ist loc else false in
+  let ist =
+    if DebugCommon.get_debug () && (not (is_primitive fname)) then
+      { ist with locs = push_locs loc ist;
+        stack = push_stack (fname, loc) ist;
+        varmaps = ist.env_ist :: ist.varmaps }
+    else ist
+  in
+  let (>=) = Proofview.tclBIND in
+  (if stop then (DebugCommon.db_pr_goals ()) >= fun () -> read_loop (); interp ist f  else  interp ist f)   >>= fun f ->
   Proofview.Monad.List.map (fun e -> interp ist e) args >>= fun args ->
   Tac2ffi.apply (Tac2ffi.to_closure f) args
 | GTacLet (false, el, e) ->
@@ -148,14 +192,14 @@ let rec interp (ist : environment) = function
   let map (na, e) = match e with
   | GTacFun (ids, e) ->
     let cls = { clos_ref = None; clos_env = ist.env_ist; clos_var = ids; clos_exp = e } in
-    let f = interp_closure cls in
+    let f = interp_closure ist cls in
     na, cls, f
   | _ -> anomaly (str "Ill-formed recursive function")
   in
   let fixs = List.map map el in
   let fold accu (na, _, cls) = match na with
   | Anonymous -> accu
-  | Name id -> { env_ist = Id.Map.add id cls accu.env_ist }
+  | Name id -> { accu with env_ist = Id.Map.add id cls accu.env_ist }
   in
   let ist = List.fold_left fold ist fixs in
   (* Hack to make a cycle imperatively in the environment *)
@@ -182,20 +226,32 @@ let rec interp (ist : environment) = function
   Proofview.Monad.List.map (fun e -> interp ist e) el >>= fun el ->
   return (Tac2ffi.of_open (kn, Array.of_list el))
 | GTacPrm (ml, el) ->
+(*  Printf.eprintf "GTacPrm %s. %s\n%!" ml.mltac_plugin ml.mltac_tactic; *)
+(*  let fname = match f with*)
+(*  | GTacRef kn -> let s = KerName.to_string kn in Printf.eprintf "kn = %s\n%!" s; s*)
+(*  | _ -> "???"*)
+(*  in*)
+(*  let ist = (* in monad or not? *)*)
+(*    if DebugCommon.get_debug () then begin*)
+(*      { ist with stack = push_stack (fname, loc) ist.stack;*)
+(*        varmaps = ist.env_ist :: ist.varmaps }*)
+(*    end else ist in*)
   Proofview.Monad.List.map (fun e -> interp ist e) el >>= fun el ->
   with_frame (FrPrim ml) (Tac2ffi.apply (Tac2env.interp_primitive ml) el)
 | GTacExt (tag, e) ->
+  let chunk = (ist.locs, fmt_stack2 ist.stack, fmt_vars2 (ist.env_ist :: ist.varmaps)) in
+  DebugCommon.set_top_chunk chunk None;
   let tpe = Tac2env.interp_ml_object tag in
   with_frame (FrExtn (tag, e)) (tpe.Tac2env.ml_interp ist e)
 
-and interp_closure f =
+and interp_closure ist0 f =
   let ans = fun args ->
     let { clos_env = ist; clos_var = ids; clos_exp = e; clos_ref = kn } = f in
     let frame = match kn with
     | None -> FrAnon e
     | Some kn -> FrLtac kn
     in
-    let ist = { env_ist = ist } in
+    let ist = { ist0 with env_ist = ist } in
     let ist = List.fold_left2 push_name ist ids args in
     with_frame frame (interp ist e)
   in
@@ -239,21 +295,24 @@ and interp_set ist e p r =
   let () = Valexpr.set_field e p r in
   return (Valexpr.make_int 0)
 
-and eval_pure bnd kn = function
+and eval_pure ist bnd kn x = (*Printf.eprintf "enter eval_pure\n%!";*)
+(* let p = "P" in *)
+(* dump_expr2 ~p x; *)
+let rv = match x with
 | GTacVar id -> Id.Map.get id bnd
 | GTacAtm (AtmInt n) -> Valexpr.make_int n
 | GTacRef kn ->
   let { Tac2env.gdata_expr = e } =
-    try Tac2env.interp_global kn
+    try Tac2env.interp_global kn (* ?? *)
     with Not_found -> assert false
   in
-  eval_pure bnd (Some kn) e
+  eval_pure ist bnd (Some kn) e
 | GTacFun (na, e) ->
   let cls = { clos_ref = kn; clos_env = bnd; clos_var = na; clos_exp = e } in
-  interp_closure cls
+  interp_closure ist cls
 | GTacCst (_, n, []) -> Valexpr.make_int n
-| GTacCst (_, n, el) -> Valexpr.make_block n (eval_pure_args bnd el)
-| GTacOpn (kn, el) -> Tac2ffi.of_open (kn, eval_pure_args bnd el)
+| GTacCst (_, n, el) -> Valexpr.make_block n (eval_pure_args ist bnd el)
+| GTacOpn (kn, el) -> Tac2ffi.of_open (kn, eval_pure_args ist bnd el)
 | GTacLet (isrec, vals, body) ->
   let () = assert (not isrec) in
   let fold accu (na, e) = match na with
@@ -261,24 +320,25 @@ and eval_pure bnd kn = function
     (* No need to evaluate, we know this is a value *)
     accu
   | Name id ->
-    let v = eval_pure bnd None e in
+    let v = eval_pure ist bnd None e in
     Id.Map.add id v accu
   in
   let bnd = List.fold_left fold bnd vals in
-  eval_pure bnd kn body
+  eval_pure ist bnd kn body
 
 | GTacAtm (AtmStr _) | GTacSet _
 | GTacApp _ | GTacCse _ | GTacPrj _
 | GTacPrm _ | GTacExt _ | GTacWth _
-| GTacFullMatch _ ->
+| GTacFullMatch _ | GTacAls _ ->
   anomaly (Pp.str "Term is not a syntactical value")
+in (*Printf.eprintf "exit eval_pure\n%!";*) rv
 
-and eval_pure_args bnd args =
-  let map e = eval_pure bnd None e in
+and eval_pure_args ist bnd args =
+  let map e = eval_pure ist bnd None e in
   Array.map_of_list map args
 
 let interp_value ist tac =
-  eval_pure ist.env_ist None tac
+  eval_pure ist ist.env_ist None tac
 
 (** Cross-boundary hacks. *)
 
@@ -294,7 +354,7 @@ match Val.eq tag val_env with
 
 let get_env ist =
   try extract_env (Id.Map.find env_ref ist)
-  with Not_found -> empty_environment
+  with Not_found -> empty_environment ()
 
 let set_env env ist =
   Id.Map.add env_ref (Val.Dyn (val_env, env)) ist

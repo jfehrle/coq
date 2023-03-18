@@ -1501,14 +1501,19 @@ let () =
         Id.Map.add id v lfun
       in
       let lfun = List.fold_left2 add Id.Map.empty ids args in
-      let ist = { env_ist = Id.Map.empty } in
+      let ist = Tac2interp.empty_environment () in
       let lfun = Tac2interp.set_env ist lfun in
       let ist = Ltac_plugin.Tacinterp.default_ist () in
       let ist = { ist with Geninterp.lfun = lfun } in
-      let tac = (Ltac_plugin.Tacinterp.eval_tactic_ist ist tac : unit Proofview.tactic) in
+      DebugCommon.push_top_chunk ();
+      DebugCommon.set_top_chunk DebugCommon.empty_chunk CAst.(tac.loc);
+      let tac2 = (Ltac_plugin.Tacinterp.eval_tactic_ist ist tac : unit Proofview.tactic) in
       let wrap (e, info) = set_bt info >>= fun info -> Proofview.tclZERO ~info e in
-      Proofview.tclOR tac wrap >>= fun () ->
-      return v_unit
+      Proofview.tclTHEN
+        (Ltac_plugin.Tactic_debug.entry_stop_check tac)
+        (Proofview.tclOR tac2 wrap >>= fun () ->
+          DebugCommon.pop_chunk ();
+          return v_unit)
     in
     let len = List.length ids in
     if Int.equal len 0 then
@@ -1553,7 +1558,7 @@ let () =
         Id.Map.add id v lfun
       in
       let lfun = List.fold_left2 add Id.Map.empty ids args in
-      let ist = { env_ist = Id.Map.empty } in
+      let ist = Tac2interp.empty_environment () in
       let lfun = Tac2interp.set_env ist lfun in
       let ist = Ltac_plugin.Tacinterp.default_ist () in
       let ist = { ist with Geninterp.lfun = lfun } in
@@ -1722,9 +1727,13 @@ let () =
     (* Evaluate the Ltac2 quotation eagerly *)
     let idtac = Value.of_closure { ist with lfun = Id.Map.empty }
         (CAst.make (Tacexpr.TacId [])) in
-    let ist = { env_ist = Id.Map.empty } in
-    Tac2interp.interp ist tac >>= fun _ ->
-    Ftactic.return idtac
+    DebugCommon.push_top_chunk ();
+    let ist = Tac2interp.empty_environment () in
+    let tac = Tac2interp.interp ist tac in
+    let wrap (e, info) = set_bt info >>= fun info -> Proofview.tclZERO ~info e in
+    Proofview.tclOR tac wrap >>= (fun _ ->
+    DebugCommon.pop_chunk ();
+    Ftactic.return idtac)
   | _ :: _ ->
     (* Return a closure [@f := {blob} |- fun ids => ltac2_eval(f, ids) ] *)
     (* This name cannot clash with Ltac2 variables which are all lowercase *)
@@ -1735,7 +1744,7 @@ let () =
     let clos = CAst.make (Tacexpr.TacFun
         (nas, CAst.make (Tacexpr.TacML (ltac2_eval, mk_arg self_id :: args)))) in
     let self = GTacFun (List.map (fun id -> Name id) ids, tac) in
-    let self = Tac2interp.interp_value { env_ist = Id.Map.empty } self in
+    let self = Tac2interp.interp_value (Tac2interp.empty_environment ()) self in
     let self = Geninterp.Val.inject (Geninterp.Val.Base typ_ltac2) self in
     let ist = { ist with lfun = Id.Map.singleton self_id self } in
     Ftactic.return (Value.of_closure ist clos)
