@@ -46,10 +46,20 @@ let with_frame frame tac =
 
 type environment = Tac2env.environment = {
   env_ist : valexpr Id.Map.t;
-}
+  (* todo: mutable needed? *)
+  (* location of next code to execute, is not in stack *)
+  mutable cur_loc : Loc.t option;
+  (* yields the call stack *)
+  mutable stack : (string * Loc.t option) list;
+  (* variable value maps for each stack frame *)
+  mutable varmaps : valexpr Id.Map.t list;
+}  (* todo: don't need to repeat definition *)
 
 let empty_environment = {
   env_ist = Id.Map.empty;
+  cur_loc = None;
+  stack = [];
+  varmaps = [];
 }
 
 type closure = {
@@ -65,7 +75,7 @@ type closure = {
 
 let push_name ist id v = match id with
 | Anonymous -> ist
-| Name id -> { env_ist = Id.Map.add id v ist.env_ist }
+| Name id -> { ist with env_ist = Id.Map.add id v ist.env_ist }
 
 let get_var ist id =
   try Id.Map.find id ist.env_ist with Not_found ->
@@ -122,27 +132,141 @@ and match_pattern_against_or ist pats v =
     try match_pattern_against ist pat v
     with NoMatch -> match_pattern_against_or ist pats v
 
+type debugger_state = {
+  (* location of next code to execute, is not in stack *)
+  mutable cur_loc : Loc.t option;
+  (* yields the call stack *)
+  mutable stack : (string * Loc.t option) list;
+  (* variable value maps for each stack frame *)
+  mutable varmaps : Tac2ffi.valexpr Names.Id.Map.t list;
+}
+
+let debugger_state = { cur_loc=None; stack=[]; varmaps=[] }
+
+let get_stack () = DebugCommon.get_stack2 debugger_state.stack debugger_state.cur_loc (* todo *)
+
+let get_vars framenum = []  (* todo *)
+
+let rec read_loop () =
+  let nl = if (*Util.(!batch)*) false then "\n" else "" in
+(*  Comm.print_deferred () >>*)
+  let hook = Option.get (DebugHook.Intf.get ()) in
+  hook.submit_answer (Prompt (tag "message.prompt" @@ fnl () ++ str ("TcDebug > " ^ nl)));
+(*  Printf.eprintf "read_loop\n%!";*)
+  DebugCommon.action := DebugCommon.read get_stack get_vars;
+(*    (fun () -> (*Printf.eprintf "get_stack\n%!";*)*)
+(*        hook.submit_answer (Stack (DebugCommon.format_stack (get_stack ()))))*)
+(*    (fun n -> Printf.eprintf "get_vars\n%!"; []);*)
+  let open DebugHook.Action in
+  match !DebugCommon.action with
+  | Continue
+  | StepIn
+  | StepOver
+  | StepOut -> ()
+  | Skip -> failwith "Skip not in Ltac2"
+  | Interrupt -> failwith "Interrupt"  (* todo: exit the debugger, for Ctrl C *)
+  | Help -> failwith "Help not in Ltac2"
+  | UpdBpts updates -> failwith "UpdBpts"  (* handled in init() loop *)
+  | Configd -> failwith "Configd" (* handled in init() loop *)
+  | GetStack -> failwith "GetStack" (* handled in read() loop *)
+  | GetVars _ -> failwith "GetVars" (* handled in read() loop *)
+  | RunCnt num -> failwith "RunCnt not in Ltac2"
+  | RunBreakpoint s -> failwith "RunBreakpoint not in Ltac2"
+  | Command _ -> failwith "Command"  (* not possible *)
+  | Failed -> read_loop ()
+  | Ignore -> failwith "Ignore" (* not possible *)
+
+let rec dump_expr2 ?(indent=0) e =
+  let printloc loc =
+    let loc = match loc with
+    | None -> "None"
+    | Some loc -> Pp.string_of_ppcmds (Loc.pr loc)
+    in
+    Printf.eprintf "loc =  %s\n%!" loc
+  in
+  let print s = Printf.eprintf "%s\n" s in
+  Printf.eprintf "%s" (String.make indent ' ');
+  let indent = indent + 2 in
+  match e with
+  | GTacAtm _ -> print "GTacAtm"
+  | GTacVar _ -> print "GTacVar"
+  | GTacRef kn -> print "GTacRef";
+    Printf.eprintf "%s> %s\n%!" (String.make indent ' ') (Names.KerName.to_string kn);
+  | GTacFun (_, e) -> print "GTacFun";
+    dump_expr2 ~indent e
+  | GTacApp (e, el, loc) -> print (Printf.sprintf "GTacApp el len = %d" (List.length el));
+    printloc loc;
+    dump_expr2 ~indent e;
+    Printf.eprintf "*exit*\n%!"
+  | GTacLet (_, _, e) -> print "GTacLet";
+    dump_expr2 ~indent e
+  | GTacCst _ -> print "GTacCat"
+  | GTacCse _ -> print "GTacCse"
+  | GTacPrj _ -> print "GTacPrj"
+  | GTacSet _ -> print "GTacSet"
+  | GTacOpn _ -> print "GTacOpn"
+  | GTacWth _ -> print "GTacWth"
+  | GTacFullMatch _ -> print "GTacFullMatch"
+  | GTacExt _ -> print "GTacExt"
+  | GTacPrm  _ -> print "GTacPrm"
+
+[@@@ocaml.warning "-32"]
+let getname e =
+  match e with
+  | GTacAtm _ -> "GTacAtm"
+  | GTacVar _ -> "GTacVar"
+  | GTacRef kn -> "GTacRef"
+  | GTacFun (_, e) -> "GTacFun"
+  | GTacApp (e, el, loc) -> "GTacApp"
+  | GTacLet (_, _, e) -> "GTacLet"
+  | GTacCst _ -> "GTacCat"
+  | GTacCse _ -> "GTacCse"
+  | GTacPrj _ -> "GTacPrj"
+  | GTacSet _ -> "GTacSet"
+  | GTacOpn _ -> "GTacOpn"
+  | GTacWth _ -> "GTacWth"
+  | GTacFullMatch _ -> "GTacFullMatch"
+  | GTacExt _ -> "GTacExt"
+  | GTacPrm  _ -> "GTacPrm"
+
 let rec interp (ist : environment) = function
 | GTacAtm (AtmInt n) -> return (Tac2ffi.of_int n)
 | GTacAtm (AtmStr s) -> return (Tac2ffi.of_string s)
 | GTacVar id -> return (get_var ist id)
 | GTacRef kn ->
   let data = get_ref ist kn in
-  return (eval_pure Id.Map.empty (Some kn) data)
+  let rv = return (eval_pure ist Id.Map.empty (Some kn) data) in
+  rv
 | GTacFun (ids, e) ->
   let cls = { clos_ref = None; clos_env = ist.env_ist; clos_var = ids; clos_exp = e } in
-  let f = interp_closure cls in
+  let f = interp_closure ist cls in
   return f
 | GTacApp (f, args, loc) ->
-  let v = (try ignore @@ Sys.getenv "TEST";
+  let loc_str = (try ignore @@ Sys.getenv "TEST";
     (match loc with
     | None -> "None"
     | Some loc -> Pp.string_of_ppcmds (Loc.pr loc))
    with Not_found -> ""
   ) in
-  Printf.eprintf "GTacApp loc = %s\n%!" v;
-  interp ist f >>= fun f ->
-  Proofview.Monad.List.map (fun e -> interp ist e) args >>= fun args ->
+  Printf.eprintf "GTacApp loc = %s\n%!" loc_str;
+  let indent = 2 in
+  if false then dump_expr2 ~indent f;
+(*  Save loc in ist for printing??*)
+  let fname = match f with
+  | GTacRef kn -> let s = KerName.to_string kn in Printf.eprintf "kn = %s\n%!" s; s
+  | _ -> "???"
+  in
+  debugger_state.cur_loc <- loc;
+  debugger_state.stack <- ist.stack; (* needed to clear stack at initiation *)
+  debugger_state.varmaps <- ist.varmaps;
+  read_loop ();
+
+  (* inside monad or not? *)
+  ( let ist = { ist with stack = (fname, loc) :: ist.stack;
+                   varmaps = ist.env_ist :: ist.varmaps } in
+    debugger_state.stack <- ist.stack;
+    interp ist f) >>= fun f ->
+  Proofview.Monad.List.map (fun e -> interp ist e) args >>= fun args ->  (* pop from stack? *)
   Tac2ffi.apply (Tac2ffi.to_closure f) args
 | GTacLet (false, el, e) ->
   let fold accu (na, e) =
@@ -155,14 +279,14 @@ let rec interp (ist : environment) = function
   let map (na, e) = match e with
   | GTacFun (ids, e) ->
     let cls = { clos_ref = None; clos_env = ist.env_ist; clos_var = ids; clos_exp = e } in
-    let f = interp_closure cls in
+    let f = interp_closure ist cls in
     na, cls, f
   | _ -> anomaly (str "Ill-formed recursive function")
   in
   let fixs = List.map map el in
   let fold accu (na, _, cls) = match na with
   | Anonymous -> accu
-  | Name id -> { env_ist = Id.Map.add id cls accu.env_ist }
+  | Name id -> { accu with env_ist = Id.Map.add id cls accu.env_ist }
   in
   let ist = List.fold_left fold ist fixs in
   (* Hack to make a cycle imperatively in the environment *)
@@ -196,14 +320,14 @@ let rec interp (ist : environment) = function
   let tpe = Tac2env.interp_ml_object tag in
   with_frame (FrExtn (tag, e)) (tpe.Tac2env.ml_interp ist e)
 
-and interp_closure f =
+and interp_closure ist0 f =
   let ans = fun args ->
     let { clos_env = ist; clos_var = ids; clos_exp = e; clos_ref = kn } = f in
     let frame = match kn with
     | None -> FrAnon e
     | Some kn -> FrLtac kn
     in
-    let ist = { env_ist = ist } in
+    let ist = { ist0 with env_ist = ist } in
     let ist = List.fold_left2 push_name ist ids args in
     with_frame frame (interp ist e)
   in
@@ -247,21 +371,21 @@ and interp_set ist e p r =
   let () = Valexpr.set_field e p r in
   return (Valexpr.make_int 0)
 
-and eval_pure bnd kn = function
+and eval_pure ist bnd kn = function
 | GTacVar id -> Id.Map.get id bnd
 | GTacAtm (AtmInt n) -> Valexpr.make_int n
 | GTacRef kn ->
   let { Tac2env.gdata_expr = e } =
-    try Tac2env.interp_global kn
+    try Tac2env.interp_global kn (* ?? *)
     with Not_found -> assert false
   in
-  eval_pure bnd (Some kn) e
+  eval_pure ist bnd (Some kn) e
 | GTacFun (na, e) ->
   let cls = { clos_ref = kn; clos_env = bnd; clos_var = na; clos_exp = e } in
-  interp_closure cls
+  interp_closure ist cls
 | GTacCst (_, n, []) -> Valexpr.make_int n
-| GTacCst (_, n, el) -> Valexpr.make_block n (eval_pure_args bnd el)
-| GTacOpn (kn, el) -> Tac2ffi.of_open (kn, eval_pure_args bnd el)
+| GTacCst (_, n, el) -> Valexpr.make_block n (eval_pure_args ist bnd el)
+| GTacOpn (kn, el) -> Tac2ffi.of_open (kn, eval_pure_args ist bnd el)
 | GTacLet (isrec, vals, body) ->
   let () = assert (not isrec) in
   let fold accu (na, e) = match na with
@@ -269,11 +393,11 @@ and eval_pure bnd kn = function
     (* No need to evaluate, we know this is a value *)
     accu
   | Name id ->
-    let v = eval_pure bnd None e in
+    let v = eval_pure ist bnd None e in
     Id.Map.add id v accu
   in
   let bnd = List.fold_left fold bnd vals in
-  eval_pure bnd kn body
+  eval_pure ist bnd kn body
 
 | GTacAtm (AtmStr _) | GTacSet _
 | GTacApp _ | GTacCse _ | GTacPrj _
@@ -281,12 +405,12 @@ and eval_pure bnd kn = function
 | GTacFullMatch _ ->
   anomaly (Pp.str "Term is not a syntactical value")
 
-and eval_pure_args bnd args =
-  let map e = eval_pure bnd None e in
+and eval_pure_args ist bnd args =
+  let map e = eval_pure ist bnd None e in
   Array.map_of_list map args
 
 let interp_value ist tac =
-  eval_pure ist.env_ist None tac
+  eval_pure ist ist.env_ist None tac
 
 (** Cross-boundary hacks. *)
 

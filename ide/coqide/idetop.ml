@@ -625,6 +625,7 @@ let loop ( { Coqtop.run_mode; color_mode },_) ~opts:_ state =
      xmlprotocol file doesn't depend on vernac thus it has no access
      to DebugHook data, we may want to fix that. *)
   let ltac_debug_answer ans =
+(*    Printf.eprintf "ltac_debug_answer\n%!";*)
     let open DebugHook.Answer in
     let open Xmlprotocol in
     let xml = match ans with
@@ -639,6 +640,7 @@ let loop ( { Coqtop.run_mode; color_mode },_) ~opts:_ state =
 
   (* XXX: no need to have a ref here *)
   let ltac_debug_parse () =
+(*    Printf.eprintf "ltac_debug_parse\n%!";*)
     let raw_cmd =
       debug_cmd := DebugHook.Action.Ignore;
       process_xml_msg xml_ic xml_oc out_ch;
