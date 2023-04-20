@@ -61,6 +61,26 @@ module Action = struct
     | "x" -> Ok Interrupt
     | "h"| "?" -> Ok Help
     | _ -> parse_complex inst
+
+  let to_string t =
+    match t with
+    | Continue -> "Continue"
+    | StepIn -> "StepIn"
+    | StepOver -> "StepOver"
+    | StepOut -> "StepOut"
+    | Skip -> "Skip"
+    | Interrupt -> "Interrput"
+    | Help -> "Help"
+    | UpdBpts _ -> "UpdBpts"
+    | Configd -> "Configd"
+    | GetStack -> "GetStack"
+    | GetVars _ -> "GetVars"
+    | RunCnt _ -> "RunCnt"
+    | RunBreakpoint _ -> "RunBreakpoint"
+    | Command _ -> "Command"
+    | Failed -> "Failed"
+    | Ignore -> "Ignore"
+
 end
 
 module Answer = struct

@@ -50,15 +50,15 @@ type environment = Tac2env.environment = {
   (* location of next code to execute, is not in stack *)
   mutable cur_loc : Loc.t option;
   (* yields the call stack *)
-  mutable stack : (string * Loc.t option) list;
+  mutable stack : (string * Loc.t option) list option;
   (* variable value maps for each stack frame *)
   mutable varmaps : valexpr Id.Map.t list;
-}  (* todo: don't need to repeat definition *)
+}  (* todo: don't need to repeat definition here *)
 
-let empty_environment = {
+let empty_environment () = {
   env_ist = Id.Map.empty;
   cur_loc = None;
-  stack = [];
+  stack = if DebugCommon.get_debug () then Some [] else None;
   varmaps = [];
 }
 
@@ -196,8 +196,7 @@ let rec dump_expr2 ?(indent=0) e =
     dump_expr2 ~indent e
   | GTacApp (e, el, loc) -> print (Printf.sprintf "GTacApp el len = %d" (List.length el));
     printloc loc;
-    dump_expr2 ~indent e;
-    Printf.eprintf "*exit*\n%!"
+    dump_expr2 ~indent e
   | GTacLet (_, _, e) -> print "GTacLet";
     dump_expr2 ~indent e
   | GTacCst _ -> print "GTacCat"
@@ -229,6 +228,21 @@ let getname e =
   | GTacExt _ -> "GTacExt"
   | GTacPrm  _ -> "GTacPrm"
 
+let stacks_info stack p_stack =
+  let st = Option.default [] stack in
+  let st_prev = Option.default [] p_stack in
+  let l_cur, l_prev = List.length st, List.length st_prev in
+  st, st_prev, l_cur, l_prev
+
+let prev_stack = ref (Some [])  (* previous stopping point in debugger *)
+
+let init () = prev_stack := Some []
+
+let push_stack item ist =
+  match ist with
+  | Some s -> Some (item :: s)
+  | None -> ist
+
 let rec interp (ist : environment) = function
 | GTacAtm (AtmInt n) -> return (Tac2ffi.of_int n)
 | GTacAtm (AtmStr s) -> return (Tac2ffi.of_string s)
@@ -256,15 +270,23 @@ let rec interp (ist : environment) = function
   | GTacRef kn -> let s = KerName.to_string kn in Printf.eprintf "kn = %s\n%!" s; s
   | _ -> "???"
   in
-  debugger_state.cur_loc <- loc;
-  debugger_state.stack <- ist.stack; (* needed to clear stack at initiation *)
-  debugger_state.varmaps <- ist.varmaps;
-  read_loop ();
-
+  if DebugCommon.get_debug () then begin
+    debugger_state.cur_loc <- loc;
+    debugger_state.stack <- Option.default [] ist.stack; (* needed to clear stack at initiation *)
+    debugger_state.varmaps <- ist.varmaps;
+    if DebugCommon.breakpoint_stop loc ||
+         DebugCommon.stepping_stop stacks_info ist.stack !prev_stack !DebugCommon.action then begin
+      prev_stack := ist.stack;
+      read_loop ()
+    end;
+  end;
   (* inside monad or not? *)
-  ( let ist = { ist with stack = (fname, loc) :: ist.stack;
-                   varmaps = ist.env_ist :: ist.varmaps } in
-    debugger_state.stack <- ist.stack;
+  ( let ist =
+      if DebugCommon.get_debug () then
+        { ist with stack = push_stack (fname, loc) ist.stack;
+          varmaps = ist.env_ist :: ist.varmaps }
+      else ist in
+    debugger_state.stack <- Option.default [] ist.stack;
     interp ist f) >>= fun f ->
   Proofview.Monad.List.map (fun e -> interp ist e) args >>= fun args ->  (* pop from stack? *)
   Tac2ffi.apply (Tac2ffi.to_closure f) args
@@ -426,7 +448,7 @@ match Val.eq tag val_env with
 
 let get_env ist =
   try extract_env (Id.Map.find env_ref ist)
-  with Not_found -> empty_environment
+  with Not_found -> empty_environment ()
 
 let set_env env ist =
   Id.Map.add env_ref (Val.Dyn (val_env, env)) ist

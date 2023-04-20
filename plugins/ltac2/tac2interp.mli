@@ -14,7 +14,7 @@ open Tac2ffi
 
 type environment = Tac2env.environment
 
-val empty_environment : environment
+val empty_environment : unit -> environment
 
 val interp : environment -> glb_tacexpr -> valexpr Proofview.tactic
 
@@ -40,3 +40,5 @@ val get_backtrace : backtrace Proofview.tactic
 val with_frame : frame -> 'a Proofview.tactic -> 'a Proofview.tactic
 
 val print_ltac2_backtrace : bool ref
+
+val init : unit -> unit

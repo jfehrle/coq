@@ -1,3 +1,10 @@
+(* tells whether Ltac Debug is set *)
+let debug = ref false
+
+let set_debug b = debug := b
+
+let get_debug () = !debug
+
 type breakpoint = {
   dirpath : string;  (* module dirpath *)
   offset : int;
@@ -54,12 +61,41 @@ let check_bpt dirpath offset =
 (*    Printf.printf "In tactic_debug, dirpath = %s offset = %d\n%!" dirpath offset;*)
     BPSet.mem { dirpath; offset } !breakpoints
 
-(* dependencies *)
 let break = ref false
 (* causes the debugger to stop at the next step *)
 
-let get_break () = !break
 let set_break b = break := b
+
+let breakpoint_stop loc =
+  if !break then begin
+    break := false;
+    true
+  end else
+    let open Loc in
+    match loc with
+    | Some {fname=InFile {dirpath=Some dirpath}; bp} -> check_bpt dirpath bp
+    | Some {fname=ToplevelInput;                 bp} -> check_bpt "Top"   bp
+    | _ -> false
+
+let stepping_stop stacks_info stack p_stack action =
+  let open DebugHook.Action in
+  match action with
+  | Continue -> false
+  | StepIn   -> true
+  | StepOver -> let st, st_prev, l_cur, l_prev = stacks_info stack p_stack in
+                if l_cur = 0 || l_cur < l_prev then true (* stepped out *)
+                else if l_prev = 0 (*&& l_cur > 0*) then false
+                else
+                  let peq = List.nth st (l_cur - l_prev) == (List.hd st_prev) in
+                  (l_cur > l_prev && (not peq)) ||  (* stepped out *)
+                  (l_cur = l_prev && peq)  (* stepped over *)
+  | StepOut  -> let st, st_prev, l_cur, l_prev = stacks_info stack p_stack in
+                if l_cur < l_prev then true
+                else if l_prev = 0 then false
+                else
+                  List.nth st (l_cur - l_prev) != (List.hd st_prev)
+  | _ -> failwith "action op"
+
 
 let action = ref DebugHook.Action.StepOver
 
@@ -223,29 +259,6 @@ let clear_queue () = wrap (fun () -> Queue.clear out_queue)
 let print g = (hook ()).submit_answer (Output (str g))
 
 let isTerminal () = (hook ()).isTerminal
-
-[@@@ocaml.warning "-32"]
-let cmd_to_str cmd =
-  let open DebugHook.Action in
-  match cmd with
-  | Continue -> "Continue"
-  | StepIn -> "StepIn"
-  | StepOver -> "StepOver"
-  | StepOut -> "StepOut"
-  | Skip -> "Skip"
-  | Interrupt -> "Interrput"
-  | Help -> "Help"
-  | UpdBpts _ -> "UpdBpts"
-  | Configd -> "Configd"
-  | GetStack -> "GetStack"
-  | GetVars _ -> "GetVars"
-  | RunCnt _ -> "RunCnt"
-  | RunBreakpoint _ -> "RunBreakpoint"
-  | Command _ -> "Command"
-  | Failed -> "Failed"
-  | Ignore -> "Ignore"
-[@@@ocaml.warning "+32"]
-
 let read get_stack get_vars =
   let rec l () =
 (*    Printf.eprintf "before read\n%!";*)
@@ -263,4 +276,5 @@ let read get_stack get_vars =
       l ()
     | _ -> action := cmd; cmd
   in
+  Printf.eprintf "read sets action to %s\n%!" (DebugHook.Action.to_string !action);
   l ()

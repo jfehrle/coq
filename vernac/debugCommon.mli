@@ -1,15 +1,19 @@
+val set_debug : bool -> unit
+
+val get_debug : unit -> bool
+
 val upd_bpts : ((string * int) * bool) list -> unit
 
-val check_bpt : string -> int -> bool
+val breakpoint_stop : Loc.t option -> bool
 
-val get_break : unit -> bool
+val stepping_stop : ('a list option -> 'a list option -> 'b list * 'b list * int * int) ->
+                  'a list option -> 'a list option -> DebugHook.Action.t -> bool
 
 val set_break : bool -> unit
 
 val action : DebugHook.Action.t ref
 
 (* Comm module stuff *)
-
 
 val init : unit -> unit
 

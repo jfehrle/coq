@@ -918,7 +918,7 @@ let register_redefinition qid old e =
 let perform_eval ~pstate e =
   let env = Global.env () in
   let (e, ty) = Tac2intern.intern ~strict:false [] e in
-  let v = Tac2interp.interp Tac2interp.empty_environment e in
+  let v = Tac2interp.interp (Tac2interp.empty_environment ()) e in
   let selector, proof =
     match pstate with
     | None ->
@@ -1131,7 +1131,8 @@ let ltac2_interp e =
   let () = check_unit ?loc t in
   Printf.eprintf "\nltac2_interp\n%!";
   DebugCommon.init ();
-  let tac = Tac2interp.interp Tac2interp.empty_environment e in
+  Tac2interp.init ();
+  let tac = Tac2interp.interp (Tac2interp.empty_environment ()) e in
   Proofview.tclIGNORE tac
 
 let ComTactic.Interpreter ltac2_interp = ComTactic.register_tactic_interpreter "coq-core.plugins.ltac2" ltac2_interp

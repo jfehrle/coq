@@ -2196,6 +2196,7 @@ let _ =
   GlobEnv.register_constr_interp0 wit_tactic eval
 
 let vernac_debug b =
+  DebugCommon.set_debug b;
   set_debug (if b then Tactic_debug.DebugOn 0 else Tactic_debug.DebugOff)
 
 let () =

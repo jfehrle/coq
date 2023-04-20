@@ -261,7 +261,7 @@ type 'a or_glb_tacexpr =
 type environment = {
   env_ist : valexpr Id.Map.t;
   mutable cur_loc : Loc.t option;
-  mutable stack : (string * Loc.t option) list;
+  mutable stack : (string * Loc.t option) list option;
   mutable varmaps : valexpr Id.Map.t list;
 }
 

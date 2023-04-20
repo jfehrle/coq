@@ -57,6 +57,8 @@ module Action : sig
     | Failed    (* legacy: user command doesn't parse *)
     | Ignore    (* internal: do nothing, read another command *)
 
+  val to_string : t -> string
+
   (* XXX: Should be moved to the clients *)
   val parse : string -> (t, string) result
 end

@@ -311,13 +311,6 @@ let rec prompt level =
     | Failed -> prompt level
     | Ignore -> failwith "Ignore" (* not possible *)
 
-let at_breakpoint tac =
-  let open Loc in
-  match CAst.(tac.loc) with
-  | Some {fname=InFile {dirpath=Some dirpath}; bp} -> DebugCommon.check_bpt dirpath bp
-  | Some {fname=ToplevelInput;                 bp} -> DebugCommon.check_bpt "Top"   bp
-  | _ -> false
-
 [@@@ocaml.warning "-32"]
 open Tacexpr
 
@@ -390,13 +383,10 @@ let debug_prompt lev tac f varmap trace =
         st, st_prev, l_cur, l_prev
       in
       let p_stack = prev_stack.contents in
-      if action.contents = DebugHook.Action.Continue && at_breakpoint tac then
+      if DebugCommon.breakpoint_stop CAst.(tac.loc) then
         (* todo: skip := 0 *)
         stop_here ()
-      else if DebugCommon.get_break () then begin
-        DebugCommon.set_break false;
-        stop_here ()
-      end else if s > 0 then
+      else if s > 0 then
         Proofview.tclLIFT ((skip := s-1) >>
           runprint >>
           !skip >>= fun new_skip ->
@@ -407,25 +397,7 @@ let debug_prompt lev tac f varmap trace =
           if Option.has_some idtac_breakpt then
             Proofview.tclLIFT(runprint >> return (DebugOn (lev+1)))
           else begin
-            let open DebugHook.Action in
-            let stop = match action.contents with
-              | Continue -> false
-              | StepIn   -> true
-              | StepOver -> let st, st_prev, l_cur, l_prev = stacks_info stack p_stack in
-                            if l_cur = 0 || l_cur < l_prev then true (* stepped out *)
-                            else if l_prev = 0 (*&& l_cur > 0*) then false
-                            else
-                              let peq = StdList.nth st (l_cur - l_prev) == (StdList.hd st_prev) in
-                              (l_cur > l_prev && (not peq)) ||  (* stepped out *)
-                              (l_cur = l_prev && peq)  (* stepped over *)
-              | StepOut  -> let st, st_prev, l_cur, l_prev = stacks_info stack p_stack in
-                            if l_cur < l_prev then true
-                            else if l_prev = 0 then false
-                            else
-                              StdList.nth st (l_cur - l_prev) != (StdList.hd st_prev)
-              | _ -> failwith "action op"
-            in
-            if stop then begin
+            if DebugCommon.stepping_stop stacks_info stack p_stack action.contents then begin
               stop_here ()
             end else
               Proofview.tclLIFT (Comm.clear_queue () >>
