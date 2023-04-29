@@ -148,7 +148,7 @@ let cvt_loc loc =
   | None -> None (* nothing to highlight, e.g. not in a .v file *)
 
  let format_frame text loc =
-   Printf.eprintf "stack frame: %s\n%!" text;
+(*   Printf.eprintf "stack frame: %s\n%!" text;*)
    try
      let open Loc in
        match loc with
@@ -276,5 +276,14 @@ let read get_stack get_vars =
       l ()
     | _ -> action := cmd; cmd
   in
-  Printf.eprintf "read sets action to %s\n%!" (DebugHook.Action.to_string !action);
+(*  Printf.eprintf "read sets action to %s\n%!" (DebugHook.Action.to_string !action);*)
   l ()
+
+let db_fmt_goal gl =
+  let env = Proofview.Goal.env gl in
+  let concl = Proofview.Goal.concl gl in
+  let penv = Termops.Internal.print_named_context env in
+  let pc = Printer.pr_econstr_env env (Tacmach.project gl) concl in
+    str"  " ++ hv 0 (penv ++ fnl () ++
+                   str "============================" ++ fnl ()  ++
+                   str" "  ++ pc) ++ fnl () ++ fnl ()

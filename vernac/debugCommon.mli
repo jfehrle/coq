@@ -28,3 +28,5 @@ val get_stack2 : (string * Loc.t option) list -> Loc.t option ->
 
 val format_stack: (string option * Loc.t option) list ->
                   (string * (string * int list) option) list
+
+val db_fmt_goal: Proofview.Goal.t -> Pp.t

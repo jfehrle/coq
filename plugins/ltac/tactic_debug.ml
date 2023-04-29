@@ -74,7 +74,7 @@ module Comm = struct
   open DebugHook.Answer
 
   let prompt g = wrap (fun () -> (hook ()).submit_answer (Prompt g))
-  let goal g = wrap (fun () -> (hook ()).submit_answer (Goal g))
+  let goals gs = wrap (fun () -> (hook ()).submit_answer (Goal gs))
   let output g = wrap (fun () -> (hook ()).submit_answer (Output g))
 
   (* routines for deferring output; output is sent only if
@@ -98,25 +98,16 @@ end
 
 let defer_output = Comm.defer_output
 
-(* Prints the goal *)
+(* Prints the goals *)
 
-let db_pr_goal gl =
-  let env = Proofview.Goal.env gl in
-  let concl = Proofview.Goal.concl gl in
-  let penv = Termops.Internal.print_named_context env in
-  let pc = Printer.pr_econstr_env env (Tacmach.project gl) concl in
-    str"  " ++ hv 0 (penv ++ fnl () ++
-                   str "============================" ++ fnl ()  ++
-                   str" "  ++ pc) ++ fnl () ++ fnl ()
-
-let db_pr_goal =
+let db_pr_goals =
   let open Proofview in
   let open Notations in
   Goal.goals >>= fun gl ->
   Monad.List.map (fun x -> x) gl >>= fun gls ->
-  let pg = str (CString.plural (List.length gls) "Goal") ++ str ":" ++ fnl () ++
-      Pp.seq (List.map db_pr_goal gls) in
-  Proofview.tclLIFT (Comm.goal pg)
+  let gs = str (CString.plural (List.length gls) "Goal") ++ str ":" ++ fnl () ++
+      Pp.seq (List.map DebugCommon.db_fmt_goal gls) in
+  Proofview.tclLIFT (Comm.goals gs)
 
 (* Prints the commands *)
 let help () =
@@ -232,7 +223,7 @@ let save_loc tac varmap trace =
 let goal_com tac varmap trace =
   save_loc tac varmap trace;
   Proofview.tclTHEN
-    db_pr_goal
+    db_pr_goals
     (if Comm.isTerminal () || debugger_state.cur_loc = None then
       (Proofview.tclLIFT (Comm.output (str "Going to execute:" ++ fnl () ++ prtac tac)))
     else
