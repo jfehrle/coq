@@ -218,7 +218,7 @@ let rec dump_expr2 ?(indent=0) e =
     dump_expr2 ~indent e
   | GTacLet (_, _, e) -> print "GTacLet";
     dump_expr2 ~indent e
-  | GTacCst _ -> print "GTacCat"
+  | GTacCst _ -> print "GTacCst"
   | GTacCse _ -> print "GTacCse"
   | GTacPrj _ -> print "GTacPrj"
   | GTacSet _ -> print "GTacSet"
@@ -237,7 +237,7 @@ let getname e =
   | GTacFun (_, e) -> "GTacFun"
   | GTacApp (e, el, loc) -> "GTacApp"
   | GTacLet (_, _, e) -> "GTacLet"
-  | GTacCst _ -> "GTacCat"
+  | GTacCst _ -> "GTacCst"
   | GTacCse _ -> "GTacCse"
   | GTacPrj _ -> "GTacPrj"
   | GTacSet _ -> "GTacSet"
@@ -264,6 +264,20 @@ let push_stack item ist =
   | Some s -> Some (item :: s)
   | None -> ist
 
+let db_pr_goals = (* share/move to DebugCommon? *)
+  let hook = Option.get (DebugHook.Intf.get ()) in  (* not hook ()? *)
+  let wrap = Proofview.NonLogical.make in
+  let goals gs = wrap (fun () -> hook.submit_answer (Goal gs)) in
+
+  let open Proofview in
+  let open Notations in
+  Goal.goals >>= fun gl ->
+  Monad.List.map (fun x -> x) gl >>= fun gls ->
+  (* todo: say "No more goals"?  What if there are shelved?  Same behavior in Ltac1 *)
+  let gs = str (CString.plural (List.length gls) "Goal") ++ str ":" ++ fnl () ++
+      Pp.seq (List.map DebugCommon.db_fmt_goal gls) in
+  Proofview.tclLIFT (goals gs)
+
 let rec interp (ist : environment) = function
 | GTacAtm (AtmInt n) -> return (Tac2ffi.of_int n)
 | GTacAtm (AtmStr s) -> return (Tac2ffi.of_string s)
@@ -283,24 +297,25 @@ let rec interp (ist : environment) = function
   | GTacRef kn -> let s = KerName.to_string kn in Printf.eprintf "kn = %s\n%!" s; s
   | _ -> "???"
   in
-  if DebugCommon.get_debug () then begin
-    if DebugCommon.breakpoint_stop loc ||
-         DebugCommon.stepping_stop stacks_info ist.stack !prev_stack !DebugCommon.action then begin
-      prev_stack := ist.stack;
-      debugger_state.cur_loc <- loc;
-      debugger_state.stack <- Option.default [] ist.stack;
-      debugger_state.varmaps <- ist.env_ist :: ist.varmaps;
-      read_loop ()
-    end;
+  let stop = DebugCommon.get_debug () &&
+    (DebugCommon.breakpoint_stop loc ||
+     DebugCommon.stepping_stop stacks_info ist.stack !prev_stack !DebugCommon.action)
+  in
+  if stop then begin
+    prev_stack := ist.stack;
+    debugger_state.cur_loc <- loc;
+    debugger_state.stack <- Option.default [] ist.stack;
+    debugger_state.varmaps <- ist.env_ist :: ist.varmaps;
   end;
-  (* inside monad or not? *)
-  ( let ist =
-      if DebugCommon.get_debug () then
-        { ist with stack = push_stack (fname, loc) ist.stack;
-          varmaps = ist.env_ist :: ist.varmaps }
-      else ist in
-    interp ist f) >>= fun f ->
-  Proofview.Monad.List.map (fun e -> interp ist e) args >>= fun args ->  (* pop from stack? *)
+  let ist =
+    if DebugCommon.get_debug () then
+      { ist with stack = push_stack (fname, loc) ist.stack;
+        varmaps = ist.env_ist :: ist.varmaps }
+    else ist
+  in
+  let (>=) = Proofview.tclBIND in
+  (if stop then db_pr_goals >= fun () -> read_loop (); interp ist f  else  interp ist f)   >>= fun f ->
+  Proofview.Monad.List.map (fun e -> interp ist e) args >>= fun args ->
   Tac2ffi.apply (Tac2ffi.to_closure f) args
 | GTacLet (false, el, e) ->
   let fold accu (na, e) =
@@ -371,8 +386,7 @@ and interp_closure ist0 f =
     | Some kn -> FrLtac kn
     in
     let ist = { ist0 with env_ist = ist } in
-    Printf.eprintf "call push_name\n%!";
-    let ist = List.fold_left2 push_name ist ids args in  (* here? *)
+    let ist = List.fold_left2 push_name ist ids args in
     with_frame frame (interp ist e)
   in
   Tac2ffi.(of_closure (abstract (List.length f.clos_var) ans))
