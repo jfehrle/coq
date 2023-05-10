@@ -46,7 +46,6 @@ let with_frame frame tac =
 
 type environment = Tac2env.environment = {
   env_ist : valexpr Id.Map.t;
-  (* todo: mutable needed? *)
   (* location of next code to execute, is not in stack *)
   mutable cur_loc : Loc.t option;
   (* yields the call stack *)
@@ -143,7 +142,7 @@ type debugger_state = {
 
 let debugger_state = { cur_loc=None; stack=[]; varmaps=[] }
 
-let get_stack () = DebugCommon.get_stack2 debugger_state.stack debugger_state.cur_loc (* todo *)
+let get_stack () = DebugCommon.get_stack2 debugger_state.stack debugger_state.cur_loc
 
 let to_str = function (* can't get Tac2ffi.to_pp to work *)
 | ValInt i -> string_of_int i
@@ -168,14 +167,9 @@ let get_vars framenum =
 
 let rec read_loop () =
   let nl = if (*Util.(!batch)*) false then "\n" else "" in
-(*  Comm.print_deferred () >>*)
   let hook = Option.get (DebugHook.Intf.get ()) in
   hook.submit_answer (Prompt (tag "message.prompt" @@ fnl () ++ str ("TcDebug > " ^ nl)));
-(*  Printf.eprintf "read_loop\n%!";*)
   DebugCommon.action := DebugCommon.read get_stack get_vars;
-(*    (fun () -> (*Printf.eprintf "get_stack\n%!";*)*)
-(*        hook.submit_answer (Stack (DebugCommon.format_stack (get_stack ()))))*)
-(*    (fun n -> Printf.eprintf "get_vars\n%!"; []);*)
   let open DebugHook.Action in
   match !DebugCommon.action with
   | Continue
@@ -283,7 +277,21 @@ let rec interp (ist : environment) = function
   | GTacRef kn -> let s = KerName.to_string kn in Printf.eprintf "kn = %s\n%!" s; s
   | _ -> "???"
   in
-  let stop = DebugCommon.get_debug () &&
+  (* filter out locations in Ltac2 plugin files *)
+  let not_internal loc =
+    (* todo: replace with String.starts_with when OCaml 4.13 is required *)
+    let starts_with p s =
+      let plen = String.length p in
+      plen < String.length s && (String.sub s 0 plen = p)
+    in
+    let open Loc in
+    let fname = match loc with
+      | Some {fname=InFile {file}} -> file
+      | _ -> ""
+    in
+    Bool.not (starts_with "user-contrib/Ltac2/" fname)
+  in
+  let stop = DebugCommon.get_debug () && (not_internal loc) &&
     (DebugCommon.breakpoint_stop loc ||
      DebugCommon.stepping_stop stacks_info ist.stack !prev_stack !DebugCommon.action)
   in
