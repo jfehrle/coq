@@ -287,3 +287,17 @@ let db_fmt_goal gl =
     str"  " ++ hv 0 (penv ++ fnl () ++
                    str "============================" ++ fnl ()  ++
                    str" "  ++ pc) ++ fnl () ++ fnl ()
+
+let db_pr_goals () =
+  let hook = Option.get (DebugHook.Intf.get ()) in
+  let wrap = Proofview.NonLogical.make in
+  let goals gs = wrap (fun () -> hook.submit_answer (Goal gs)) in
+
+  let open Proofview in
+  let open Notations in
+  Goal.goals >>= fun gl ->
+    Monad.List.map (fun x -> x) gl >>= fun gls ->
+      (* todo: say "No more goals"?  What if they are shelved?  Same behavior in Ltac1 *)
+      let gs = str (CString.plural (List.length gls) "Goal") ++ str ":" ++ fnl () ++
+          Pp.seq (List.map db_fmt_goal gls) in
+      Proofview.tclLIFT (goals gs)

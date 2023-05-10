@@ -74,7 +74,6 @@ module Comm = struct
   open DebugHook.Answer
 
   let prompt g = wrap (fun () -> (hook ()).submit_answer (Prompt g))
-  let goals gs = wrap (fun () -> (hook ()).submit_answer (Goal gs))
   let output g = wrap (fun () -> (hook ()).submit_answer (Output g))
 
   (* routines for deferring output; output is sent only if
@@ -97,17 +96,6 @@ module Comm = struct
 end
 
 let defer_output = Comm.defer_output
-
-(* Prints the goals *)
-
-let db_pr_goals =
-  let open Proofview in
-  let open Notations in
-  Goal.goals >>= fun gl ->
-  Monad.List.map (fun x -> x) gl >>= fun gls ->
-  let gs = str (CString.plural (List.length gls) "Goal") ++ str ":" ++ fnl () ++
-      Pp.seq (List.map DebugCommon.db_fmt_goal gls) in
-  Proofview.tclLIFT (Comm.goals gs)
 
 (* Prints the commands *)
 let help () =
@@ -223,7 +211,7 @@ let save_loc tac varmap trace =
 let goal_com tac varmap trace =
   save_loc tac varmap trace;
   Proofview.tclTHEN
-    db_pr_goals
+    (DebugCommon.db_pr_goals ())
     (if Comm.isTerminal () || debugger_state.cur_loc = None then
       Proofview.tclLIFT (Comm.output (str "Going to execute:" ++ fnl () ++ prtac tac))
     else
