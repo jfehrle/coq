@@ -221,6 +221,7 @@ let rec dump_expr2 ?(indent=0) e =
   | GTacFullMatch _ -> print "GTacFullMatch"
   | GTacExt _ -> print "GTacExt"
   | GTacPrm  _ -> print "GTacPrm"
+  | GTacAls  _ -> print "GTacAls"
 
 [@@@ocaml.warning "-32"]
 let getname e =
@@ -240,6 +241,7 @@ let getname e =
   | GTacFullMatch _ -> "GTacFullMatch"
   | GTacExt _ -> "GTacExt"
   | GTacPrm  _ -> "GTacPrm"
+  | GTacAls  _ -> "GTacAls"
 
 let stacks_info stack p_stack =
   let st = Option.default [] stack in
@@ -270,6 +272,10 @@ let rec interp (ist : environment) = function
   let cls = { clos_ref = None; clos_env = ist.env_ist; clos_var = ids; clos_exp = e } in
   let f = interp_closure ist cls in
   return f
+| GTacAls (GTacApp (f, args, _), loc) ->
+  interp ist (GTacApp (f, args, loc))
+| GTacAls _ ->
+  failwith "invalid GTacAls";
 | GTacApp (f, args, loc) ->
   let indent = 2 in
   if false then dump_expr2 ~indent f;
@@ -455,7 +461,7 @@ let rv = match x with
 | GTacAtm (AtmStr _) | GTacSet _
 | GTacApp _ | GTacCse _ | GTacPrj _
 | GTacPrm _ | GTacExt _ | GTacWth _
-| GTacFullMatch _ ->
+| GTacFullMatch _ | GTacAls _ ->
   anomaly (Pp.str "Term is not a syntactical value")
 in (*Printf.eprintf "exit eval_pure\n%!";*) rv
 

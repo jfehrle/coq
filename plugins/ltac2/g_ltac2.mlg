@@ -169,11 +169,10 @@ let rec dump_expr ?(indent=0) e =
   | CTacSet _ -> printloc "CTacSet" e
   | CTacExt _ -> printloc "CTacExt" e
 
-let dump_info loc e1 e2 =
+let dump_info loc e =
   try ignore @@ Sys.getenv "TEST";
     Printf.eprintf "loc = %s\n%!" (Pp.string_of_ppcmds (Loc.pr loc));
-    dump_expr e1;
-    dump_expr e2;
+    dump_expr e;
   Printf.eprintf "\n%!"
   with Not_found -> ()
 
@@ -227,7 +226,7 @@ GRAMMAR EXTEND Gram
   ;
   ltac2_expr:
     [ "6" RIGHTA
-        [ e1 = SELF; ";"; e2 = SELF -> { dump_info loc e1 e2; CAst.make ~loc @@ CTacSeq (e1, e2) } ]
+        [ e1 = SELF; ";"; e2 = SELF -> { dump_info loc e1; dump_info loc e2; CAst.make ~loc @@ CTacSeq (e1, e2) } ]
     | "5"
       [ "fun"; it = LIST1 input_fun; ty = type_cast; "=>"; body = ltac2_expr LEVEL "6" ->
         { opt_fun ~loc it ty body }

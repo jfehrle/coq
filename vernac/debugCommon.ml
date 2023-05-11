@@ -45,7 +45,6 @@ let update_bpt fname offset opt =
   in
   let dirpath = DirPath.to_string dp in
   let bp = { dirpath; offset } in
-(*  Printf.printf "update_bpt: %s -> %s  %d\n%!" fname dirpath ide_bpt.offset;*)
   match opt with
   | true  -> breakpoints := BPSet.add bp !breakpoints
   | false -> breakpoints := BPSet.remove bp !breakpoints
@@ -53,12 +52,10 @@ let update_bpt fname offset opt =
 let upd_bpts updates =
   List.iter (fun op ->
     let ((file, offset), opt) = op in
-(*    Printf.printf "Coq upd_bpts %s %d %b\n%!" file offset opt;*)
     update_bpt file offset opt;
   ) updates
 
 let check_bpt dirpath offset =
-(*    Printf.printf "In tactic_debug, dirpath = %s offset = %d\n%!" dirpath offset;*)
     BPSet.mem { dirpath; offset } !breakpoints
 
 let break = ref false
@@ -119,7 +116,7 @@ let cvt_loc loc =
     let paths = Loadpath.find_with_logical_path pfx in
     let basename = match DirPath.repr dirpath with
     | hd :: tl -> (Id.to_string hd) ^ ".v"
-    | [] -> Printf.eprintf "empty name\n%!"; ""
+    | [] -> ""
     in
     let vs_files = List.map (fun p -> (Filename.concat (Loadpath.physical p) basename)) paths in
     let filtered = List.filter (fun p -> Sys.file_exists p) vs_files in
@@ -148,7 +145,6 @@ let cvt_loc loc =
   | None -> None (* nothing to highlight, e.g. not in a .v file *)
 
  let format_frame text loc =
-(*   Printf.eprintf "stack frame: %s\n%!" text;*)
    try
      let open Loc in
        match loc with
@@ -175,7 +171,6 @@ let cvt_loc loc =
 
 
 let get_stack2 raw_stack cur_loc =
-(*  Printf.printf "server: db_stack call\n%!";*)
   let rec shift s prev_loc res =
     match s with
     | (tacn, loc) :: tl ->
@@ -225,7 +220,6 @@ let init () =
       breakpoints := BPSet.empty;
       (hook ()).Intf.submit_answer (Answer.Init);
       while
-(*        Printf.eprintf "read_cmd\n";*)
         let cmd = (hook ()).Intf.read_cmd () in
         let open DebugHook.Action in
         match cmd with
@@ -241,9 +235,9 @@ let init () =
 open DebugHook.Intf
 open DebugHook.Answer
 
-let prompt g = wrap (fun () -> (hook ()).submit_answer (Prompt g))
-let goal g = wrap (fun () -> (hook ()).submit_answer (Goal g))
-let output g = wrap (fun () -> (hook ()).submit_answer (Output g))
+let prompt p = wrap (fun () -> (hook ()).submit_answer (Prompt p))
+let goals gs = wrap (fun () -> (hook ()).submit_answer (Goal gs))
+let output o = wrap (fun () -> (hook ()).submit_answer (Output o))
 
 (* routines for deferring output; output is sent only if
    the debugger stops at the next step *)
@@ -261,9 +255,7 @@ let print g = (hook ()).submit_answer (Output (str g))
 let isTerminal () = (hook ()).isTerminal
 let read get_stack get_vars =
   let rec l () =
-(*    Printf.eprintf "before read\n%!";*)
     let cmd = (hook ()).read_cmd () in
-(*    Printf.eprintf "after read\n%!";*)
     let open DebugHook.Action in
     match cmd with
     | Ignore -> l ()
@@ -276,7 +268,6 @@ let read get_stack get_vars =
       l ()
     | _ -> action := cmd; cmd
   in
-(*  Printf.eprintf "read sets action to %s\n%!" (DebugHook.Action.to_string !action);*)
   l ()
 
 let db_fmt_goal gl =
@@ -289,10 +280,6 @@ let db_fmt_goal gl =
                    str" "  ++ pc) ++ fnl () ++ fnl ()
 
 let db_pr_goals () =
-  let hook = Option.get (DebugHook.Intf.get ()) in
-  let wrap = Proofview.NonLogical.make in
-  let goals gs = wrap (fun () -> hook.submit_answer (Goal gs)) in
-
   let open Proofview in
   let open Notations in
   Goal.goals >>= fun gl ->

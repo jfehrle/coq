@@ -179,6 +179,7 @@ type glb_tacexpr =
 | GTacFullMatch of glb_tacexpr * (glb_pat * glb_tacexpr) list
 | GTacExt : (_, 'a) Tac2dyn.Arg.tag * 'a -> glb_tacexpr
 | GTacPrm of ml_tactic_name * glb_tacexpr list
+| GTacAls of glb_tacexpr * Loc.t option
 
 (** {5 Parsing & Printing} *)
 

@@ -115,7 +115,7 @@ let is_pure_constructor kn =
 
 let rec is_value = function
 | GTacAtm (AtmInt _) | GTacVar _ | GTacRef _ | GTacFun _ -> true
-| GTacAtm (AtmStr _) | GTacApp _ | GTacLet (true, _, _) -> false
+| GTacAtm (AtmStr _) | GTacApp _ | GTacAls _ | GTacLet (true, _, _) -> false
 | GTacCst (Tuple _, _, el) -> List.for_all is_value el
 | GTacCst (_, _, []) -> true
 | GTacOpn (_, el) -> List.for_all is_value el
@@ -128,7 +128,7 @@ let rec is_value = function
 let is_rec_rhs = function
 | GTacFun _ -> true
 | GTacAtm _ | GTacVar _ | GTacRef _ | GTacApp _ | GTacLet _ | GTacPrj _
-| GTacSet _ | GTacExt _ | GTacPrm _ | GTacCst _
+| GTacSet _ | GTacExt _ | GTacPrm _ | GTacCst _ | GTacAls _
 | GTacCse _ | GTacOpn _ | GTacWth _ | GTacFullMatch _-> false
 
 let warn_not_unit =
@@ -1068,6 +1068,7 @@ let rec dump_expr2 ?(indent=0) e =
   | GTacFullMatch _ -> print "GTacFullMatch"
   | GTacExt _ -> print "GTacExt"
   | GTacPrm  _ -> print "GTacPrm"
+  | GTacAls  _ -> print "GTacAls"
 
 (*
 let rec dump_expr ?(indent=0) e =
@@ -1136,7 +1137,8 @@ let rec intern_rec env {loc;v=e} = match e with
         CErrors.anomaly (str "Missing hardwired alias " ++ KerName.print kn)
     in
     let () = check_deprecated_ltac2 ?loc qid (TacAlias kn) in
-    intern_rec env e.alias_body
+    let a,b = intern_rec env e.alias_body in
+    (GTacAls (a, loc), b)
   end
 | CTacCst qid ->
   let kn = get_constructor env qid in
@@ -1702,6 +1704,8 @@ let rec subst_expr subst e = match e with
 | GTacAtm _ | GTacVar _ | GTacPrm _ -> e
 | GTacRef kn -> GTacRef (subst_kn subst kn)
 | GTacFun (ids, e) -> GTacFun (ids, subst_expr subst e)
+| GTacAls (f, loc) ->
+  GTacAls (subst_expr subst f, loc)
 | GTacApp (f, args, loc) ->
   GTacApp (subst_expr subst f, List.map (fun e -> subst_expr subst e) args, loc)
 | GTacLet (r, bs, e) ->

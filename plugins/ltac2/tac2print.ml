@@ -293,6 +293,7 @@ let pr_glbexpr_gen lvl c =
     | E1 | E2 | E3 | E4 | E5 -> fun x -> x
     in
     paren (hov 2 (pr_glbexpr E1 c ++ spc () ++ (pr_sequence (pr_glbexpr E0) cl)))
+  | GTacAls (e,_) -> pr_glbexpr lvl e
   | GTacLet (mut, bnd, e) ->
     let paren = match lvl with
     | E0 | E1 | E2 | E3 | E4 -> paren
