@@ -58,7 +58,7 @@ let empty_environment () = {
   env_ist = Id.Map.empty;
   cur_loc = None;
   stack = if DebugCommon.get_debug () then Some [] else None;
-  varmaps = [Id.Map.empty];
+  varmaps = [];
 }
 
 type closure = {
@@ -74,7 +74,9 @@ type closure = {
 
 let push_name ist id v = match id with
 | Anonymous -> ist
-| Name id -> { ist with env_ist = Id.Map.add id v ist.env_ist }
+| Name id ->
+  Printf.eprintf "== push_name %s\n%!" (Id.to_string id);
+  { ist with env_ist = Id.Map.add id v ist.env_ist }
 
 let get_var ist id =
   try Id.Map.find id ist.env_ist with Not_found ->
@@ -189,6 +191,7 @@ let rec read_loop () =
   | Failed -> read_loop ()
   | Ignore -> failwith "Ignore" (* not possible *)
 
+[@@@ocaml.warning "-32"]
 let rec dump_expr2 ?(indent=0) e =
   let printloc loc =
     let loc = match loc with
@@ -223,7 +226,6 @@ let rec dump_expr2 ?(indent=0) e =
   | GTacPrm  _ -> print "GTacPrm"
   | GTacAls  _ -> print "GTacAls"
 
-[@@@ocaml.warning "-32"]
 let getname e =
   match e with
   | GTacAtm _ -> "GTacAtm"
@@ -252,6 +254,8 @@ let stacks_info stack p_stack =
 let prev_stack = ref (Some [])  (* previous stopping point in debugger *)
 
 let init () =
+  debugger_state.cur_loc <- None;
+  debugger_state.varmaps <- [];
   debugger_state.stack <- [];
   prev_stack := Some []
 
@@ -260,7 +264,39 @@ let push_stack item ist =
   | Some s -> Some (item :: s)
   | None -> ist
 
-let rec interp (ist : environment) = function
+let stop_stuff (ist : environment) loc =
+  (* todo: replace with String.starts_with when OCaml 4.13 is required *)
+  let starts_with p s =
+    let plen = String.length p in
+    plen < String.length s && (String.sub s 0 plen = p)
+  in
+  (* filter out locations in Ltac2 plugin files *)
+  let not_internal loc =
+    let open Loc in
+    let fname = match loc with
+      | Some {fname=InFile {file}} -> file
+      | _ -> ""
+    in
+    Printf.eprintf "loc = %s\n%!" fname;
+    true || Bool.not (starts_with "user-contrib/Ltac2/" fname)
+  in
+  let stop = DebugCommon.get_debug () && (not_internal loc) &&
+(*    (Bool.not (starts_with "Ltac2." fname)) && *)
+    (DebugCommon.breakpoint_stop loc ||
+     DebugCommon.stepping_stop stacks_info ist.stack !prev_stack !DebugCommon.action)
+  in
+  if stop then begin
+    prev_stack := ist.stack;
+    debugger_state.cur_loc <- loc;
+    debugger_state.stack <- Option.default [] ist.stack;
+    debugger_state.varmaps <- ist.env_ist :: ist.varmaps;
+  end;
+  stop
+
+let rec interp (ist : environment) e =
+  Printf.eprintf "> %s\n%!" (getname e);
+(*  dump_expr2 e; *)
+match e with
 | GTacAtm (AtmInt n) -> return (Tac2ffi.of_int n)
 | GTacAtm (AtmStr s) -> return (Tac2ffi.of_string s)
 | GTacVar id -> return (get_var ist id)
@@ -277,36 +313,14 @@ let rec interp (ist : environment) = function
 | GTacAls _ ->
   failwith "invalid GTacAls";
 | GTacApp (f, args, loc) ->
-  let indent = 2 in
-  if false then dump_expr2 ~indent f;
   let fname = match f with
   | GTacRef kn -> let s = KerName.to_string kn in Printf.eprintf "kn = %s\n%!" s; s
   | _ -> "???"
   in
-  (* filter out locations in Ltac2 plugin files *)
-  let not_internal loc =
-    (* todo: replace with String.starts_with when OCaml 4.13 is required *)
-    let starts_with p s =
-      let plen = String.length p in
-      plen < String.length s && (String.sub s 0 plen = p)
-    in
-    let open Loc in
-    let fname = match loc with
-      | Some {fname=InFile {file}} -> file
-      | _ -> ""
-    in
-    Bool.not (starts_with "user-contrib/Ltac2/" fname)
-  in
-  let stop = DebugCommon.get_debug () && (not_internal loc) &&
-    (DebugCommon.breakpoint_stop loc ||
-     DebugCommon.stepping_stop stacks_info ist.stack !prev_stack !DebugCommon.action)
-  in
-  if stop then begin
-    prev_stack := ist.stack;
-    debugger_state.cur_loc <- loc;
-    debugger_state.stack <- Option.default [] ist.stack;
-    debugger_state.varmaps <- ist.env_ist :: ist.varmaps;
-  end;
+(*  Printf.eprintf "fname = %s not starts_with = %b\n%!" fname (Bool.not (starts_with "Ltac2." fname)); *)
+(*  TODO: if "Ltac2.", stop on first expr (or skip if loc is nested) *)
+(*  Can check in stack *)
+  let stop = stop_stuff ist loc in
   let ist =
     if DebugCommon.get_debug () then
       { ist with stack = push_stack (fname, loc) ist.stack;
