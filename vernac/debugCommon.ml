@@ -166,7 +166,7 @@ let cvt_loc loc =
        | Some { fname=ToplevelInput; line_nb } ->
          let items = String.split_on_char '.' text in
          Printf.sprintf "%s:%d, %s" (List.nth items 1) line_nb (List.hd items);
-       | _ -> Printf.eprintf "_ case\n%!"; text
+       | _ -> text
    with _ -> text
 
 

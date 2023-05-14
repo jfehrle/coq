@@ -47,16 +47,13 @@ let with_frame frame tac =
 type environment = Tac2env.environment = {
   env_ist : valexpr Id.Map.t;
   (* location of next code to execute, is not in stack *)
-  mutable cur_loc : Loc.t option;
-  (* yields the call stack *)
-  mutable stack : (string * Loc.t option) list option;
+  stack : (string * Loc.t option) list option;
   (* variable value maps for each stack frame *)
-  mutable varmaps : valexpr Id.Map.t list;
-}  (* todo: don't need to repeat definition here *)
+  varmaps : valexpr Id.Map.t list;
+}
 
 let empty_environment () = {
   env_ist = Id.Map.empty;
-  cur_loc = None;
   stack = if DebugCommon.get_debug () then Some [] else None;
   varmaps = [];
 }
@@ -151,10 +148,10 @@ let to_str = function (* can't get Tac2ffi.to_pp to work *)
 | ValStr bytes -> Printf.sprintf "\"%s\"" (Bytes.to_string bytes)  (* no quote escaping *)
 | ValUint63 ui -> Uint63.to_string ui
 | ValFloat f -> Float64.to_string f
-| ValBlk _ -> "ValBlk ???"  (* todo *)
-| ValCls _ -> "ValCls ???"
+| ValBlk (tag, arr) -> Printf.sprintf "ValBlk %d [???]" tag (* todo *)
+| ValCls cls -> "ValCls ???"
 | ValOpn (kn, args) -> Printf.sprintf "ValOpn %s [???]" (KerName.to_string kn)
-| ValExt _ -> "ValExt ???"
+| ValExt (tag, c) -> Printf.sprintf "ValExt %s ???" (Tac2dyn.Val.repr tag)
 
 let get_vars framenum =
   let open Names in
@@ -192,7 +189,7 @@ let rec read_loop () =
   | Ignore -> failwith "Ignore" (* not possible *)
 
 [@@@ocaml.warning "-32"]
-let rec dump_expr2 ?(indent=0) e =
+let rec dump_expr2 ?(indent=0) ?(p="D") e =
   let printloc loc =
     let loc = match loc with
     | None -> "None"
@@ -201,20 +198,19 @@ let rec dump_expr2 ?(indent=0) e =
     Printf.eprintf "loc =  %s\n%!" loc
   in
   let print s = Printf.eprintf "%s\n" s in
-  Printf.eprintf "%s" (String.make indent ' ');
+  Printf.eprintf "%s %s" p (String.make indent ' ');
   let indent = indent + 2 in
   match e with
   | GTacAtm _ -> print "GTacAtm"
   | GTacVar _ -> print "GTacVar"
-  | GTacRef kn -> print "GTacRef";
-    Printf.eprintf "%s> %s\n%!" (String.make indent ' ') (Names.KerName.to_string kn);
+  | GTacRef kn -> print (Printf.sprintf "GTacRef %s\n%!" (Names.KerName.to_string kn));
   | GTacFun (_, e) -> print "GTacFun";
-    dump_expr2 ~indent e
+    dump_expr2 ~indent ~p e
   | GTacApp (e, el, loc) -> print (Printf.sprintf "GTacApp el len = %d" (List.length el));
     printloc loc;
-    dump_expr2 ~indent e
+    dump_expr2 ~indent ~p e
   | GTacLet (_, _, e) -> print "GTacLet";
-    dump_expr2 ~indent e
+    dump_expr2 ~indent ~p e
   | GTacCst _ -> print "GTacCst"
   | GTacCse _ -> print "GTacCse"
   | GTacPrj _ -> print "GTacPrj"
@@ -223,7 +219,7 @@ let rec dump_expr2 ?(indent=0) e =
   | GTacWth _ -> print "GTacWth"
   | GTacFullMatch _ -> print "GTacFullMatch"
   | GTacExt _ -> print "GTacExt"
-  | GTacPrm  _ -> print "GTacPrm"
+  | GTacPrm (ml, _) -> print (Printf.sprintf "GTacPrm %s. %s\n%!" ml.mltac_plugin ml.mltac_tactic)
   | GTacAls  _ -> print "GTacAls"
 
 let getname e =
@@ -294,8 +290,8 @@ let stop_stuff (ist : environment) loc =
   stop
 
 let rec interp (ist : environment) e =
-  Printf.eprintf "> %s\n%!" (getname e);
-(*  dump_expr2 e; *)
+  let p = "I" in
+  dump_expr2 ~p e;
 match e with
 | GTacAtm (AtmInt n) -> return (Tac2ffi.of_int n)
 | GTacAtm (AtmStr s) -> return (Tac2ffi.of_string s)
@@ -320,9 +316,19 @@ match e with
 (*  Printf.eprintf "fname = %s not starts_with = %b\n%!" fname (Bool.not (starts_with "Ltac2." fname)); *)
 (*  TODO: if "Ltac2.", stop on first expr (or skip if loc is nested) *)
 (*  Can check in stack *)
+  (* todo: is there a more robust way to check this? *)
+  let is_primitive kn =
+    match f with
+    | GTacRef kn ->
+      (match get_ref ist kn with
+      | GTacFun (_, GTacPrm _) -> true
+      | _ -> false)
+    | _ -> false
+  in
+  Printf.eprintf "is_primitive = %b\n%!" (is_primitive fname);
   let stop = stop_stuff ist loc in
   let ist =
-    if DebugCommon.get_debug () then
+    if DebugCommon.get_debug () && (not (is_primitive fname)) then
       { ist with stack = push_stack (fname, loc) ist.stack;
         varmaps = ist.env_ist :: ist.varmaps }
     else ist
@@ -444,6 +450,8 @@ and interp_set ist e p r =
   return (Valexpr.make_int 0)
 
 and eval_pure ist bnd kn x = (*Printf.eprintf "enter eval_pure\n%!";*)
+let p = "P" in
+dump_expr2 ~p x;
 let rv = match x with
 | GTacVar id -> Id.Map.get id bnd
 | GTacAtm (AtmInt n) -> Valexpr.make_int n
