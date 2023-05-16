@@ -143,7 +143,7 @@ let debugger_state = { cur_loc=None; stack=[]; varmaps=[] }
 
 let get_stack () = DebugCommon.get_stack2 debugger_state.stack debugger_state.cur_loc
 
-let to_str = function (* can't get Tac2ffi.to_pp to work *)
+let to_str = function
 | ValInt i -> string_of_int i
 | ValStr bytes -> Printf.sprintf "\"%s\"" (Bytes.to_string bytes)  (* no quote escaping *)
 | ValUint63 ui -> Uint63.to_string ui
@@ -151,7 +151,21 @@ let to_str = function (* can't get Tac2ffi.to_pp to work *)
 | ValBlk (tag, arr) -> Printf.sprintf "ValBlk %d [???]" tag (* todo *)
 | ValCls cls -> "ValCls ???"
 | ValOpn (kn, args) -> Printf.sprintf "ValOpn %s [???]" (KerName.to_string kn)
-| ValExt (tag, c) -> Printf.sprintf "ValExt %s ???" (Tac2dyn.Val.repr tag)
+| ValExt (tag, c) ->
+| ValExt (tag, v) ->
+  let magic : int = Obj.magic c in
+  Printf.eprintf "---> c value is %d\n%!" magic;
+  let constr_tag = match Tac2dyn.Val.name "constr" with
+  | Some c -> c
+  | None -> assert false
+  in
+  let Tac2dyn.Val.Any constr_tag = constr_tag in
+  let v = match Tac2dyn.Val.eq constr_tag tag with
+    | Some Refl -> v
+    | None -> assert false
+  in
+  Printf.eprintf "%s\n%!" (Pp.string_of_ppcmds (v magic (Pp.str "abc")));
+  Printf.sprintf "ValExt %s ???" (Tac2dyn.Val.repr tag)
 
 let get_vars framenum =
   let open Names in
