@@ -170,7 +170,7 @@ let cvt_loc loc =
    with _ -> text
 
 
-let get_stack2 raw_stack cur_loc =
+let shift_stack raw_stack cur_loc =
   let rec shift s prev_loc res =
     match s with
     | (tacn, loc) :: tl ->
@@ -279,9 +279,14 @@ let db_fmt_goal gl =
                    str "============================" ++ fnl ()  ++
                    str" "  ++ pc) ++ fnl () ++ fnl ()
 
+let ssigma = ref None
+let senv = ref None
+
 let db_pr_goals () =
   let open Proofview in
   let open Notations in
+  Proofview.tclENV >>= fun genv -> senv := Some genv;
+  Proofview.tclEVARMAP >>= fun sigma -> ssigma := Some sigma;
   Goal.goals >>= fun gl ->
     Monad.List.map (fun x -> x) gl >>= fun gls ->
       (* todo: say "No more goals"?  What if they are shelved?  Same behavior in Ltac1 *)

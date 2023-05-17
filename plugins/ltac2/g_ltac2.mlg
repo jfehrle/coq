@@ -226,7 +226,7 @@ GRAMMAR EXTEND Gram
   ;
   ltac2_expr:
     [ "6" RIGHTA
-        [ e1 = SELF; ";"; e2 = SELF -> { dump_info loc e1; dump_info loc e2; CAst.make ~loc @@ CTacSeq (e1, e2) } ]
+        [ e1 = SELF; ";"; e2 = SELF -> { (* dump_info loc e1; dump_info loc e2;*) CAst.make ~loc @@ CTacSeq (e1, e2) } ]
     | "5"
       [ "fun"; it = LIST1 input_fun; ty = type_cast; "=>"; body = ltac2_expr LEVEL "6" ->
         { opt_fun ~loc it ty body }

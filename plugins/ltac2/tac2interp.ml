@@ -46,7 +46,7 @@ let with_frame frame tac =
 
 type environment = Tac2env.environment = {
   env_ist : valexpr Id.Map.t;
-  (* location of next code to execute, is not in stack *)
+  (* stack frames (valid when debugger is enabled *)
   stack : (string * Loc.t option) list option;
   (* variable value maps for each stack frame *)
   varmaps : valexpr Id.Map.t list;
@@ -72,7 +72,7 @@ type closure = {
 let push_name ist id v = match id with
 | Anonymous -> ist
 | Name id ->
-  Printf.eprintf "== push_name %s\n%!" (Id.to_string id);
+(*  Printf.eprintf "== push_name %s\n%!" (Id.to_string id); *)
   { ist with env_ist = Id.Map.add id v ist.env_ist }
 
 let get_var ist id =
@@ -141,41 +141,121 @@ type debugger_state = {
 
 let debugger_state = { cur_loc=None; stack=[]; varmaps=[] }
 
-let get_stack () = DebugCommon.get_stack2 debugger_state.stack debugger_state.cur_loc
+let get_stack () = DebugCommon.shift_stack debugger_state.stack debugger_state.cur_loc
 
-let to_str = function
-| ValInt i -> string_of_int i
-| ValStr bytes -> Printf.sprintf "\"%s\"" (Bytes.to_string bytes)  (* no quote escaping *)
-| ValUint63 ui -> Uint63.to_string ui
-| ValFloat f -> Float64.to_string f
-| ValBlk (tag, arr) -> Printf.sprintf "ValBlk %d [???]" tag (* todo *)
-| ValCls cls -> "ValCls ???"
-| ValOpn (kn, args) -> Printf.sprintf "ValOpn %s [???]" (KerName.to_string kn)
-| ValExt (tag, c) ->
-| ValExt (tag, v) ->
-  let magic : int = Obj.magic c in
-  Printf.eprintf "---> c value is %d\n%!" magic;
-  let constr_tag = match Tac2dyn.Val.name "constr" with
-  | Some c -> c
-  | None -> assert false
+module DebugPP : sig
+  type 'a tag = 'a Tac2dyn.Val.tag
+  type 'a pp = Environ.env -> Evd.evar_map -> 'a -> Pp.t
+
+  (** [add tag pp] registers a debugger pretty-printer for the type with the
+      given [tag]. If there already was such a printer, it is replaced. *)
+  val add : 'a tag -> 'a pp -> unit
+
+  (** [find tag] gives the currently registered pretty-printer for the type
+      with tag [tag] if there is one, and raises [Not_found] otherwise. *)
+  val find : 'a tag -> 'a pp
+
+end = struct
+  type 'a tag = 'a Tac2dyn.Val.tag
+  type 'a pp = Environ.env -> Evd.evar_map -> 'a -> Pp.t
+
+  module M = Tac2dyn.Val.Map(struct type 'a t = 'a pp end)
+
+  let state = ref M.empty
+
+  let add tag pp = state := M.add tag pp !state
+  let find tag = M.find tag !state
+end
+
+(* Registering debug printers *)
+(* TODO: verify completeness and correctness *)
+(* TODO: make it possible for plugins to register types *)
+
+(* Missing:
+let val_exn = Val.create "exn"
+let val_preterm = Val.create "preterm"
+let val_matching_context = Val.create "matching_context"
+let val_sort = Val.create "sort"
+let val_cast = Val.create "cast"
+let val_projection = Val.create "projection"
+let val_case = Val.create "case"
+let val_binder = Val.create "binder"
+let val_univ = Val.create "universe"
+let val_free : Names.Id.Set.t Val.tag = Val.create "free"
+let val_ltac1 : Geninterp.Val.t Val.tag = Val.create "ltac1"
+let val_ind_data : (Names.Ind.t * Declarations.mutual_inductive_body) Val.tag = Val.create "ind_data"
+*)
+
+let _ =
+  DebugPP.add Tac2ffi.val_constant @@ fun env sigma c ->
+  Printer.pr_constant env c
+
+let _ =
+  DebugPP.add Tac2ffi.val_constr @@ fun env sigma c ->
+  Printer.pr_econstr_env env sigma c
+
+let _ =
+  DebugPP.add Tac2ffi.val_constructor @@ fun env sigma c ->
+  Printer.pr_constructor env c
+
+let _ =
+  DebugPP.add Tac2ffi.val_evar @@ fun env sigma c ->
+  Evar.print c
+
+let _ =
+  DebugPP.add Tac2ffi.val_ident @@ fun env sigma c ->
+  Names.Id.print c
+
+let _ =
+  DebugPP.add Tac2ffi.val_inductive @@ fun env sigma c ->
+  Printer.pr_inductive env c
+
+let _ =
+  DebugPP.add Tac2ffi.val_pattern @@ fun env sigma c ->
+  Printer.pr_constr_pattern_env env sigma c
+
+let _ =
+  DebugPP.add Tac2ffi.val_pp @@ fun env sigma c ->
+  c
+
+
+let rec fmt_var : Tac2ffi.valexpr -> string -> (string * Pp.t) = fun v name ->
+  let str s = Pp.str s in
+  let with_type name t = Printf.sprintf "%s : %s" name t in
+  let pr_arr arr =
+    (* todo: way to format better? *)
+    let lst = Array.to_list arr in
+    let open Pp in
+    let pr = (fun i -> let (_,v) = fmt_var i "" in v) in
+    str "[| " ++ hv 0 (prlist_with_sep (fun () -> str ";" ++ spc()) pr lst) ++ str " |]"
   in
-  let Tac2dyn.Val.Any constr_tag = constr_tag in
-  let v = match Tac2dyn.Val.eq constr_tag tag with
-    | Some Refl -> v
-    | None -> assert false
-  in
-  Printf.eprintf "%s\n%!" (Pp.string_of_ppcmds (v magic (Pp.str "abc")));
-  Printf.sprintf "ValExt %s ???" (Tac2dyn.Val.repr tag)
+  match v with
+  | ValInt i -> name, str (string_of_int i)  (* a simple int or index of a defined type, e.g. "true" (= 0) *)
+  | ValStr bs -> name, str (Printf.sprintf "%S" (Bytes.to_string bs)) (* Ocaml escapes, not Coq :-( *)
+  | ValUint63 ui -> name, str (Uint63.to_string ui)
+  | ValFloat f -> name, str (Float64.to_string f)
+  | ValBlk (tag, arr) -> with_type name (string_of_int tag), pr_arr arr
+  | ValCls cls -> name, str "<closure>"
+  | ValOpn (kn, args) -> with_type name (KerName.to_string kn), pr_arr args
+  | ValExt (tag, v) ->
+    let tag_name = Tac2dyn.Val.repr tag in
+    let id_type = with_type name tag_name in
+    let env = Global.env () in  (* TODO: correct? see Proofview.mli tclENV tclEVARMAP *)
+    let sigma = Evd.from_env env in
+    try
+      let pp_fun = DebugPP.find tag in
+      let pp = pp_fun env sigma v in
+      id_type, pp
+    with Not_found ->
+      id_type, str "???"
+    | _ ->
+      id_type, str "(exception)" (* just in case *)
 
 let get_vars framenum =
   let open Names in
 (*  Printf.eprintf "framenum = %d varmaps len = %d\n%!" framenum (List.length debugger_state.varmaps);*)
   let vars = List.nth debugger_state.varmaps framenum in
-  List.map (fun b ->
-      let (id, v) = b in
-(*      (Id.to_string id, Tac2print.pr_valexpr (Global.env ()) vars v ???)*)
-      (Id.to_string id, Pp.str (to_str v))
-    ) (Id.Map.bindings vars)
+  List.map (fun b -> let (id, v) = b in fmt_var v (Id.to_string id)) (Id.Map.bindings vars)
 
 
 let rec read_loop () =
@@ -225,14 +305,14 @@ let rec dump_expr2 ?(indent=0) ?(p="D") e =
     dump_expr2 ~indent ~p e
   | GTacLet (_, _, e) -> print "GTacLet";
     dump_expr2 ~indent ~p e
-  | GTacCst _ -> print "GTacCst"
+  | GTacCst (_,n,_) -> print (Printf.sprintf "GTacCst %d" n)
   | GTacCse _ -> print "GTacCse"
   | GTacPrj _ -> print "GTacPrj"
   | GTacSet _ -> print "GTacSet"
   | GTacOpn _ -> print "GTacOpn"
   | GTacWth _ -> print "GTacWth"
   | GTacFullMatch _ -> print "GTacFullMatch"
-  | GTacExt _ -> print "GTacExt"
+  | GTacExt (tag,_) -> print (Printf.sprintf "GTacExt %s" (Tac2dyn.Arg.repr tag))
   | GTacPrm (ml, _) -> print (Printf.sprintf "GTacPrm %s. %s\n%!" ml.mltac_plugin ml.mltac_tactic)
   | GTacAls  _ -> print "GTacAls"
 
@@ -287,7 +367,7 @@ let stop_stuff (ist : environment) loc =
       | Some {fname=InFile {file}} -> file
       | _ -> ""
     in
-    Printf.eprintf "loc = %s\n%!" fname;
+    if false then Printf.eprintf "loc = %s\n%!" fname;
     true || Bool.not (starts_with "user-contrib/Ltac2/" fname)
   in
   let stop = DebugCommon.get_debug () && (not_internal loc) &&
@@ -304,8 +384,8 @@ let stop_stuff (ist : environment) loc =
   stop
 
 let rec interp (ist : environment) e =
-  let p = "I" in
-  dump_expr2 ~p e;
+(*  let p = "I" in *)
+(*  dump_expr2 ~p e; *)
 match e with
 | GTacAtm (AtmInt n) -> return (Tac2ffi.of_int n)
 | GTacAtm (AtmStr s) -> return (Tac2ffi.of_string s)
@@ -324,7 +404,7 @@ match e with
   failwith "invalid GTacAls";
 | GTacApp (f, args, loc) ->
   let fname = match f with
-  | GTacRef kn -> let s = KerName.to_string kn in Printf.eprintf "kn = %s\n%!" s; s
+  | GTacRef kn -> let s = KerName.to_string kn in if false then Printf.eprintf "kn = %s\n%!" s; s
   | _ -> "???"
   in
 (*  Printf.eprintf "fname = %s not starts_with = %b\n%!" fname (Bool.not (starts_with "Ltac2." fname)); *)
@@ -339,7 +419,6 @@ match e with
       | _ -> false)
     | _ -> false
   in
-  Printf.eprintf "is_primitive = %b\n%!" (is_primitive fname);
   let stop = stop_stuff ist loc in
   let ist =
     if DebugCommon.get_debug () && (not (is_primitive fname)) then
@@ -396,7 +475,7 @@ match e with
   Proofview.Monad.List.map (fun e -> interp ist e) el >>= fun el ->
   return (Tac2ffi.of_open (kn, Array.of_list el))
 | GTacPrm (ml, el) ->
-  Printf.eprintf "GTacPrm %s. %s\n%!" ml.mltac_plugin ml.mltac_tactic;
+(*  Printf.eprintf "GTacPrm %s. %s\n%!" ml.mltac_plugin ml.mltac_tactic; *)
 (*  let fname = match f with*)
 (*  | GTacRef kn -> let s = KerName.to_string kn in Printf.eprintf "kn = %s\n%!" s; s*)
 (*  | _ -> "???"*)
@@ -464,8 +543,8 @@ and interp_set ist e p r =
   return (Valexpr.make_int 0)
 
 and eval_pure ist bnd kn x = (*Printf.eprintf "enter eval_pure\n%!";*)
-let p = "P" in
-dump_expr2 ~p x;
+(* let p = "P" in *)
+(* dump_expr2 ~p x; *)
 let rv = match x with
 | GTacVar id -> Id.Map.get id bnd
 | GTacAtm (AtmInt n) -> Valexpr.make_int n

@@ -46,7 +46,7 @@ type debugger_state = {
 
 let debugger_state = { cur_loc=None; stack=[]; varmaps=[] }
 
-let get_stack () = DebugCommon.get_stack2 debugger_state.stack debugger_state.cur_loc
+let get_stack () = DebugCommon.shift_stack debugger_state.stack debugger_state.cur_loc
 
 let get_vars framenum =
   let open Names in
@@ -376,9 +376,9 @@ let debug_prompt lev tac f varmap trace =
           if Option.has_some idtac_breakpt then
             Proofview.tclLIFT(runprint >> return (DebugOn (lev+1)))
           else begin
-            if DebugCommon.stepping_stop stacks_info stack p_stack action.contents then begin
+            if DebugCommon.stepping_stop stacks_info stack p_stack action.contents then
               stop_here ()
-            end else
+            else
               Proofview.tclLIFT (Comm.clear_queue () >>
               return (DebugOn (lev+1)))
           end

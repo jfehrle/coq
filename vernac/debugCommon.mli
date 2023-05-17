@@ -23,10 +23,14 @@ val read : (unit -> (string option * Loc.t option) list) ->
             (int -> (string * Pp.t) list) ->
             DebugHook.Action.t
 
-val get_stack2 : (string * Loc.t option) list -> Loc.t option ->
+val shift_stack : (string * Loc.t option) list -> Loc.t option ->
                  (string option * Loc.t option) list
 
 val format_stack : (string option * Loc.t option) list ->
                   (string * (string * int list) option) list
 
 val db_pr_goals : unit -> unit Proofview.tactic
+
+val ssigma : Evd.evar_map option ref
+
+val senv : Environ.env option ref
