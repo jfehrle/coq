@@ -484,6 +484,8 @@ let matches_core env sigma allow_bound_rels
 
       | PUninstantiated _, _ -> .
 
+      | PUninstantiated _, _ -> .
+
   in
   sorec [] env ((Id.Map.empty,Id.Set.empty), Id.Map.empty) pat c
 

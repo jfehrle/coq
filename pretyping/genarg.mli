@@ -269,10 +269,25 @@ sig
   val mem : _ genarg_type -> bool
   (** Is this type registered? (must be [ExtraArg]) *)
 
+  val mem : _ genarg_type -> bool
+  (** Is this type registered? *)
+
   val fold_keys : (ArgT.any -> 'acc -> 'acc) -> 'acc -> 'acc
   (** Fold over the registered keys. *)
 
 end
+
+(** {5 Substitution functions} *)
+
+type 'glb subst_fun = Mod_subst.substitution -> 'glb -> 'glb
+(** The type of functions used for substituting generic arguments. *)
+
+val substitute : ('raw, 'glb, 'top) genarg_type -> 'glb subst_fun
+
+val generic_substitute : glob_generic_argument subst_fun
+
+val register_subst0 : ('raw, 'glb, 'top) genarg_type ->
+  'glb subst_fun -> unit
 
 (** {5 Compatibility layer}
 
