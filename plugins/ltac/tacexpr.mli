@@ -367,8 +367,8 @@ type ltac_call_kind =
   | LtacVarCall of KerName.t option * Id.t * glob_tactic_expr
   | LtacConstrInterp of Glob_term.glob_constr * Ltac_pretype.ltac_var_map
 
-type ltac_stack = ltac_call_kind Loc.located list
-type ltac_trace = ltac_stack * Geninterp.Val.t Id.Map.t list
+type ltac_stack = ltac_call_kind Loc.located list (* todo: redundant *)
+type ltac_trace = Loc.t option list * ltac_stack * Geninterp.Val.t Id.Map.t list
 
 type tacdef_body =
   | TacticDefinition of lident * raw_tactic_expr (* indicates that user employed ':=' in Ltac body *)

@@ -187,23 +187,23 @@ let cvt_stack stack =
     ) stack
 
 (* Each list entry contains multiple trace frames. *)
-let trace_chunks : ltac_trace list ref = ref [([], [])]
+let trace_chunks : ltac_trace list ref = ref [([], [], [])]
 let push_chunk trace = trace_chunks := trace :: !trace_chunks
-let pop_chunk trace = trace_chunks := List.tl !trace_chunks
+let pop_chunk () = trace_chunks := List.tl !trace_chunks
 
 let prev_stack = ref (Some [])  (* previous stopping point in debugger *)
-let prev_trace_chunks : ltac_trace list ref = ref [([], [])]
+let prev_trace_chunks : ltac_trace list ref = ref [([], [], [])]
 
 
 let save_loc tac varmap trace =
 (*  Comm.print (print_loc_tac tac);*)
-  let stack, varmaps = match trace with
-    | Some (stack, varmaps) -> stack, varmaps
-    | None -> [], []
+  let locs, stack, varmaps = match trace with
+    | Some (locs, stack, varmaps) -> locs, stack, varmaps
+    | None -> [], [], []
   in
   debugger_state.cur_loc <- CAst.(tac.loc);
-  let (pstack, pvars) = List.fold_right (fun (s,v) (os, ov) -> (s @ os), (v @ ov))
-    !trace_chunks ([],[]) in
+  let (plocs, pstack, pvars) = List.fold_right (fun (l,s,v) (ol, os, ov) -> (l @ ol), (s @ os), (v @ ov))
+    !trace_chunks ([],[],[]) in
   debugger_state.stack <- cvt_stack (stack @ pstack);
   debugger_state.varmaps <- varmap :: (varmaps @ pvars)
 
@@ -336,9 +336,9 @@ let dump_varmaps msg varmaps =
    that. *)
 let debug_prompt lev tac f varmap trace =
   (* trace omits the currently-running tactic, so add separately *)
-  let stack, varmaps = match trace with
-    | Some (stack, varmaps) -> Some stack, Some (varmap :: varmaps)
-    | None -> None, Some [varmap] in
+  let locs, stack, varmaps = match trace with
+    | Some (locs, stack, varmaps) -> locs, Some stack, Some (varmap :: varmaps)
+    | None -> [], None, Some [varmap] in
   let runprint = print_run_ctr true in
   let open Proofview.NonLogical in
   let (>=) = Proofview.tclBIND in
@@ -354,9 +354,9 @@ let debug_prompt lev tac f varmap trace =
       in
       let stacks_info stack p_stack =
         (* performance impact? *)
-        let st_chunks =  StdList.map (fun (s, _) -> s) trace_chunks.contents in
+        let st_chunks =  StdList.map (fun (_, s, _) -> s) trace_chunks.contents in
         let st =      StdList.concat ((Option.default [] stack) :: st_chunks) in
-        let prev_st_chunks = StdList.map (fun (s, _) -> s) prev_trace_chunks.contents in
+        let prev_st_chunks = StdList.map (fun (_, s, _) -> s) prev_trace_chunks.contents in
         let st_prev = StdList.concat ((Option.default [] p_stack) :: prev_st_chunks) in
         let l_cur, l_prev = StdList.length st, StdList.length st_prev in
         st, st_prev, l_cur, l_prev
