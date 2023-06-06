@@ -260,6 +260,7 @@ type 'a or_glb_tacexpr =
 
 type environment = {
   env_ist : valexpr Id.Map.t;
+  locs : Loc.t option list;
   stack : (string * Loc.t option) list option;
   varmaps : valexpr Id.Map.t list;
 }

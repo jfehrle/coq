@@ -106,31 +106,49 @@ end
 
 (* Each list entry contains multiple trace frames. *)
 let loc_chunks :  Loc.t option list list ref = ref []
-let push_loc_chunk chunk = loc_chunks := chunk :: !loc_chunks
-let pop_loc_chunk () = loc_chunks := List.tl !loc_chunks
+let prev_loc_chunks : Loc.t option list list ref = ref []
+
+type from = Ltac1 | Ltac2
+let loc_chunks_from : (from * int) list ref = ref []
+
+let push_loc_chunk chunk from =
+  loc_chunks := chunk :: !loc_chunks;
+  loc_chunks_from := (from, List.length chunk) :: !loc_chunks_from
+
+let pop_loc_chunk () =
+  loc_chunks := List.tl !loc_chunks;
+  loc_chunks_from := List.tl !loc_chunks_from
+
+let action = ref DebugHook.Action.StepOver
 
 
-let stepping_stop stacks_info stack p_stack action =
+let stepping_stop locs p_locs =
+  let locs_info locs p_locs =
+    (* performance impact? *)
+    let st =      List.concat (locs :: !loc_chunks) in
+    let st_prev = List.concat (p_locs :: !prev_loc_chunks) in
+    let l_cur, l_prev = List.length st, List.length st_prev in
+    st, st_prev, l_cur, l_prev
+  in
+
   let open DebugHook.Action in
-  match action with
+  match !action with
   | Continue -> false
   | StepIn   -> true
-  | StepOver -> let st, st_prev, l_cur, l_prev = stacks_info stack p_stack in
+  | StepOver -> let st, st_prev, l_cur, l_prev = locs_info locs p_locs in
                 if l_cur = 0 || l_cur < l_prev then true (* stepped out *)
                 else if l_prev = 0 (*&& l_cur > 0*) then false
                 else
                   let peq = List.nth st (l_cur - l_prev) == (List.hd st_prev) in
                   (l_cur > l_prev && (not peq)) ||  (* stepped out *)
                   (l_cur = l_prev && peq)  (* stepped over *)
-  | StepOut  -> let st, st_prev, l_cur, l_prev = stacks_info stack p_stack in
+  | StepOut  -> let st, st_prev, l_cur, l_prev = locs_info locs p_locs in
                 if l_cur < l_prev then true
                 else if l_prev = 0 then false
                 else
                   List.nth st (l_cur - l_prev) != (List.hd st_prev)
   | _ -> failwith "action op"
 
-
-let action = ref DebugHook.Action.StepOver
 
 open Pp (* for str *)
 

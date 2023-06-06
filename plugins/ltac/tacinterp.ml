@@ -604,7 +604,7 @@ let interp_gen kind ist pattern_mode flags env sigma c =
   let (locs, stack, _) = trace in
   (* save and restore the current trace info because the called routine later starts
      with an empty trace *)
-  DebugCommon.push_loc_chunk locs;
+  DebugCommon.push_loc_chunk locs Ltac1;
   Tactic_debug.push_chunk trace;
   try
     let (evd,c) =
@@ -614,10 +614,12 @@ let interp_gen kind ist pattern_mode flags env sigma c =
        function already use effect, I call [run] hoping it doesn't mess
        up with any assumption. *)
     Proofview.NonLogical.run (db_constr (curr_debug ist) env evd c);
+    DebugCommon.pop_loc_chunk ();
     Tactic_debug.pop_chunk ();
     (evd,c)
   with reraise ->
     let reraise = Exninfo.capture reraise in
+    DebugCommon.pop_loc_chunk ();
     Tactic_debug.pop_chunk ();
     Exninfo.iraise reraise
 

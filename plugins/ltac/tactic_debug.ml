@@ -57,8 +57,6 @@ let get_vars framenum =
       (Id.to_string id, Pptactic.pr_value Constrexpr.LevelSome v)
     ) (Id.Map.bindings vars)
 
-let action = DebugCommon.action
-
 (* Communications with the outside world *)
 module Comm = struct
   let hook () = Option.get (DebugHook.Intf.get ())
@@ -191,7 +189,7 @@ let trace_chunks : ltac_trace list ref = ref [([], [], [])]
 let push_chunk trace = trace_chunks := trace :: !trace_chunks
 let pop_chunk () = trace_chunks := List.tl !trace_chunks
 
-let prev_stack = ref (Some [])  (* previous stopping point in debugger *)
+let prev_locs = ref []  (* previous stopping point in debugger *)
 let prev_trace_chunks : ltac_trace list ref = ref [([], [], [])]
 
 
@@ -348,20 +346,11 @@ let debug_prompt lev tac f varmap trace =
       let stop_here () =
 (*        dump_stack "at debug_prompt" stack;*)
 (*        dump_varmaps "at debug_prompt" varmaps;*)
-        prev_stack.contents <- stack;
+        prev_locs.contents <- locs;
         prev_trace_chunks.contents <- trace_chunks.contents;
         Proofview.tclTHEN (goal_com tac varmap trace) (Proofview.tclLIFT (prompt lev))  (* call prompt -> read msg *)
       in
-      let stacks_info stack p_stack =
-        (* performance impact? *)
-        let st_chunks =  StdList.map (fun (_, s, _) -> s) trace_chunks.contents in
-        let st =      StdList.concat ((Option.default [] stack) :: st_chunks) in
-        let prev_st_chunks = StdList.map (fun (_, s, _) -> s) prev_trace_chunks.contents in
-        let st_prev = StdList.concat ((Option.default [] p_stack) :: prev_st_chunks) in
-        let l_cur, l_prev = StdList.length st, StdList.length st_prev in
-        st, st_prev, l_cur, l_prev
-      in
-      let p_stack = prev_stack.contents in
+      let p_locs = prev_locs.contents in
       if DebugCommon.breakpoint_stop CAst.(tac.loc) then
         (* todo: skip := 0 *)
         stop_here ()
@@ -376,7 +365,7 @@ let debug_prompt lev tac f varmap trace =
           if Option.has_some idtac_breakpt then
             Proofview.tclLIFT(runprint >> return (DebugOn (lev+1)))
           else begin
-            if DebugCommon.stepping_stop stacks_info stack p_stack action.contents then
+            if DebugCommon.stepping_stop locs p_locs then
               stop_here ()
             else
               Proofview.tclLIFT (Comm.clear_queue () >>

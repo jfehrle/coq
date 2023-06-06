@@ -6,9 +6,7 @@ val upd_bpts : ((string * int) * bool) list -> unit
 
 val breakpoint_stop : Loc.t option -> bool
 
-val stepping_stop : ('a list option -> 'a list option -> 'b list * 'b list * int * int) ->
-                  'a list option -> 'a list option -> DebugHook.Action.t -> bool
-(*                  Loc.t option list -> Loc.t option list -> DebugHook.Action.t -> bool *)
+val stepping_stop : Loc.t option list -> Loc.t option list -> bool
 
 val set_break : bool -> unit
 
@@ -52,8 +50,10 @@ val ssigma : Evd.evar_map option ref  (* todo: remove? *)
 
 val senv : Environ.env option ref
 
+type from = Ltac1 | Ltac2
+
 (** Push a loc chunk (multiple frames) onto the loc chunk stack *)
-val push_loc_chunk : Loc.t option list -> unit
+val push_loc_chunk : Loc.t option list -> from -> unit
 
 (** Pop a loc chunk (multiple frames) from the loc chunk stack *)
 val pop_loc_chunk : unit -> unit

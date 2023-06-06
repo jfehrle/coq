@@ -47,6 +47,7 @@ let with_frame frame tac =
 type environment = Tac2env.environment = {
   env_ist : valexpr Id.Map.t;
   (* stack frames (valid when debugger is enabled *)
+  locs : Loc.t option list;
   stack : (string * Loc.t option) list option;
   (* variable value maps for each stack frame *)
   varmaps : valexpr Id.Map.t list;
@@ -54,6 +55,7 @@ type environment = Tac2env.environment = {
 
 let empty_environment () = {
   env_ist = Id.Map.empty;
+  locs = [];
   stack = if DebugCommon.get_debug () then Some [] else None;
   varmaps = [];
 }
@@ -133,13 +135,14 @@ and match_pattern_against_or ist pats v =
 type debugger_state = {
   (* location of next code to execute, is not in stack *)
   mutable cur_loc : Loc.t option;
+  mutable locs : Loc.t option list;
   (* yields the call stack *)
   mutable stack : (string * Loc.t option) list;
   (* variable value maps for each stack frame *)
   mutable varmaps : Tac2ffi.valexpr Names.Id.Map.t list;
 }
 
-let debugger_state = { cur_loc=None; stack=[]; varmaps=[] }
+let debugger_state = { cur_loc=None; locs=[]; stack=[]; varmaps=[] }
 
 let get_stack () = DebugCommon.shift_stack debugger_state.stack debugger_state.cur_loc
 
@@ -335,24 +338,23 @@ let getname e =
   | GTacPrm  _ -> "GTacPrm"
   | GTacAls  _ -> "GTacAls"
 
-let stacks_info stack p_stack =
-  let st = Option.default [] stack in
-  let st_prev = Option.default [] p_stack in
-  let l_cur, l_prev = List.length st, List.length st_prev in
-  st, st_prev, l_cur, l_prev
-
-let prev_stack = ref (Some [])  (* previous stopping point in debugger *)
+let prev_locs = ref []  (* previous stopping point in debugger *)
 
 let init () =
   debugger_state.cur_loc <- None;
   debugger_state.varmaps <- [];
   debugger_state.stack <- [];
-  prev_stack := Some []
+  prev_locs := [] (* put in debugger_state? *)
 
-let push_stack item ist =
-  match ist with
+let push_locs item (ist : environment) =   (* ick *)
+  match ist.stack with
+  | Some s -> item :: ist.locs
+  | None -> ist.locs
+
+let push_stack item (ist : environment) =
+  match ist.stack with
   | Some s -> Some (item :: s)
-  | None -> ist
+  | None -> None
 
 let stop_stuff (ist : environment) loc =
   (* todo: replace with String.starts_with when OCaml 4.13 is required *)
@@ -373,11 +375,12 @@ let stop_stuff (ist : environment) loc =
   let stop = DebugCommon.get_debug () && (not_internal loc) &&
 (*    (Bool.not (starts_with "Ltac2." fname)) && *)
     (DebugCommon.breakpoint_stop loc ||
-     DebugCommon.stepping_stop stacks_info ist.stack !prev_stack !DebugCommon.action)
+     DebugCommon.stepping_stop ist.locs !prev_locs)
   in
   if stop then begin
-    prev_stack := ist.stack;
-    debugger_state.cur_loc <- loc;
+    prev_locs := ist.locs;
+    debugger_state.cur_loc <- loc;  (* prepend on .locs? *)
+    debugger_state.locs <- ist.locs;
     debugger_state.stack <- Option.default [] ist.stack;
     debugger_state.varmaps <- ist.env_ist :: ist.varmaps;
   end;
@@ -422,7 +425,8 @@ match e with
   let stop = stop_stuff ist loc in
   let ist =
     if DebugCommon.get_debug () && (not (is_primitive fname)) then
-      { ist with stack = push_stack (fname, loc) ist.stack;
+      { ist with locs = push_locs loc ist;
+        stack = push_stack (fname, loc) ist;
         varmaps = ist.env_ist :: ist.varmaps }
     else ist
   in
