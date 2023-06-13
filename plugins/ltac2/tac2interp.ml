@@ -144,7 +144,14 @@ type debugger_state = {
 
 let debugger_state = { cur_loc=None; locs=[]; stack=[]; varmaps=[] }
 
-let get_stack () = DebugCommon.shift_stack debugger_state.stack debugger_state.cur_loc
+(* todo: try to create tac2_debug.ml file *)
+type varmap = Tac2ffi.valexpr Names.Id.Map.t
+type frame = ((string * Loc.t option) * varmap) DebugCommon.Stack.stack_frame
+
+let fmt_stack : frame list -> DebugCommon.formatted_stack = fun chunk ->
+  let stack = List.map (fun i -> fst i) chunk in
+  DebugCommon.format_stack
+    (DebugCommon.shift_stack stack debugger_state.cur_loc)
 
 module DebugPP : sig
   type 'a tag = 'a Tac2dyn.Val.tag
@@ -254,18 +261,21 @@ let rec fmt_var : Tac2ffi.valexpr -> string -> (string * Pp.t) = fun v name ->
     | _ ->
       id_type, str "(exception)" (* just in case *)
 
-let get_vars framenum =
+let get_vars : frame -> DebugCommon.formatted_vars = fun frame ->
+  let (_, varmap) = frame in
   let open Names in
 (*  Printf.eprintf "framenum = %d varmaps len = %d\n%!" framenum (List.length debugger_state.varmaps);*)
-  let vars = List.nth debugger_state.varmaps framenum in
-  List.map (fun b -> let (id, v) = b in fmt_var v (Id.to_string id)) (Id.Map.bindings vars)
+  List.map (fun b -> let (id, v) = b in fmt_var v (Id.to_string id)) (Id.Map.bindings varmap)
 
+
+let val_ltac2 = DebugCommon.Val.create "ltac2"
+let _ = DebugCommon.Stack.add val_ltac2 fmt_stack get_vars
 
 let rec read_loop () =
   let nl = if (*Util.(!batch)*) false then "\n" else "" in
   let hook = Option.get (DebugHook.Intf.get ()) in
   hook.submit_answer (Prompt (tag "message.prompt" @@ fnl () ++ str ("TcDebug > " ^ nl)));
-  DebugCommon.action := DebugCommon.read get_stack get_vars;
+  DebugCommon.action := DebugCommon.read val_ltac2;
   let open DebugHook.Action in
   match !DebugCommon.action with
   | Continue

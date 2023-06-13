@@ -18,31 +18,35 @@ val init : unit -> unit
 
 val isTerminal : unit -> bool
 
+type formatted_stack = DebugHook.Answer.stack
+type formatted_vars = DebugHook.Answer.vars
+
 module Val : Dyn.S
 
-module FmtVars : sig
+module Stack : sig
   type 'a tag = 'a Val.tag
-  type 'a fmt = 'a Names.Id.Map.t -> (string * Pp.t) list
+  type 'a stack_frame = 'a
+  type 'a stack_chunk = 'a tag * 'a list
+  type 'a fmt_stack = 'a list -> formatted_stack
+  type 'a fmt_vars = 'a -> formatted_vars
 
-  (** [add tag fmt] registers a function to format the variables for a debugger
+  (** [add tag fmt] registers interface functions for a debugger
       type (e.g. Ltac1/Ltac2) [tag]. If there already was such a printer, it is replaced. *)
-  val add : 'a tag -> 'a fmt -> unit
+  val add : 'a tag -> 'a fmt_stack -> 'a fmt_vars -> unit
 
-  (** [find tag] gives the currently registered format the variables for a debugger
+  (** [find tag] gives the currently registered interface functions for a debugger
       type (e.g. Ltac1/Ltac2) [tag] if there is one, and raises [Not_found] otherwise. *)
-  val find : 'a tag -> 'a fmt
+  val find : 'a tag -> 'a fmt_stack * 'a fmt_vars
 
 end
 
-val read : (unit -> (string option * Loc.t option) list) ->
-            (int -> (string * Pp.t) list) ->
-            DebugHook.Action.t
+
+val read : 'a Stack.tag -> DebugHook.Action.t
 
 val shift_stack : (string * Loc.t option) list -> Loc.t option ->
                  (string option * Loc.t option) list
 
-val format_stack : (string option * Loc.t option) list ->
-                  (string * (string * int list) option) list
+val format_stack : (string option * Loc.t option) list -> formatted_stack
 
 val db_pr_goals : unit -> unit Proofview.tactic
 

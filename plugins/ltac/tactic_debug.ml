@@ -15,6 +15,8 @@ open Names
 open Pp
 open Tacexpr
 
+let val_ltac1 = DebugCommon.Val.create "ltac1"
+
 let (ltac_trace_info : ltac_stack Exninfo.t) = Exninfo.make ()
 
 let prtac x =
@@ -39,23 +41,23 @@ type debugger_state = {
   (* location of next code to execute, is not in stack *)
   mutable cur_loc : Loc.t option;
   (* yields the call stack *)
-  mutable stack : (string * Loc.t option) list;
+  mutable stack : ltac_stack;
   (* variable value maps for each stack frame *)
   mutable varmaps : Geninterp.Val.t Names.Id.Map.t list;
 }
 
 let debugger_state = { cur_loc=None; stack=[]; varmaps=[] }
 
-let get_stack () = DebugCommon.shift_stack debugger_state.stack debugger_state.cur_loc
+type varmap = Geninterp.Val.t Names.Id.Map.t
+type frame = (Loc.t option * Tacexpr.ltac_call_kind * varmap) DebugCommon.Stack.stack_frame
 
-let get_vars framenum =
+let fmt_vars : frame -> DebugCommon.formatted_vars = fun frame ->
+  let (_, _, varmap) = frame in
   let open Names in
-(*  Printf.printf "server: db_vars call\n%!";*)
-  let vars = List.nth debugger_state.varmaps framenum in
   List.map (fun b ->
       let (id, v) = b in
       (Id.to_string id, Pptactic.pr_value Constrexpr.LevelSome v)
-    ) (Id.Map.bindings vars)
+    ) (Id.Map.bindings varmap)
 
 (* Communications with the outside world *)
 module Comm = struct
@@ -89,7 +91,7 @@ module Comm = struct
   let print g = (hook ()).submit_answer (Output (str g))
   [@@@ocaml.warning "+32"]
   let isTerminal = DebugCommon.isTerminal
-  let read = wrap DebugCommon.(fun () -> read get_stack get_vars)
+  let read = wrap DebugCommon.(fun () -> read val_ltac1)
 
 end
 
@@ -165,7 +167,7 @@ let print_loc_tac tac =
 
 let cvt_stack stack =
   List.map (fun k ->
-    let (loc, k) = k in
+    let (loc, k, _) = k in
     (* todo: compare to explain_ltac_call_trace below *)
     match k with
     | LtacNameCall l -> KerName.to_string l, loc
@@ -183,6 +185,12 @@ let cvt_stack stack =
       fn_name, loc
     | LtacConstrInterp (c,_) -> "", loc
     ) stack
+
+let fmt_stack : frame list -> DebugCommon.formatted_stack = fun chunk ->
+  DebugCommon.format_stack
+    (DebugCommon.shift_stack (cvt_stack chunk) debugger_state.cur_loc)
+
+let _ = DebugCommon.Stack.add val_ltac1 fmt_stack fmt_vars
 
 (* Each list entry contains multiple trace frames. *)
 let trace_chunks : ltac_trace list ref = ref [([], [], [])]
@@ -202,7 +210,7 @@ let save_loc tac varmap trace =
   debugger_state.cur_loc <- CAst.(tac.loc);
   let (plocs, pstack, pvars) = List.fold_right (fun (l,s,v) (ol, os, ov) -> (l @ ol), (s @ os), (v @ ov))
     !trace_chunks ([],[],[]) in
-  debugger_state.stack <- cvt_stack (stack @ pstack);
+  debugger_state.stack <- stack @ pstack;
   debugger_state.varmaps <- varmap :: (varmaps @ pvars)
 
 (* Prints the goal and the command to be executed *)

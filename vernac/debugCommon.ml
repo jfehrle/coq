@@ -75,35 +75,6 @@ let breakpoint_stop loc =
     | _ -> false
 
 
-module Val = Dyn.Make(struct end)
-
-module FmtVars : sig
-  type 'a tag = 'a Val.tag
-  type 'a fmt = 'a Names.Id.Map.t -> (string * Pp.t) list
-
-  (** [add tag fmt] registers a function to format the variables for a debugger
-      type (e.g. Ltac1/Ltac2) [tag]. If there already was such a printer, it is replaced. *)
-  val add : 'a tag -> 'a fmt -> unit
-
-  (** [find tag] gives the currently registered format the variables for a debugger
-      type (e.g. Ltac1/Ltac2) [tag] if there is one, and raises [Not_found] otherwise. *)
-  val find : 'a tag -> 'a fmt
-
-end = struct
-  type 'a tag = 'a Val.tag
-  type 'a fmt = 'a Names.Id.Map.t -> (string * Pp.t) list
-
-  module M = Val.Map(struct type 'a t = 'a fmt end)
-
-  let state = ref M.empty
-
-  let add tag fmt = state := M.add tag fmt !state
-  let find tag = M.find tag !state
-end
-(* todo: move elsewhere *)
-(* todo: also add "bottom of stack"? *)
-(* todo: way to share defn for stack? or needed at all? *)
-
 (* Each list entry contains multiple trace frames. *)
 let loc_chunks :  Loc.t option list list ref = ref []
 let prev_loc_chunks : Loc.t option list list ref = ref []
@@ -306,8 +277,73 @@ let clear_queue () = wrap (fun () -> Queue.clear out_queue)
 
 let print g = (hook ()).submit_answer (Output (str g))
 
+type formatted_stack = (string * (string * int list) option) list
+type formatted_vars = (string * Pp.t) list
+
+module Val = Dyn.Make(struct end)
+
+module Stack : sig
+  type 'a tag = 'a Val.tag
+  type 'a stack_frame = 'a
+  type 'a stack_chunk = 'a tag * 'a list
+  type 'a fmt_stack = 'a list -> formatted_stack
+  type 'a fmt_vars = 'a -> formatted_vars
+
+  (** [add tag fmt] registers interface functions for a debugger
+      type (e.g. Ltac1/Ltac2) [tag]. If there already was such a printer, it is replaced. *)
+  val add : 'a tag -> 'a fmt_stack -> 'a fmt_vars -> unit
+
+  (** [find tag] gives the currently registered interface functions for a debugger
+      type (e.g. Ltac1/Ltac2) [tag] if there is one, and raises [Not_found] otherwise. *)
+  val find : 'a tag -> 'a fmt_stack * 'a fmt_vars
+
+end = struct
+  type 'a tag = 'a Val.tag
+  type 'a stack_frame = 'a
+  type 'a stack_chunk = 'a tag * 'a list
+  type 'a fmt_stack = 'a list -> formatted_stack
+  type 'a fmt_vars = 'a -> formatted_vars
+
+  module M = Val.Map(struct type 'a t = 'a fmt_stack * 'a fmt_vars end)
+
+  let state = ref M.empty
+
+  let add tag fmt_stack fmt_vars = state := M.add tag (fmt_stack, fmt_vars) !state
+  let find tag = M.find tag !state
+end
+(* todo: move elsewhere *)
+
+let stack_chunks : ('a Stack.stack_chunk) list ref = ref []
+let top_chunk: ('a Stack.stack_chunk) option ref = ref None
+
+let set_top_chunk chunk = top_chunk := Some chunk
+let push_chunk chunk = stack_chunks := chunk :: !stack_chunks
+
+let get_full_stack () =
+  match !top_chunk with
+  | Some chunk -> chunk :: !stack_chunks
+  | None -> !stack_chunks
+
+let fmt_stack () =
+  List.concat_map (fun (tag, chunk) ->
+    try (fst (Stack.find tag)) chunk with Not_found -> ["???", None]
+  ) (get_full_stack ())
+
+let get_vars framenum =
+  let rec get_chunk chunks framenum =
+    match chunks with
+    | [] -> failwith "get_vars"
+    | (tag, chunk) :: tl ->
+      let len = List.length chunk in
+      if len <= framenum then
+        get_chunk tl (framenum - len)
+      else
+        try (snd (Stack.find tag)) (List.nth chunk framenum) with Not_found -> ["???", Pp.mt ()]
+  in
+  get_chunk (get_full_stack ()) framenum
+
 let isTerminal () = (hook ()).isTerminal
-let read get_stack get_vars =
+let read (tag : 'a Stack.tag) =
   let rec l () =
     let cmd = (hook ()).read_cmd () in
     let open DebugHook.Action in
@@ -315,7 +351,7 @@ let read get_stack get_vars =
     | Ignore -> l ()
     | UpdBpts updates -> upd_bpts updates; l ()
     | GetStack ->
-      ((hook)()).submit_answer (Stack (format_stack (get_stack ())));
+      ((hook)()).submit_answer (Stack (fmt_stack ()));
       l ()
     | GetVars framenum ->
       ((hook)()).submit_answer (Vars (get_vars framenum));

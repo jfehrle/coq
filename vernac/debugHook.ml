@@ -84,13 +84,15 @@ module Action = struct
 end
 
 module Answer = struct
+  type stack = (string * (string * int list) option) list
+  type vars = (string * Pp.t) list
   type t =
     | Prompt of Pp.t
     | Goal of Pp.t
     | Output of Pp.t
     | Init
-    | Stack of (string * (string * int list) option) list
-    | Vars of (string * Pp.t) list
+    | Stack of stack
+    | Vars of vars
 end
 
 module Intf = struct
