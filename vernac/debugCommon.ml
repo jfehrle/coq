@@ -75,7 +75,7 @@ let set_history_size n =
 let () =
   let open Goptions in
   declare_int_option
-    { optstage = Summary.Stage.Interp;
+    { (* optstage = Summary.Stage.Interp; Not in v8.17.1 *)
       optdepr  = false;
       optkey   = ["Ltac";"Debug";"History"];
       optread  = (fun () -> Some !history_buf_size);
@@ -161,8 +161,6 @@ let check_bpt dirpath offset =
 
 let break = ref false
 (* causes the debugger to stop at the next step *)
-
-let set_break b = break := b
 
 let print_loc desc loc =
   let open Loc in
@@ -372,6 +370,9 @@ let wrap = Proofview.NonLogical.make
    Improving this would require some tweaks in tacinterp which
    are out of scope for the current refactoring. *)
 let init () =
+  if Sys.os_type = "Unix" then
+    Sys.set_signal Sys.sigusr1 (Sys.Signal_handle
+      (fun _ -> break := true));
   stack_chunks := [];
   prev_chunks := [];
   top_chunk := empty_chunk;
@@ -384,7 +385,7 @@ let init () =
     if Intf.(intf.isTerminal) then
       action := Action.StepIn
     else begin
-      set_break false;
+      break := false;
       breakpoints := BPSet.empty;
       (hook ()).Intf.submit_answer (Answer.Init);
       while

@@ -55,7 +55,6 @@ module Comm = struct
      initialization is unconditionally done for example in coqc.
      Improving this would require some tweaks in tacinterp which
      are out of scope for the current refactoring. *)
-  let init = DebugCommon.init
   open DebugHook.Intf
   open DebugHook.Answer
 
@@ -199,12 +198,9 @@ let () =
 
 (* (Re-)initialize debugger. is_tac controls whether to set the action *)
 let db_initialize is_tac =
-  if Sys.os_type = "Unix" then
-    Sys.set_signal Sys.sigusr1 (Sys.Signal_handle
-      (fun _ -> DebugCommon.set_break true));
   let open Proofview.NonLogical in
   let x = (skip:=0) >> (skipped:=0) >> (idtac_breakpt:=None) in
-  if is_tac then make Comm.init >> x else x
+  if is_tac then make DebugCommon.init >> x else x
 
 (* Prints the run counter *)
 let print_run_ctr print =

@@ -134,9 +134,11 @@ let rec dump_expr ?(indent=0) e =
   | CTacApp (f, args) -> printloc "CTacApp" e;
     dump_expr ~indent f
 (*| CTacSyn of (raw_patexpr * raw_tacexpr) list * KerName.t*)
+(*
   | CTacSyn (el, kn) -> printloc "CTacSyn" e;
     Printf.eprintf "%s> %s\n%!" (String.make indent ' ') (Names.KerName.to_string kn);
     List.iter (fun i -> let (_, e) = i in dump_expr ~indent e) el
+*)
   | CTacLet (isrec, lc, e) -> printloc "CTacLet" e;
     dump_expr ~indent e;  (* rhs only *)
   | CTacCnv _ -> printloc "CTacCnv" e

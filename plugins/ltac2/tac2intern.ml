@@ -1036,6 +1036,7 @@ let to_simple_case env ?loc (e,t) pl =
     let (map, def) = intern_branch KNmap.empty pl in
     GTacWth { opn_match = e; opn_branch = map; opn_default = def }
 
+[@@@ocaml.warning "-32"]
 let rec dump_expr2 ?(indent=0) e =
   let printloc loc =
     let loc = match loc with
@@ -1069,6 +1070,7 @@ let rec dump_expr2 ?(indent=0) e =
   | GTacExt _ -> print "GTacExt"
   | GTacPrm  _ -> print "GTacPrm"
   | GTacAls  _ -> print "GTacAls"
+[@@@ocaml.warning "+32"]
 
 (*
 let rec dump_expr ?(indent=0) e =
@@ -1205,6 +1207,7 @@ let rec intern_rec env {loc;v=e} = match e with
   let ids = List.fold_left fold Id.Set.empty el in
   if is_rec then intern_let_rec env loc ids el e
   else intern_let env loc ids el e
+(*
 | CTacSyn (el, kn) ->
   let body = Tac2env.interp_notation kn in
   let rv = intern_rec env @@ CAst.make ?loc @@ CTacLet(false, el, body) in
@@ -1216,6 +1219,7 @@ let rec intern_rec env {loc;v=e} = match e with
   let (e2, _) = rv in
   if false then dump_expr2 e2;
   rv
+*)
 | CTacCnv (e, tc) ->
   let (e, t) = intern_rec env e in
   let tc = intern_type env tc in
@@ -1598,9 +1602,11 @@ let rec globalize ids ({loc;v=er} as e) = match er with
   in
   let bnd = List.map map bnd in
   CAst.make ?loc @@ CTacLet (isrec, bnd, e)
+(*
 | CTacSyn (el, kn) ->
   let body = Tac2env.interp_notation kn in
   globalize ids @@ CAst.make ?loc @@ CTacLet(false, el, body)
+*)
 | CTacCnv (e, t) ->
   let e = globalize ids e in
   CAst.make ?loc @@ CTacCnv (e, t)
@@ -1880,9 +1886,11 @@ let rec subst_rawexpr subst ({loc;v=tr} as t) = match tr with
   let bnd' = List.Smart.map map bnd in
   let e' = subst_rawexpr subst e in
   if bnd' == bnd && e' == e then t else CAst.make ?loc @@ CTacLet (isrec, bnd', e')
+(*
 | CTacSyn (el, kn) ->
   let body = Tac2env.interp_notation kn in
   subst_rawexpr subst @@ CAst.make ?loc @@ CTacLet(false, el, body)
+*)
 | CTacCnv (e, c) ->
   let e' = subst_rawexpr subst e in
   let c' = subst_rawtype subst c in

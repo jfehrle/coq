@@ -8,8 +8,6 @@ val breakpoint_stop : Loc.t option -> bool
 
 val stepping_stop : unit -> bool
 
-val set_break : bool -> unit
-
 val action : DebugHook.Action.t ref
 
 (* Comm module stuff *)
