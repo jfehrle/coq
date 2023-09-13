@@ -640,8 +640,26 @@ type krule =
   (raw_tacexpr, _, 'act, Loc.t -> raw_tacexpr) Pcoq.Rule.t *
   ((Loc.t -> (Name.t * raw_tacexpr) list -> raw_tacexpr) -> 'act) -> krule
 
+(* use the location where the notation is invoked rather than where it's defined *)
+let fixup_notation_loc rv loc =
+  match rv.v with
+  | CTacLet (isrec, lc, e) ->
+    begin match e.v with
+    | CTacApp (f, args) ->
+      let args = List.map (fun arg -> CAst.make ~loc arg.v) args in
+      begin match f.v with
+      | CTacRef x ->
+        CAst.(make ~loc (CTacLet (isrec, lc,
+               make ~loc (CTacApp (
+               make ~loc (CTacRef x), args)))))
+      | _ -> rv
+      end
+    | _ -> rv
+    end
+  | _ -> rv
+
 let rec get_rule (tok : scope_rule token list) : krule = match tok with
-| [] -> KRule (Pcoq.Rule.stop, fun k loc -> k loc [])
+| [] -> KRule (Pcoq.Rule.stop, fun k loc -> fixup_notation_loc (k loc []) loc)
 | TacNonTerm (na, ScopeRule (scope, inj)) :: tok ->
   let KRule (rule, act) = get_rule tok in
   let rule = Pcoq.Rule.next rule scope in
