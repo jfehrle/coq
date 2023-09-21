@@ -184,7 +184,7 @@ let rec dump_expr2 ?(indent=0) ?(p="D") e =
   | GTacOpn _ -> print "GTacOpn"
   | GTacWth _ -> print "GTacWth"
   | GTacFullMatch _ -> print "GTacFullMatch"
-  | GTacExt (tag,_) -> print (Printf.sprintf "GTacExt %s" (Tac2dyn.Arg.repr tag))
+  | GTacExt (tag,_, _) -> print (Printf.sprintf "GTacExt %s" (Tac2dyn.Arg.repr tag))
   | GTacPrm (ml, _) -> print (Printf.sprintf "GTacPrm %s. %s\n%!" ml.mltac_plugin ml.mltac_tactic)
   | GTacAls  _ -> print "GTacAls"
 

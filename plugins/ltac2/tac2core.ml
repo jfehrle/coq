@@ -1517,8 +1517,10 @@ let () =
       let wrap (e, info) = set_bt info >>= fun info ->
           DebugCommon.pop_chunk ();
           Proofview.tclZERO ~info e in
+(*
       Proofview.tclTHEN
         (Ltac_plugin.Tactic_debug.entry_stop_check tac)
+*)
         (Proofview.tclOR tac2 wrap >>= fun () -> DebugCommon.pop_chunk (); return v_unit)
     in
     let len = List.length ids in
@@ -1642,7 +1644,7 @@ let () =
   let subs globs (ids, tac) =
     (* Let-bind the notation terms inside the tactic *)
     let fold id (c, _) (rem, accu) =
-      let c = GTacExt (Tac2quote.wit_preterm, c) in
+      let c = GTacExt (Tac2quote.wit_preterm, None, c) in
       let rem = Id.Set.remove id rem in
       rem, (Name id, c) :: accu
     in

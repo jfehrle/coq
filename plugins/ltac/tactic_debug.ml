@@ -202,7 +202,7 @@ let db_initialize is_tac =
   let open Proofview.NonLogical in
   let x = (skip:=0) >> (skipped:=0) >> (idtac_breakpt:=None) in
   if is_tac then begin
-          idtac_bpt_stop.contents <- false;
+    idtac_bpt_stop.contents <- false;
     make DebugCommon.init >> x
   end else x
 
@@ -367,6 +367,7 @@ let debug_prompt lev tac f varmap trace =
     end
 
 (* for ltac1:(tac) *)
+(* todo: apparently not needed *)
 let entry_stop_check tac =
 (*  Printf.eprintf "entry_stop_check\n%!"; *)
   let can_stop = match CAst.(tac.v) with (* avoid double stop for ltac1:(xx) *)

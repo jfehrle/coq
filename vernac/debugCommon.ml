@@ -472,9 +472,20 @@ let db_fmt_goals () =
   str (CString.plural (List.length gls) "Goal") ++ str ":" ++ fnl () ++
       Pp.seq (List.map db_fmt_goal gls)
 
-let db_pr_goals () =
+
+ let db_pr_goals3 () =
+  let open Proofview.NonLogical in
+  let gs = make (fun () -> (* Printf.eprintf "db_pr_goals3\n%!"; *) db_fmt_goals ()) in
+  gs >>= fun gs -> goals gs
+
+let db_pr_goals2 () =
+(*  Printf.eprintf "db_pr_goals2\n%!"; *)
   let gs = db_fmt_goals () in
-  Proofview.tclLIFT (goals gs)   (* TODO: MAYBE DROP THIS LINE? *)
+  ignore @@ goals gs;
+  ()
+
+let db_pr_goals () =
+  Proofview.tclLIFT (db_pr_goals3 ())
 
 let isTerminal () = (hook ()).isTerminal
 let read () =

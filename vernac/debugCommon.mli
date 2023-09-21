@@ -49,6 +49,9 @@ val format_stack : string option list -> Loc.t option list -> DebugHook.Answer.s
 
 val db_pr_goals : unit -> unit Proofview.tactic
 
+val db_pr_goals2 : unit -> unit
+(* val db_pr_goals2 : unit -> unit Proofview.NonLogical.t *)
+
 val pop_chunk : unit -> unit
 
 val new_stop_point : unit -> unit
