@@ -32,13 +32,19 @@ val hint_cat : Libobject.category
 
 (** Pre-created hint databases *)
 
+type foreach_info = Constrexpr.constr_expr option * Gentactic.raw_generic_tactic *
+                  (Names.Id.t CAst.t * Names.Id.t CAst.t) list
+
+
 type 'a hint_ast =
   | Res_pf     of 'a (* Hint Apply *)
   | ERes_pf    of 'a (* Hint EApply *)
   | Give_exact of 'a
   | Res_pf_THEN_trivial_fail of 'a (* Hint Immediate *)
   | Unfold_nth of Evaluable.t (* Hint Unfold *)
-  | Extern of Pattern.constr_pattern option * Gentactic.glob_generic_tactic (* Hint Extern *)
+  | Extern     of Pattern.constr_pattern option * Gentactic.glob_generic_tactic *
+    (Names.Id.t * Names.Id.t) list (* Hint Extern *)
+    * foreach_info
 
 type hint
 
@@ -60,7 +66,7 @@ sig
   val database : t -> string option
   val run : t -> (hint hint_ast -> 'r Proofview.tactic) -> 'r Proofview.tactic
   val name : t -> GlobRef.t option
-  val print : env -> evar_map -> t -> Pp.t
+  val print : ?vals:Id.t list -> ?forinfo:bool -> env -> evar_map -> t -> Pp.t
   val subgoals : t -> int option
 
   (** This function is for backward compatibility only, not to use in newly
@@ -173,7 +179,8 @@ type hints_entry =
   | HintsUnfoldEntry of Evaluable.t list
   | HintsTransparencyEntry of Evaluable.t hints_transparency_target * bool
   | HintsModeEntry of GlobRef.t * hint_mode list
-  | HintsExternEntry of hint_info * Gentactic.glob_generic_tactic
+  | HintsExternEntry of hint_info * Gentactic.glob_generic_tactic *
+    (Names.Id.t * Names.Id.t) list * foreach_info
 
 val searchtable_map : hint_db_name -> hint_db
 

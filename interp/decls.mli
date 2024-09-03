@@ -20,6 +20,8 @@ type theorem_kind =
   | Proposition
   | Corollary
 
+val tk_to_string : theorem_kind -> string
+
 type definition_object_kind =
   | Definition
   | Coercion
@@ -35,6 +37,8 @@ type definition_object_kind =
   | Method
   | Let
   | LetContext
+
+val df_to_string : definition_object_kind -> string
 
 type assumption_object_kind = Definitional | Logical | Conjectural | Context
 
@@ -59,6 +63,8 @@ type logical_kind =
 (** This module manages non-kernel informations about declarations. It
     is either non-logical informations or logical informations that
     have no place to be (yet) in the kernel *)
+
+val lk_to_string : logical_kind -> string
 
 (** Registration and access to the table of variable *)
 

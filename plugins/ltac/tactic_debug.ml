@@ -342,6 +342,75 @@ let help () =
      str "          s = Skip" ++ fnl() ++
      str "          x = Exit")
 
+(* let dump_generic ?(indent=0) *)
+
+let dump_gen_tactic_arg  ?(indent=0) arg =
+  let print ?(indent=indent) s = Printf.eprintf "%s%s\n%!" (String.make indent ' ') s in
+  match arg with
+  | TacGeneric (s,a) -> print (Printf.sprintf "TacGeneric %s"
+      (match s with | None -> "" | Some s -> s));
+(*
+      (match a with
+      | Genarg.GenArg (Rawwit _, Genarg.ExtraArg _) -> ()
+      | ExtraArg _ -> ()
+      | _ -> ())
+*)
+(*      let i : int = a in ()  'a Genarg.generic_argument*)
+  | ConstrMayEval _ -> print "ConstrMayEval"
+  | Reference _ -> print "Reference"
+(*  | TacCall _ -> print "TacCall"    *)
+  | TacCall CAst.{loc; v=(aref,_)} -> print "TacCall"
+(*     print (Printf.sprintf "TacCall %s" (Libnames.string_of_qualid aref)(*  (List.length args) *)) *)
+  | TacFreshId _ -> print "TacFreshId"
+  | Tacexp _ -> print "Tacexp"
+  | TacPretype _ -> print "TacPretype"
+  | TacNumgoals -> print "TacNumgoals"
+
+
+let rec dump_tac ?(indent=0) tac =
+  let print ?(indent=indent) s = Printf.eprintf "%s%s\n%!" (String.make indent ' ') s in
+  let indent = indent + 2 in
+  let CAst.{loc; v=tac} = tac in
+  match tac with
+  | TacAtom _ -> print "TacAtom"
+  | TacThen _ -> print "TacThen"
+  | TacDispatch _ -> print "TacDispatch"
+  | TacExtendTac _ -> print "TacExtendTac"
+  | TacThens _ -> print "TacThens"
+  | TacThens3parts _ -> print "TacThens3parts"
+  | TacFirst _ -> print "TacFirst"
+  | TacSolve _ -> print "TacSolve"
+  | TacTry _ -> print "TacTry"
+  | TacOr _ -> print "TacOr"
+  | TacOnce _ -> print "TacOnce"
+  | TacExactlyOnce _ -> print "TacExactlyOnce"
+  | TacIfThenCatch _ -> print "TacIfThenCatch"
+  | TacOrelse _ -> print "TacOrelse"
+  | TacDo _ -> print "TacDo"
+  | TacTimeout _ -> print "TacTimeout"
+  | TacTime _ -> print "TacTime"
+  | TacRepeat _ -> print "TacRepeat"
+  | TacProgress _ -> print "TacProgress"
+  | TacAbstract _ -> print "TacAbstract"
+  | TacId _ -> print "TacId"
+  | TacFail _ -> print "TacFail"
+  | TacLetIn (isrec,bl,x) ->
+    let names = List.fold_left (fun acc CAst.({v=name}, _) -> acc ++ (Names.Name.print name) ++ str " ") (mt ()) bl in
+    print (Printf.sprintf "TacLetIn %s" (string_of_ppcmds names));
+
+(*    print "TacLetIn %s"; *)
+(*    Printf.eprintf "# vars = %d\n%!" (List.length bl); *)
+    List.iter (fun (name,arg) -> dump_gen_tactic_arg ~indent arg) bl;
+    dump_tac ~indent x;
+  | TacMatch _ -> print "TacMatch"
+  | TacMatchGoal _ -> print "TacMatchGoal"
+  | TacFun _ -> print "TacFun"
+  | TacArg _ -> print "TacArg"
+  | TacSelect _ -> print "TacSelect"
+  | TacML _ -> print "TacML"
+  | TacAlias (kn,args) -> print (Printf.sprintf "TacAlias %s %d" (KerName.to_string kn) (List.length args))
+
+
 [@@@ocaml.warning "-32"]
 let tac_loc tac =
   let open Tacexpr in

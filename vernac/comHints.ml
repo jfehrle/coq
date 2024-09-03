@@ -11,6 +11,9 @@
 open Util
 open Names
 
+let test = (try let _ = Sys.getenv("TEST") in true with _ -> false)
+let _ = test
+
 (** (Partial) implementation of the [Hint] command; some more
    functionality still lives in tactics/hints.ml *)
 
@@ -78,6 +81,24 @@ let rectify_hint_constr h = match h with
   | CAppExpl ((qid, None), []) -> Some qid
   | _ -> None
 
+let intern_hint_extern patcom tacexp vars =
+  let env = Global.env () in
+  let sigma = Evd.from_env env in
+  let fp = Constrintern.intern_constr_pattern env in
+  let pat = Option.map (fp sigma) patcom in
+  let ltacvars = match pat with None -> Id.Set.empty | Some (l, _) -> l in
+  let ltacvars = Id.Set.union ltacvars (Id.Set.of_list vars) in
+(*
+  if test then begin
+    Printf.eprintf "# ltacvars = %d: " (Id.Set.cardinal ltacvars);
+    List.iter (fun el -> Printf.eprintf "%s " (Names.Id.to_string el))
+      (Id.Set.elements ltacvars);
+      Printf.eprintf "\n%!";
+  end;
+*)
+(*  let env = Genintern.{(empty_glob_sign ~strict:true env) with ltacvars} in *)
+  Gentactic.intern env ~ltacvars tacexp
+
 let interp_hints ~poly h =
   let env = Global.env () in
   let sigma = Evd.from_env env in
@@ -137,9 +158,28 @@ let interp_hints ~poly h =
           , gr ))
     in
     HintsResolveEntry (List.flatten (List.map constr_hints_of_ind lqid))
-  | HintsExtern (pri, patcom, tacexp) ->
+  | HintsExtern (pri, patcom, tacexp, bnds) ->
+    let saved = (patcom, tacexp, bnds) in
+    let validate_bnds bnds =
+      let valid_foreach = Id.Set.of_list (List.map (fun i -> Names.Id.of_string i) ["HYP"; "IND"]) in
+      let rec aux bnds seen =
+        match bnds with
+        | (CAst.{v=l; loc=locl}, CAst.{v=r; loc=locr}) :: tl ->
+          if Id.Set.mem l seen then
+            CErrors.user_err ?loc:locl Pp.(Id.print l ++
+              str " appears more than once as a foreach parameter.");
+          if not (Id.Set.mem r valid_foreach) then
+            CErrors.user_err ?loc:locr Pp.(Id.print r ++
+              str " is not a valid data type for foreach.");
+          aux tl (Id.Set.add l seen)
+        | [] -> ()
+      in
+      aux bnds Id.Set.empty
+    in
+    validate_bnds bnds;
     let pat = Option.map (fp sigma) patcom in
-    let ltacvars = match pat with None -> Id.Set.empty | Some (l, _) -> l in
-    let tacexp = Gentactic.intern ~ltacvars env tacexp in
+    let lhsvars = List.map (fun (CAst.{v=l},_) -> l) bnds in
+    let tacexp = intern_hint_extern patcom tacexp lhsvars in
+    let bnds' = List.map (fun CAst.({v=l}, {v=r}) -> (l,r)) bnds in
     HintsExternEntry
-      ({Typeclasses.hint_priority = Some pri; hint_pattern = pat}, tacexp)
+      ({Typeclasses.hint_priority = Some pri; hint_pattern = pat}, tacexp, bnds', saved)

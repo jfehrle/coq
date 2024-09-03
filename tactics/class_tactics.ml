@@ -293,7 +293,7 @@ and e_my_find_search db_list local_db secvars hdc complete env sigma concl0 =
          Tacticals.tclTHEN fst snd
       | Unfold_nth c ->
          Proofview.tclPROGRESS (unfold_in_concl [AllOccurrences,c])
-      | Extern (p, tacast) -> conclPattern concl0 p tacast
+      | Extern (p, tacast, _, _) -> conclPattern concl0 p tacast
       in
       let tac = FullHint.run h tac in
       let tac = if complete then Tacticals.tclCOMPLETE tac else tac in

@@ -340,10 +340,20 @@ let pr_hints db h pr_c pr_pat =
     | HintsConstructors c ->
       keyword "Constructors"
       ++ spc() ++ prlist_with_sep spc pr_qualid c
-    | HintsExtern (n,c,tac) ->
+    | HintsExtern (n,c,tac,bnds) ->
+      (* todo: not used by Print HintDb, how is this called? *)
       let pat = match c with None -> mt () | Some pat -> pr_pat pat in
+      (* similar code in Hints.pr_hint *)
+      let bnds = match bnds with
+        | [] -> mt ()
+        | _ ->
+          let pr_id id = str (Id.to_string id) in
+          str "foreach " ++ prlist_with_sep (fun () -> str " ")
+            (fun CAst.({v=l},{v=r}) -> pr_id l ++ if l = r then mt () else str ":=" ++ pr_id r) bnds
+            ++ str " :" ++ spc()
+      in
       keyword "Extern" ++ spc() ++ int n ++ spc() ++ pat ++ str" =>" ++
-      spc() ++ pr_gentac tac
+      spc() ++ bnds ++ pr_gentac tac
   in
   hov 2 (keyword "Hint "++ pph ++ opth)
 

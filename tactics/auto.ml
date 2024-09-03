@@ -24,6 +24,13 @@ open Hints
 (*          tactics with a trace mechanism for automatic search           *)
 (**************************************************************************)
 
+let test = (try let _ = Sys.getenv("TEST") in true with _ -> false)
+let _ = test
+
+let fwd_intern_foreach = ref ((fun x -> failwith "fwd_intern_foreach") :
+    Hints.foreach_info -> (Id.t * Id.t) list -> Id.t list ->
+    Gentactic.glob_generic_tactic)
+
 let compute_secvars gl =
   let hyps = Proofview.Goal.hyps gl in
   secvars_of_hyps hyps
@@ -163,9 +170,51 @@ let mk_auto_dbg debug =
 
 let incr_dbg = function (dbg,whatfor,depth,trace) -> (dbg,whatfor,depth+1,trace)
 
-(** A tracing tactic for debug/info trivial/auto *)
+module PSHash = Hashtbl.Make(struct
+        type t = (EConstr.named_context * EConstr.constr) list
+        let equal = (=)
+        let hash o = Hashtbl.hash_param 256 256 o
+      end)
+let pshash = PSHash.create 13
 
-let tclLOG (dbg,_,depth,trace) pp tac =
+type stats = { tries: int; successes: int; dups: int}
+(* success = non-duplicate successes *)
+
+let init_stats = {tries=0; successes=0; dups=0}
+
+let auto_stats = ref init_stats
+
+module HintCounts = Map.Make(String)
+let hintCounts = ref HintCounts.empty
+
+let get_counts tacstr =
+  try HintCounts.find tacstr !hintCounts
+  with Not_found -> init_stats
+
+(* exception when the proof state has already been seen in the "auto" search *)
+exception DuplicateProofState
+
+(** A tracing tactic for debug/info trivial/auto *)
+let tclLOG (dbg,pr,depth,trace) pp tac =
+  (* todo: need to check hashcode for non-info cases *)
+    let newhash goals pp =
+    let pp = match goals with
+    | gl :: _ -> pp (Proofview.Goal.env gl) (Proofview.Goal.sigma gl);
+    | _ -> Pp.mt ()
+    in
+    if (List.length goals) = 0 then begin
+      let _ = pp in
+(*      if test then Printf.eprintf "applied %s\n%!" (Pp.string_of_ppcmds pp); *)
+      true, 0
+    end else begin
+      let key = List.fold_left (fun acc g -> (Proofview.Goal.hyps g, Proofview.Goal.concl g) :: acc) [] goals in
+      let hash = Hashtbl.hash_param 256 256 key in
+      let is_new = not (PSHash.mem pshash key) in
+      if is_new then PSHash.replace pshash key ();
+(*      if test then Printf.eprintf "newhash %b %d %d %d %s\n%!" is_new hash !successes !dups (Pp.string_of_ppcmds pp); *)
+      is_new, hash
+    end
+  in
   match dbg with
     | Off -> tac
     | Debug ->
@@ -184,38 +233,124 @@ let tclLOG (dbg,_,depth,trace) pp tac =
              Feedback.msg_notice (str s ++ spc () ++ pp env sigma ++ str ". (*fail*)");
              tclZERO ~info exn))
     | Info ->
+      let env = Global.env () in
+      let sigma = Evd.from_env env in
+      let tacstr = Pp.string_of_ppcmds (pp env sigma) in
+      auto_stats := { !auto_stats with tries=(!auto_stats.tries+1) };
+      let counts = get_counts tacstr in
+      let saved_tries = counts.tries+1 in
+      hintCounts := HintCounts.add tacstr { counts with tries = counts.tries+1} !hintCounts;
       (* For "info (trivial/auto)", we store a log trace *)
+      let from_gls = ref [] in
+      let goals_to_ints gls =
+        List.map (fun gl -> Evar.repr (Proofview.Goal.goal gl)) gls
+      in
       Proofview.(tclIFCATCH (
+          Proofview.Goal.goals >>=
+          fun gl -> Monad.List.map (fun x -> x) gl >>= fun goals ->
+            (* to suppress duplicate plus_comm when starting a new subgoal
+            let (_,hashbefore) = newhash goals pp in
+            *)
+            from_gls := goals_to_ints goals;
+            begin try
+              let _ = Str.search_forward (Str.regexp "simple apply plus_Sn_m") tacstr 0 in
+              let concl = Proofview.Goal.concl (List.hd goals) in
+              let pc = Printer.pr_econstr_env env sigma concl in
+              Feedback.msg_notice (int saved_tries ++ spc () ++ str tacstr ++ fnl () ++ str "goal is " ++ pc)
+            with Not_found -> ();
+            end;
           tac >>= fun v ->
-          trace := (depth, Some pp) :: !trace;
-          tclUNIT v
+          Proofview.Goal.goals >>=
+          fun gl ->
+            if List.length goals != 1 then PSHash.reset pshash;  (* start over *)
+            let fst = ref true in  (* ICK *)
+            let is_new = ref false in
+            let hash = ref 0 in
+            Monad.List.map (fun x -> x) gl >>= fun goals ->
+            if !fst then begin
+              fst := false;
+              let (n,h) = newhash goals pp in
+              is_new := n;
+              hash := h
+            end;
+            let pp env sigma =
+              pp env sigma ++ Pp.spc () (* ++ Pp.int !hash *)
+            in
+            if !is_new then begin
+              auto_stats := { !auto_stats with successes=(!auto_stats.successes+1) };
+              let counts = get_counts tacstr in
+              hintCounts := HintCounts.add tacstr { counts with successes = counts.successes+1} !hintCounts;
+              trace := (depth, Some pp, !from_gls, goals_to_ints goals) :: !trace;
+              tclUNIT v
+            end else begin
+(*              if test then Printf.eprintf "DuplicateProofState\n%!"; *)
+              auto_stats := { !auto_stats with dups=(!auto_stats.dups+1) };
+              let counts = get_counts tacstr in
+              hintCounts := HintCounts.add tacstr { counts with dups = counts.dups+1} !hintCounts;
+              tclZERO DuplicateProofState
+            end
         ) Proofview.tclUNIT
-          (fun (exn, info) ->
-             trace := (depth, None) :: !trace;
+         (fun (exn, info) ->
              tclZERO ~info exn))
 
-(** For info, from the linear trace information, we reconstitute the part
-    of the proof tree we're interested in. The last executed tactic
-    comes first in the trace (and it should be a successful one).
-    [depth] is the root depth of the tree fragment we're visiting.
-    [keep] means we're in a successful tree fragment (the very last
-    tactic has been successful). *)
+let format_trace ?(indent=0) ?(bullets=[]) env sigma trace =
+  (* A goal may appear in from_gls for multiple trace entries.
+     Use the last entry in the map. *)
+  let map = List.fold_left (fun map (_,pp,from_gls,to_gls) ->
+      match pp with
+      | None -> map
+      | Some pp ->
+        List.fold_left (fun map from_gl ->
+            Int.Map.add from_gl (to_gls,pp) map
+          ) map from_gls
+    ) Int.Map.empty trace
+  in
 
-let rec cleanup_info_trace depth acc = function
-  | [] -> acc
-  | (d,Some pp) :: l -> cleanup_info_trace d ((d,pp)::acc) l
-  | l -> cleanup_info_trace depth acc (erase_subtree depth l)
+  let rec dfs indent ?(bulletnum=(1,3,0)) ?(bulletmap=Int.Map.empty) from_gl =
+    (* get the next bullet that's not in bullets *)
+    let next_bullet (dig,lim,n) =
+      let rec int_to_bullet ?(rv=[]) (dig,lim,n) =
+        if dig = 0 then String.concat "" rv
+        else
+          let rv = String.make 1 ("-+*".[n - 3*(n/3)]) :: rv in
+          int_to_bullet (dig-1,lim,n/3) ~rv
+      in
+      let next (dig,lim,n) =
+        let n = n + 1 in
+        if lim = n then dig+1,lim*3,0
+        else dig,lim,n
+      in
+      let rec aux n =
+        let bullet = int_to_bullet n in
+        if List.mem bullet bullets then aux (next n) else bullet ^ " ", (next n)
+      in
+      aux bulletnum
+    in
+    let to_gls,pp = Int.Map.find from_gl map in
+    let bullet = try (Int.Map.find from_gl bulletmap) with Not_found -> "" in
+    let nindent = if bullet <> "" then indent + 2 else indent in
+    let nindent, bulletnum, bulletmap =
+      match List.length to_gls with
+      | 0 -> nindent-2, bulletnum, bulletmap
+      | 1 -> nindent, bulletnum, bulletmap
+      | _ ->
+        let nbullet, bulletnum = next_bullet bulletnum in
+        nindent, bulletnum, List.fold_left (fun acc to_gl -> Int.Map.add to_gl nbullet acc) bulletmap to_gls
+    in
 
-and erase_subtree depth = function
-  | [] -> []
-  | (d,_) :: l -> if Int.equal d depth then l else erase_subtree depth l
+    let indentstr = (String.make indent ' ') in
+    Feedback.msg_notice (str indentstr ++ str bullet ++ pp env sigma);
+    List.iter (fun to_gl -> dfs nindent ~bulletnum ~bulletmap to_gl) to_gls;
+  in
+  match trace with
+  (* should always be a single item in from_gls *)
+  | (_,_,[from_gl],_) :: _ -> dfs indent from_gl
+  | _ -> failwith "format_trace"
 
-let pr_info_atom env sigma (d,pp) =
-  str (String.make d ' ') ++ pp env sigma ++ str "."
-
-let pr_info_trace env sigma = function
-  | (Info,_,_,{contents=(d,Some pp)::l}) ->
-    Feedback.msg_notice (prlist_with_sep fnl (pr_info_atom env sigma) (cleanup_info_trace d [(d,pp)] l))
+let pr_info_trace env sigma trace =
+  match trace with
+  | (Info,_,_,{contents}) ->
+    format_trace env sigma (List.rev contents)
   | _ -> ()
 
 let pr_info_nop = function
@@ -266,8 +401,11 @@ let exists_evaluable_reference env = function
   | Evaluable.EvalProjectionRef _ -> true
   | Evaluable.EvalVarRef v -> try ignore(Environ.lookup_named v env); true with Not_found -> false
 
-let dbg_intro dbg = tclLOG dbg (fun _ _ -> str "intro") intro
-let dbg_assumption dbg = tclLOG dbg (fun _ _ -> str "assumption") assumption
+let as_tac (lev,_,_,_) =
+  if lev = Info then str "." else mt ()
+
+let dbg_intro dbg = tclLOG dbg (fun _ _ -> str "intro" ++ (as_tac dbg)) intro
+let dbg_assumption dbg = tclLOG dbg (fun _ _ -> str "assumption" ++ (as_tac dbg)) assumption
 
 let intro_register dbg kont db =
   Proofview.tclTHEN (dbg_intro dbg) @@
@@ -291,7 +429,7 @@ let rec trivial_fail_db dbg db_list local_db =
       let secvars = compute_secvars gl in
       let hdc = try Some (decompose_app_bound sigma concl) with Bound -> None in
       let hintmap = hintmap_of env sigma secvars hdc concl in
-      let hinttac = tac_of_hint dbg db_list local_db concl in
+      let hinttac = tac_of_hint dbg db_list local_db concl [] in
       (local_db::db_list)
       |> List.map_append (fun db -> try hintmap db with Not_found -> [])
       |> List.filter_map begin fun h ->
@@ -302,7 +440,17 @@ let rec trivial_fail_db dbg db_list local_db =
       |> Tacticals.tclFIRST
     end
 
-and tac_of_hint dbg db_list local_db concl =
+and tac_of_hint dbg db_list local_db concl v_val h =
+  let pr_hint ?(vals=[]) h env sigma =
+   let (lev,_,_,_) = dbg in
+   let forinfo = lev = Info in
+   let origin = match FullHint.database h with
+    | None -> mt ()
+    | Some n -> if forinfo then str "  (* in " ++ str n ++ str " *)"
+                  else str " (in " ++ str n ++ str ")"
+    in
+    FullHint.print ~vals ~forinfo env sigma h ++ origin
+  in
   let tactic = function
     | Res_pf h -> unify_resolve_nodelta h
     | ERes_pf _ -> Proofview.Goal.enter (fun gl ->
@@ -323,17 +471,47 @@ and tac_of_hint dbg db_list local_db concl =
          let info = Exninfo.reify () in
          Tacticals.tclFAIL ~info (str"Unbound reference")
        end
-    | Extern (p, tacast) ->
-      conclPattern concl p tacast
+    | Extern (p, tacast, bnds, saved) ->
+      (* Cartesian product *)
+      let cprod v_vals =
+        let rec aux v_vals rv =
+          match v_vals with
+          | _ :: l :: tl ->
+            let rv2 = ref [] in
+            List.iter (fun i ->
+                List.iter (fun r -> rv2 := (i :: r) :: !rv2) rv
+            ) l;
+            aux (l :: tl) (List.rev !rv2)
+          | hd :: _ -> rv
+          | [] -> []
+        in
+        let rev = List.rev v_vals in
+        aux rev (List.map (fun i -> [i])(List.hd rev))
+      in
+      let pr_lofl lofl =
+        List.iter (fun l -> Printf.eprintf "[";
+          List.iter (fun id -> Printf.eprintf "%s " (Id.to_string id)) l;
+          Printf.eprintf "] "
+        ) lofl;
+        Printf.eprintf "\n%!";
+      in
+
+      if bnds <> [] && v_val <> [] then begin
+        (* todo: generated values should depend on HYP, IND, etc. *)
+        let v_vals = List.init (List.length bnds) (fun _ -> v_val) in
+        if false then pr_lofl (cprod v_vals);
+        List.map (fun vals ->
+            let t' = conclPattern concl p
+                                 (!fwd_intern_foreach saved bnds vals) in
+            tclLOG dbg (pr_hint ~vals h) (FullHint.run h (fun _ -> t'))
+          ) (cprod v_vals)
+        |> Tacticals.tclFIRST
+      end else
+        conclPattern concl p tacast
   in
-  let pr_hint h env sigma =
-    let origin = match FullHint.database h with
-    | None -> mt ()
-    | Some n -> str " (in " ++ str n ++ str ")"
-    in
-    FullHint.print env sigma h ++ origin
-  in
-  fun h -> tclLOG dbg (pr_hint h) (FullHint.run h tactic)
+  match FullHint.repr h with
+  | Extern (_,_, (_ :: _) (* bnds *),_) when v_val <> [] -> FullHint.run h tactic
+  | _ -> tclLOG dbg (pr_hint h) (FullHint.run h tactic)
 
 (** The use of the "core" database can be de-activated by passing
     "nocore" amongst the databases. *)
@@ -359,6 +537,34 @@ let gen_trivial ?(debug=Off) lems dbnames =
 
 exception SearchBound
 
+(* todo: return different values depending on HYP, IND, ... *)
+
+let var_values gl =
+  let env = Proofview.Goal.env gl in
+  let sigma = Proofview.Goal.sigma gl in
+(*  let concl = Proofview.Goal.concl gl in *)
+  let hyps = Proofview.Goal.hyps gl in
+
+  let open Context in
+  let is_prop env sigma term =
+    let sort = Retyping.get_sort_of env sigma term in
+    EConstr.ESorts.is_prop sigma sort
+  in
+  let hnames = List.concat (List.map (fun i ->
+      match i with
+      | Named.Declaration.LocalAssum ({binder_name=id}, typ) ->
+        (* todo: want to get only Props, not Sets *)
+        let a = Tacmach.pf_get_type_of gl typ in
+        let _ = Tacmach.pf_get_type_of gl a in
+        let _ = is_prop env sigma typ in
+        let _ : EConstr.types = typ in
+        let _ : Evd.econstr = typ in
+        [id]
+      | Named.Declaration.LocalDef ({binder_name=id}, value, typ) -> []) (* Probably a set *)
+    hyps)
+  in
+  hnames
+
 (* n is the max depth of search *)
 (* local_db contains the local Hypotheses *)
 
@@ -380,12 +586,36 @@ let search d n db_list lems =
         let sigma = Proofview.Goal.sigma gl in
         let concl = Proofview.Goal.concl gl in
         let hyps = Proofview.Goal.hyps gl in
+        let v_val = var_values gl in
+(*
+        if test then begin
+          let open Context in
+            List.iter (fun hyp ->
+            match hyp with
+            (* maybe if type of (type of i) = Prop then it's a hyp else a var *)
+            (* or: let t := type of n in is_ind t -- success is inductive else (?) *)
+            (* see ConstrTypeOf and Internals.is_ind. *)
+(*
+              begin match EConstr.kind sigma hyp with
+              | Ind _ -> Printf.eprintf "%s is inductive\n" (Names.Id.to_string id);
+              | _ -> ()
+              end
+*)
+            | Named.Declaration.LocalAssum ({binder_name=id}, typ) ->
+              Printf.eprintf "LocalAssum %s\n%!" (Names.Id.to_string id);
+            | Named.Declaration.LocalDef ({binder_name=id}, value, typ) ->
+              Printf.eprintf "LocalDef %s\n%!" (Nampes.Id.to_string id);
+            )
+          hyps;
+        end;
+*)
         let d' = incr_dbg d in
         let secvars = compute_secvars gl in
         let hdc = try Some (decompose_app_bound sigma concl) with Bound -> None in
         let hintmap = hintmap_of env sigma secvars hdc concl in
-        let hinttac = tac_of_hint d db_list local_db concl in
+        let hinttac = tac_of_hint d db_list local_db concl v_val in
         (local_db::db_list)
+(*      |> is reverse function application (x |> f is the same as f x) *)
         |> List.map_append (fun db -> try hintmap db with Not_found -> [])
         |> List.map begin fun h ->
              Proofview.tclTHEN (hinttac h) @@
@@ -408,6 +638,9 @@ let search d n db_list lems =
 let default_search_depth = 5
 
 let gen_auto ?(debug=Off) n lems dbnames =
+  PSHash.reset pshash;
+  hintCounts := HintCounts.empty;
+  auto_stats := init_stats;
   Hints.wrap_hint_warning @@
     Proofview.Goal.enter begin fun gl ->
     let n = match n with None -> default_search_depth | Some n -> n in
@@ -417,7 +650,17 @@ let gen_auto ?(debug=Off) n lems dbnames =
       | None -> current_pure_db ()
     in
     let d = mk_auto_dbg debug in
-    tclTRY_dbg d (search d n db_list lems)
+    let delay f = Proofview.tclUNIT () >>= fun () -> f () in
+    let stats = delay (fun () -> if debug = Info then
+      Feedback.msg_notice (str (Printf.sprintf "%d tries %d successes %d duplicates"
+        !auto_stats.tries !auto_stats.successes !auto_stats.dups));
+      HintCounts.iter (fun tac counts ->
+          Feedback.msg_notice (Pp.str (Printf.sprintf "%5d  %5d  %5d  %s"
+            counts.tries counts.successes counts.dups tac))) !hintCounts;
+      Proofview.tclUNIT ()) in
+    Tacticals.tclTHEN
+      (tclTRY_dbg d (search d n db_list lems))
+      stats
   end
 
 let auto ?(debug=Off) n lems dbnames = gen_auto ~debug (Some n) lems (Some dbnames)

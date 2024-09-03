@@ -1106,6 +1106,13 @@ let rec val_interp ist ?(appl=UnnamedAppl) (tac:glob_tactic_expr) : Val.t Ftacti
         Tactic_debug.debug_prompt lev tac eval ist.lfun (TacStore.get ist.extra f_trace)
   | _ -> value_interp ist >>= fun v -> return (name_vfun appl v)
 
+and newhash s goals =
+  let hash o = Hashtbl.hash_param 256 256 o in
+  let hash = List.fold_left
+          (fun acc g -> acc lxor (hash (Proofview.Goal.hyps g))
+                            lxor (hash (Proofview.Goal.concl g)))
+          0 goals in
+  Printf.eprintf "%s: #goals = %d hash = %d\n%!" s (List.length goals) hash
 
 and eval_tactic_ist ist tac : unit Proofview.tactic =
   let (loc, tac2) = CAst.(tac.loc, tac.v) in
@@ -1118,16 +1125,21 @@ and eval_tactic_ist ist tac : unit Proofview.tactic =
   | TacFun _ | TacLetIn _ | TacMatchGoal _ | TacMatch _ -> interp_tactic ist tac
   | TacId [] -> Proofview.tclLIFT (db_breakpoint (curr_debug ist) [])
   | TacId s ->
+      let str = ref ("zzz") in
       let msgnl =
         let open Ftactic in
         interp_message ist s >>= fun msg ->
+        str:= Pp.string_of_ppcmds msg;
         return (hov 0 msg , hov 0 msg)
       in
       let print (_,msgnl) = Proofview.(tclLIFT (NonLogical.print_info msgnl)) in
       let log (msg,_) = Proofview.Trace.log (fun () -> msg) in
       let break = Proofview.tclLIFT (db_breakpoint (curr_debug ist) s) in
       Ftactic.run msgnl begin fun msgnl ->
-        print msgnl <*> log msgnl <*> break
+        print msgnl <*> log msgnl <*> Proofview.Goal.goals >>=
+          fun gl -> Proofview.Monad.List.map (fun x -> x) gl >>= fun goals ->
+          newhash !str goals;
+        break
       end
   | TacFail (g,n,s) ->
       let msg = interp_message ist s in
@@ -2196,3 +2208,46 @@ let () =
       optkey   = ["Ltac"; "Backtrace"];
       optread  = (fun () -> !log_trace);
       optwrite = (fun b -> log_trace := b) }
+
+(* let test = (try let _ = Sys.getenv("TEST") in true with _ -> false) *)
+let in_tac tac = Genarg.in_gen (rawwit Tacarg.wit_ltac) tac   (* from mlg *)
+
+(* used to pass values into Hints Extern "foreach" construct *)
+let intern_foreach : Hints.foreach_info -> (Id.t * Id.t) list -> Id.t list ->
+                Gentactic.glob_generic_tactic =
+  fun saved bnds vals ->
+begin try  (* todo: remove try *)
+  let asgs = List.map2 (fun (vname, _) vval ->
+      let vname = CAst.make vname in
+      let vval = qualid_of_ident vval in (* reference *)
+      let constr = CAst.make @@ CRef (vval, None) in (* term 0 *)
+      let te2 = Tacexpr.TacGeneric (Some "constr", Genarg.in_gen (Genarg.rawwit wit_constr) constr) in (* constr:() *)
+      CAst.map (fun id -> Name id) vname, te2
+     ) bnds vals in
+  let (patcom, gen_tac_to_wrap, _) = saved in
+  let tac_to_wrap = Genarg.out_gen (rawwit Tacarg.wit_ltac) (Gentactic.to_raw_genarg gen_tac_to_wrap) in
+  let letin = CAst.make (TacLetIn (false, asgs, tac_to_wrap)) in (* ltac_expr 1 *)
+  let raw = Gentactic.of_raw_genarg (in_tac letin) in
+
+  ComHints.intern_hint_extern patcom raw vals
+
+with Nametab.GlobalizationError qid as e -> (* if test then *)
+  Printexc.print_backtrace stderr;
+  Printf.eprintf "exception %s for %s\n%!" (Printexc.to_string e) (Libnames.string_of_qualid qid);
+  failwith "intern_foreach exception"
+end
+
+let _ = Auto.fwd_intern_foreach := intern_foreach
+
+(* generate "Hint Extern pri => rewrite qid" hint entry *)
+let do_rewrite qid pri rtol =
+  let c = CAst.make @@ CRef (qid, None) in
+  let evars = false in
+  let tac =
+    CAst.make @@ TacAtom (TacRewrite (evars,[(rtol,Equality.Precisely 1, (None,(c,NoBindings)))],
+    {onhyps=Some []; concl_occs=AllOccurrences},None)) in
+  let raw = Gentactic.of_raw_genarg (in_tac tac) in
+  let glob : Gentactic.glob_generic_tactic = ComHints.intern_hint_extern None raw [] in
+  Hints.HintsExternEntry ({ hint_priority = Some pri; hint_pattern = None }, glob, [], (None, raw, []))
+
+let _ = ComSearch.fwd_do_rewrite := do_rewrite

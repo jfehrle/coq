@@ -23,6 +23,15 @@ type theorem_kind =
   | Proposition
   | Corollary
 
+let tk_to_string = function
+  | Theorem -> "Theorem"
+  | Lemma -> "Lemma"
+  | Fact -> "Fact"
+  | Remark -> "Remark"
+  | Property -> "Property"
+  | Proposition -> "Proposition"
+  | Corollary -> "Corollary"
+
 type definition_object_kind =
   | Definition
   | Coercion
@@ -38,6 +47,22 @@ type definition_object_kind =
   | Method
   | Let
   | LetContext
+
+let df_to_string = function
+  | Definition -> "Definition"
+  | Coercion -> "Coercion"
+  | SubClass -> "SubClass"
+  | CanonicalStructure -> "CanonicalStructure"
+  | Example -> "Example"
+  | Fixpoint -> "Fixpoint"
+  | CoFixpoint -> "CoFixpoint"
+  | Scheme -> "Scheme"
+  | StructureComponent -> "StructureComponent"
+  | IdentityCoercion -> "IdentityCoercion"
+  | Instance -> "Instance"
+  | Method -> "Method"
+  | Let -> "Let"
+  | LetContext -> "LetContext"
 
 type assumption_object_kind = Definitional | Logical | Conjectural | Context
 
@@ -58,6 +83,13 @@ type logical_kind =
   | IsAssumption of assumption_object_kind
   | IsDefinition of definition_object_kind
   | IsProof of theorem_kind
+
+let lk_to_string = function
+  | IsPrimitive -> "IsPrimitive"
+  | IsSymbol -> "IsSymbol"
+  | IsAssumption assumption_object_kind -> "IsAssumption"
+  | IsDefinition definition_object_kind -> "IsDefinition"
+  | IsProof theorem_kind -> "IsProof"
 
 (** Data associated to section variables and local definitions *)
 

@@ -31,6 +31,9 @@ open Patternops
 open Tacred
 open Printer
 
+let test = (try let _ = Sys.getenv("TEST") in true with _ -> false)
+let _ = test
+
 module NamedDecl = Context.Named.Declaration
 
 (****************************************)
@@ -99,13 +102,19 @@ let empty_hint_info =
 (*           The Type of Constructions Autotactic Hints                 *)
 (************************************************************************)
 
+(* todo: put bnds into foreach_info, don't pass 2 copies around *)
+type foreach_info = Constrexpr.constr_expr option * Gentactic.raw_generic_tactic *
+                  (Names.Id.t CAst.t * Names.Id.t CAst.t) list
+
 type 'a hint_ast =
   | Res_pf     of 'a (* Hint Apply *)
   | ERes_pf    of 'a (* Hint EApply *)
   | Give_exact of 'a
   | Res_pf_THEN_trivial_fail of 'a (* Hint Immediate *)
   | Unfold_nth of Evaluable.t (* Hint Unfold *)
-  | Extern of Pattern.constr_pattern option * Gentactic.glob_generic_tactic (* Hint Extern *)
+  | Extern     of Pattern.constr_pattern option * Gentactic.glob_generic_tactic *
+    (Names.Id.t * Names.Id.t) list (* Hint Extern *)
+    * foreach_info
 
 
 type 'a hints_path_atom_gen =
@@ -166,6 +175,8 @@ type ('a,'db) with_metadata =
   (** The database from which the hint comes *)
   ; secvars : Id.Pred.t
   (** The set of section variables the hint depends on *)
+  ; bnds : (Names.Id.t * Names.Id.t) list
+  (** Variable bindings for Hint Estern ... foreach *)
   ; code    : 'a
   (** the tactic to apply when the concl matches pat *)
   }
@@ -403,7 +414,7 @@ let rebuild_dn st se =
   { se with sentry_bnet = dn' }
 
 let lookup_tacs env sigma concl se =
-  let l' = Bounded_net.lookup env sigma se.sentry_bnet concl in
+  let l' = Bounded_net.lookup env sigma se.sentry_bnet concl in  (* here *)
   let sl' = List.stable_sort pri_order_int l' in
   merge_set (StoredData.elements se.sentry_nopat) sl'
 
@@ -726,7 +737,9 @@ struct
   let map_auto env sigma ~secvars (k,args) concl db =
     let se = find k db in
     let pat = lookup_tacs env sigma concl se in
-    merge_entry secvars db [] pat
+    let rv = merge_entry secvars db [] pat in
+(*    if test then Printf.eprintf "# hints matched = %d\n%!" (List.length rv); *)
+    rv
 
   (* [c] contains an existential *)
   let map_eauto env sigma ~secvars (k,args) concl db =
@@ -911,7 +924,7 @@ let make_exact_entry env sigma info ?name (c, cty, ctx) =
         let h = { rhint_term = c; rhint_type = cty; rhint_uctx = ctx; rhint_arty = 0 } in
         (Some hd,
          { pri; pat = Some pat; name;
-           db = (); secvars;
+           db = (); secvars; bnds = [];
            code = with_uid (Give_exact h); })
 
 let name_of_hint = function
@@ -931,6 +944,11 @@ let make_apply_entry env sigma hnf info ?name (c, cty, ctx) =
       with Bound -> failwith "make_apply_entry" in
     let miss, hyps = Clenv.clenv_missing ce in
     let nmiss = List.length miss in
+(*    if test && (hyps + nmiss > 0) then Printf.eprintf "hyps = %d nmiss = %d\n%!" hyps nmiss; *)
+(*    if test && nmiss > 0 then begin *)
+(*      List.iter (fun i -> Printf.eprintf "  %s" (Pp.string_of_ppcmds (Names.Name.print i))) miss; *)
+(*      Printf.eprintf "\n%!"; *)
+(*    end; *)
     let secvars = secvars_of_constr env sigma c in
     let pri = match info.hint_priority with None -> hyps + nmiss | Some p -> p in
     let pat = match info.hint_pattern with
@@ -942,12 +960,12 @@ let make_apply_entry env sigma hnf info ?name (c, cty, ctx) =
       (Some hd,
        { pri; pat = Some pat; name;
          db = ();
-         secvars;
+         secvars; bnds = [];
          code = with_uid (Res_pf h); })
     else
       (Some hd,
        { pri; pat = Some pat; name;
-         db = (); secvars;
+         db = (); secvars; bnds = [];
          code = with_uid (ERes_pf h); })
   | _ -> failwith "make_apply_entry"
 
@@ -976,8 +994,9 @@ let make_resolves env sigma (eapply, hnf) info ~check cr =
   in
   let ents = List.map_filter try_apply
                              [make_exact_entry env sigma info ?name;
-                              make_apply_entry env sigma hnf info ?name]
+                              make_apply_entry env sigma hnf info ?name] (* generates both in some cases *)
   in
+(*  if test && (List.length ents > 1) then Printf.eprintf "# ents = %d\n" (List.length ents);                              *)
   if check && List.is_empty ents then
     user_err
       (pr_leconstr_env env sigma c ++ spc() ++
@@ -1007,9 +1026,10 @@ let make_unfold eref =
      name = Some g;
      db = ();
      secvars = secvars_of_global (Global.env ()) g;
+     bnds = [];
      code = with_uid (Unfold_nth eref) })
 
-let make_extern pri pat tacast =
+let make_extern pri pat tacast bnds saved =
   let hdconstr = match pat with
   | None -> None
   | Some c ->
@@ -1024,7 +1044,8 @@ let make_extern pri pat tacast =
      name = None;
      db = ();
      secvars = Id.Pred.empty; (* Approximation *)
-     code = with_uid (Extern (pat, tacast)) })
+     bnds;
+     code = with_uid (Extern (pat, tacast, bnds, saved)) })
 
 let make_mode ref m =
   let open Term in
@@ -1051,6 +1072,7 @@ let make_trivial env sigma r =
      name = name;
      db = ();
      secvars = secvars_of_constr env sigma c;
+     bnds = [];
      code= with_uid (Res_pf_THEN_trivial_fail h) })
 
 
@@ -1278,10 +1300,10 @@ let subst_autohint (subst, obj) =
       | Unfold_nth ref ->
           let ref' = subst_evaluable_reference subst ref in
           if ref==ref' then data.code.obj else Unfold_nth ref'
-      | Extern (pat, tac) ->
+      | Extern (pat, tac, bnds, saved) ->
           let pat' = Option.Smart.map (subst_pattern env sigma subst) pat in
           let tac' = Gentactic.subst subst tac in
-          if pat==pat' && tac==tac' then data.code.obj else Extern (pat', tac')
+          if pat==pat' && tac==tac' then data.code.obj else Extern (pat', tac', bnds, saved)
     in
     let name' = Option.Smart.map (subst_global_reference subst) data.name in
     let uid' = subst_kn subst data.code.uid in
@@ -1413,8 +1435,8 @@ let add_resolves env sigma clist ~locality dbnames =
   List.iter
     (fun dbname ->
       let r =
-        List.flatten (List.map (fun (pri, hnf, gr) ->
-          make_resolves env sigma (true, hnf) pri ~check:true (IsGlobRef gr)) clist)
+        List.flatten (List.map (fun (info, hnf, gr) ->
+          make_resolves env sigma (true, hnf) info ~check:true (IsGlobRef gr)) clist)
       in
       let check (_, hint) = match hint.code.obj with
       | ERes_pf { rhint_term = c; rhint_type = cty; rhint_uctx = ctx } ->
@@ -1468,17 +1490,17 @@ let add_transparency l b ~locality dbnames =
       Lib.add_leaf (inAutoHint hint))
     dbnames
 
-let add_extern info tacast ~locality dbname =
+let add_extern info tacast bnds saved ~locality dbname =
   let pat = match info.hint_pattern with
   | None -> None
   | Some (_, pat) -> Some pat
   in
   let hint = make_hint ~locality dbname
-                       (AddHints [make_extern (Option.get info.hint_priority) pat tacast]) in
+                       (AddHints [make_extern (Option.get info.hint_priority) pat tacast bnds saved]) in
   Lib.add_leaf (inAutoHint hint)
 
-let add_externs info tacast ~locality dbnames =
-  List.iter (add_extern info tacast ~locality) dbnames
+let add_externs info tacast bnds saved ~locality dbnames =
+  List.iter (add_extern info tacast bnds saved ~locality) dbnames
 
 let add_trivials env sigma l ~locality dbnames =
   List.iter
@@ -1499,7 +1521,8 @@ type hints_entry =
   | HintsUnfoldEntry of Evaluable.t list
   | HintsTransparencyEntry of Evaluable.t hints_transparency_target * bool
   | HintsModeEntry of GlobRef.t * hint_mode list
-  | HintsExternEntry of hint_info * Gentactic.glob_generic_tactic
+  | HintsExternEntry of hint_info * Gentactic.glob_generic_tactic *
+    (Names.Id.t * Names.Id.t) list * foreach_info
 
 let default_prepare_hint_ident = Id.of_string "H"
 
@@ -1574,8 +1597,8 @@ let add_hints ~locality dbnames h =
   | HintsUnfoldEntry lhints -> add_unfolds lhints ~locality dbnames
   | HintsTransparencyEntry (lhints, b) ->
       add_transparency lhints b ~locality dbnames
-  | HintsExternEntry (info, tacexp) ->
-      add_externs info tacexp ~locality dbnames
+  | HintsExternEntry (info, tacexp, bnds, saved) ->
+      add_externs info tacexp bnds saved ~locality dbnames
 
 let warn_non_reference_hint_using =
   CWarnings.create ~name:"non-reference-hint-using" ~category:CWarnings.CoreCategories.deprecated
@@ -1651,16 +1674,59 @@ let push_resolve_hyp env sigma decl db =
 
 let pr_hint_elt env sigma h = pr_econstr_env env sigma h.hint_term
 
-let pr_hint env sigma h = match h.obj with
-  | Res_pf c -> (str"simple apply " ++ pr_hint_elt env sigma c)
-  | ERes_pf c -> (str"simple eapply " ++ pr_hint_elt env sigma c)
-  | Give_exact c -> (str"exact " ++ pr_hint_elt env sigma c)
+let pr_hint ?(vals=[]) ?(forinfo=false) env sigma h =
+  let period = if forinfo then str "." else mt () in
+  match h.obj with
+  | Res_pf c -> (str"simple apply " ++ pr_hint_elt env sigma c) ++ period
+  | ERes_pf c -> (str"simple eapply " ++ pr_hint_elt env sigma c) ++ period
+  | Give_exact c -> (str"exact " ++ pr_hint_elt env sigma c) ++ period
   | Res_pf_THEN_trivial_fail c ->
-      (str"simple apply " ++ pr_hint_elt env sigma c ++ str" ; trivial")
+      (str"simple apply " ++ pr_hint_elt env sigma c ++ str" ; trivial") ++ period
   | Unfold_nth c ->
     str"unfold " ++  pr_evaluable_reference c
-  | Extern (_, tac) ->
-    str "(*external*) " ++ Gentactic.print_glob env sigma ~level:(LevelLe 0) tac
+  | Extern (_, tac, bnds, _) ->
+    let drop_parens s =
+      let len = String.length s in
+      if s.[0] = '(' && s.[len-1] = ')' then
+        String.sub s 1 (len-2) else s
+    in
+    let cmdpp = Gentactic.print_glob env sigma ~level:(LevelLe 0) tac in
+    let cmd = Pp.string_of_ppcmds (cmdpp) in
+    let cmd' = match bnds with
+      | [] -> str (drop_parens cmd)
+      | _ when vals <> [] -> (* for info_auto *)
+        (* a quick and dirty substitution of values for vars.  Only handles vars
+           with names matching [a-zA-Z0-9_']+, will incorrectly substitute into strings
+           and ignores variable rebinding as in let/match.  But seems useful and not hard
+           to work around the limitations *)
+        let bmap = List.fold_left2 (fun acc (l,_) v ->
+            CString.Map.add (Id.to_string l) (Id.to_string v) acc
+          ) CString.Map.empty bnds vals in
+        let regex = Str.regexp {|\([^a-zA-Z0-9_']\)\([a-zA-Z0-9_']+\)+\([^a-zA-Z0-9_']\)|} in
+        let buf = Buffer.create 80 in
+        let rec do_subst start =
+          try
+            let mstart = Str.search_forward regex cmd start in
+            let mend = Str.match_end () in
+            let v = Str.matched_group 2 cmd in
+            let v' = try CString.Map.find v bmap with Not_found -> v in
+            Buffer.add_string buf (String.sub cmd start (mstart-start+1));
+            Buffer.add_string buf v';
+            do_subst (mend-1)
+          with Not_found ->
+            Buffer.add_string buf (String.sub cmd start ((String.length cmd)-start));
+            Buffer.contents buf
+        in
+        let subst = do_subst 0 in
+        str (drop_parens subst)
+      | _ -> (* for Print HintDb *)
+        let pr_id id = str (Id.to_string id) in
+        str "foreach " ++ prlist_with_sep (fun () -> str " ")
+          (fun (l,r) -> pr_id l ++ if l = r then mt () else str ":=" ++ pr_id r) bnds
+          ++ str " : " ++ str (drop_parens cmd)
+    in
+    if forinfo then cmd' ++ str ".  (*external*)"
+    else str "(*external*) " ++ cmd'
 
 let pr_id_hint env sigma (id, v) =
   let pr_pat p = match p.pat with
@@ -1903,7 +1969,7 @@ struct
   | Some (ConstrPattern p | SyntacticPattern p) -> Some p
   | Some DefaultPattern -> None
   let run (h : t) k = run_hint h.code k
-  let print env sigma (h : t) = pr_hint env sigma h.code
+  let print ?(vals=[]) ?(forinfo=false) env sigma (h : t) = pr_hint ~vals ~forinfo env sigma h.code
   let name (h : t) = h.name
 
   let subgoals (h : t) = match h.code.obj with

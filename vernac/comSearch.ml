@@ -129,12 +129,177 @@ let () =
       optread  = (fun () -> !search_output_name_only);
       optwrite = (:=) search_output_name_only }
 
+(* todo: likely some mistakes here *)
+let rec get_len c =
+  let open Constr in
+  match kind c with
+  | Rel _ -> 1
+  | Var _ -> 1
+  | Meta _ -> 1
+  | Evar _ -> 1
+  | Sort _ -> 1
+  | Cast (c,_, t) -> 1 + (get_len c)
+  | Prod (na,t,c) -> 1 + (get_len t) + (get_len c)
+  | Lambda (na,t,c) -> 1 + (get_len t) + (get_len c)
+  | LetIn (na,b,t,c) -> 1 + (get_len b) + (get_len t) + (get_len c)
+  | App (c,l) -> (get_len c) + (Array.fold_left (fun acc v -> acc + (get_len v)) 0 l)
+  | Const _ -> 1
+  | Ind _ -> 1
+  | Construct _ -> 1
+  | Case (ci,u,params, ((_,pv),_) ,iv,c,brs) -> 1 + (get_len c) +
+      (get_len pv) +
+      (Array.fold_left (fun acc (_,v) -> acc + (get_len v)) 0 brs)
+  | Fix ((t,i),(lna,tl,bl)) -> 1 + (Array.fold_left (fun acc v -> acc + (get_len v)) 0 tl) +
+                                   (Array.fold_left (fun acc v -> acc + (get_len v)) 0 bl)
+  | CoFix(i,(lna,tl,bl)) -> 1 + (Array.fold_left (fun acc v -> acc + (get_len v)) 0 tl) +
+                                (Array.fold_left (fun acc v -> acc + (get_len v)) 0 bl)
+  | Proj _ -> 1
+  | Int _ -> 1
+  | Float _ -> 1
+  | String _ -> 1
+  | Array (u,t,def,ty) -> 1 + (Array.fold_left (fun acc v -> acc + (get_len v)) 0 t)
+
+let rec get_head c =
+  let open Constr in
+  match kind c with
+  | Prod (na,t,c) ->
+    get_head c
+  | _ -> c
+
+let rec pr_constr ?(indent=0) c =
+  let open Constr in
+  let s = match kind c with
+  | Rel i -> "Rel " ^ (string_of_int i)
+  | Var _ -> "Var"
+  | Meta _ -> "Meta"
+  | Evar _ -> "Evar"
+  | Sort _ -> "Sort"
+  | Cast _ -> "Cast"
+  | Prod (na,t,c) -> "Prod " ^ (Pp.string_of_ppcmds (Name.print na.binder_name))
+  | Lambda _ -> "Lambda"
+  | LetIn _ -> "LetIn"
+  | App _ -> "App"
+  | Const (c,u) -> "Const " ^ (Names.Constant.to_string c)
+  | Ind ((i,_),u) -> "Ind " ^ (Names.MutInd.to_string i)
+  | Construct (((c,i),_),u) -> Printf.sprintf "Construct %s %d" (Names.MutInd.to_string c) i
+  | Case _ -> "Case"
+  | Fix _ -> "Fix"
+  | CoFix _ -> "CoFix"
+  | Proj _ -> "Proj"
+  | Int _ -> "Int"
+  | Float _ -> "Float"
+  | String _ -> "String"
+  | Array _ -> "Array"
+  in
+  Printf.eprintf "%s%s\n%!" (String.make indent ' ') s;
+  let indent = indent + 2 in
+  match kind c with
+  | Prod (na,t,c) ->
+    pr_constr ~indent t;
+    pr_constr ~indent c
+  | App (c,l) ->
+    pr_constr ~indent c;
+    Array.iter (fun i -> pr_constr ~indent i) l
+  | Lambda (na,t,c) ->
+    pr_constr ~indent t;
+    pr_constr ~indent c;
+  | _ -> ()
+
+let add_hint hint ref =
+  let open Hints in
+  try
+    add_hints ~locality:SuperGlobal ["AUTO"] hint
+  with | e -> ()
+(*  Printf.eprintf "Can't add %s\n%!" (Pp.string_of_ppcmds (Printer.pr_global ref)) *)
+
+let fwd_do_rewrite = ref ((fun x -> failwith "fwd_do_rewrite") :
+    Libnames.qualid -> int -> bool -> Hints.hints_entry)
+
+let rec hyps_len c =
+  let open Constr in
+  let open Vars in
+  match Constr.kind c with
+  | Prod(_,t,c2) -> if noccurn 1 c2 then (get_len t)+(hyps_len c2) else hyps_len c2
+  | _ -> 0
+
+let get_pri diff =
+  (if diff < 0 then 100
+   else if diff = 0 then 150
+   else 200) + diff
+
+(* todo: also add for registered setoid equalities *)
+let add_rewrite_hints kn c ref =
+  let open Constr in
+  match kind (get_head c) with
+  | App (c,l) ->
+    begin match kind c with
+    | Ind ((i,_),u) ->
+      begin match Names.MutInd.to_string i with
+        | "Coq.Init.Logic.eq" ->
+          let qid = Libnames.qualid_of_string (KerName.to_string kn) in
+(*          Printf.eprintf "Sizes lhs = %d rhs = %d\n\n%!" (get_len l.(1)) (get_len l.(2)); *)
+(*          (try *)
+          (* allow for implicit type for eq at l.(0) *)
+          (* set priority based on length difference *)
+          let diff = (get_len l.(2)) - (get_len l.(1)) in
+          let rtol = diff >= 0 in
+
+          let cst = Global.constant_of_delta_kn kn in
+          let ref = GlobRef.ConstRef cst in
+          add_hint (!fwd_do_rewrite qid (get_pri diff) rtol ) ref;
+          (* todo: don't add symmetric rules such as add_comm twice *)
+          add_hint (!fwd_do_rewrite qid (get_pri (- diff)) (not rtol)) ref
+
+        | "Coq.Init.Logic.iff" -> () (* todo *)
+        | _ -> ()
+      end;
+    | _ -> ()
+    end
+  | _ -> ()
+
+let test = (try let _ = Sys.getenv("TEST") in true with _ -> false)
+
+let () = Declare.set_reg_callback (fun (kn:KerName.t) (kind:Decls.logical_kind) (is_new:bool) ->
+    let verbose = false in
+    if test then try begin
+      if verbose then Printf.eprintf "reg_callback %s\n%!" (Names.KerName.to_string kn);
+      Printexc.record_backtrace true;
+      let cst = Global.constant_of_delta_kn kn in
+      let ref = GlobRef.ConstRef cst in
+      let (typ, _) = Typeops.type_of_global_in_context (Global.env ()) ref in
+      let hlen = hyps_len typ in
+      if hlen = 0 then
+        add_rewrite_hints kn typ ref;
+      let clen = get_len (get_head typ) in
+      let pri = get_pri (hlen - clen) in
+      if verbose && (pri <> 200) then
+        Printf.eprintf "%s  hlen %d  clen %d\n%!" (KerName.to_string kn) hlen clen;
+
+      let open Hints in
+      match kind with
+      | Decls.IsProof tk ->
+(*        Printf.eprintf "%s %s\n%!" (Decls.tk_to_string tk) *)
+(*          (Pp.string_of_ppcmds (Printer.pr_global ref)); *)
+        (* note you can pass multiple theorems with HintsResolveEntry *)
+        if test && is_new then pr_constr typ;
+        add_hint ((HintsResolveEntry [{ hint_priority = Some pri; hint_pattern = None }, true, ref])) ref;
+      | Decls.IsDefinition df ->
+(*        Printf.eprintf "%s %s\n%!" (Decls.df_to_string df) *)
+(*          (Pp.string_of_ppcmds (Printer.pr_global ref)); *)
+        if Constr.isProd typ then
+          add_hint ((HintsResolveEntry [{ hint_priority = Some pri; hint_pattern = None }, true, ref])) ref;
+      | _ -> (* Printf.eprintf "logical kind %s\n%!" (Decls.lk_to_string kind); *) ()
+    end with | Not_found -> Printf.eprintf "Not_found\n%!"
+    | e ->
+      Printf.eprintf "Error: %s\n%s\n" (Printexc.to_string e) (Printexc.get_backtrace ()))
+
+
 let interp_search env sigma s r =
   let r = interp_search_restriction r in
   let get_pattern c = snd (Constrintern.interp_constr_pattern env sigma c) in
   let warnlist = ref [] in
-  let pr_search ref kind env sigma c =
-    let pr = pr_global ref in
+  let pr_search ref kind env sigma c = (* c is a Constr.t *)
+    let pr = pr_global ref in (* ref is a GlobRef.t *)
     let pp = if !search_output_name_only
       then pr
       else begin
@@ -147,6 +312,8 @@ let interp_search env sigma s r =
              (List.skipn_at_best (Termops.nb_prod_modulo_zeta sigma (EConstr.of_constr c)) impargs)
           then warnlist := pr :: !warnlist;
         let pc = pr_ltype_env env sigma ~impargs c in
+        let head = get_head c in
+        pr_constr head;
         hov 2 (pr ++ str":" ++ spc () ++ pc)
       end
     in Feedback.msg_notice pp

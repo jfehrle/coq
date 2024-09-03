@@ -9,3 +9,7 @@
 (************************************************************************)
 
 val interp_hints : poly:bool -> Vernacexpr.hints_expr -> Hints.hints_entry
+
+val intern_hint_extern :  Constrexpr.constr_pattern_expr option -> Gentactic.raw_generic_tactic ->
+                     Names.Id.Set.elt list ->
+                     Gentactic.glob_generic_tactic

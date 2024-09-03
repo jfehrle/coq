@@ -113,6 +113,17 @@ GRAMMAR EXTEND Gram
    [ [ r = global -> { HintsReference r }
      | c = constr -> { HintsConstr c } ] ]
   ;
+  foreach_list:
+    [ [ IDENT "foreach";
+        l = LIST1 [ lhs = identref;
+                    rhs = OPT [":="; rhs = identref -> {rhs}] ->
+                      { match rhs with
+                        | Some rhs -> (lhs, rhs)
+                        | None -> (lhs, lhs)
+                      }
+        ]; ":" -> { l }
+    ] ]
+    ;
   hint:
     [ [ IDENT "Resolve"; lc = LIST1 reference_or_constr; info = hint_info ->
           { HintsResolve (List.map (fun x -> (info, true, x)) lc) }
@@ -133,8 +144,10 @@ GRAMMAR EXTEND Gram
       | IDENT "Unfold"; lqid = LIST1 global -> { HintsUnfold lqid }
       | IDENT "Constructors"; lc = LIST1 global -> { HintsConstructors lc }
       | IDENT "Extern"; n = natural; c = OPT Constr.constr_pattern ; "=>";
+        bnds = OPT foreach_list;
         tac = generic_tactic ->
-        { Vernacexpr.HintsExtern (n,c, tac) }
+        { let bnds = match bnds with | Some bnds -> bnds | None -> [] in
+          Vernacexpr.HintsExtern (n,c, tac, bnds) }
   ] ]
     ;
   mode:

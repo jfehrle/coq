@@ -136,7 +136,7 @@ and e_my_find_search env sigma db_list local_db secvars concl =
         Tacticals.tclTHEN (unify_e_resolve st h)
           (e_trivial_fail_db db_list local_db)
       | Unfold_nth c -> reduce (Unfold [AllOccurrences,c]) onConcl
-      | Extern (pat, tacast) -> conclPattern concl pat tacast
+      | Extern (pat, tacast, _, _) -> conclPattern concl pat tacast
       in
       (* We cannot determine statically the cost of subgoals of an Extern hint,
          so approximate it by the hint's priority. *)
@@ -146,7 +146,8 @@ and e_my_find_search env sigma db_list local_db secvars concl =
       in
       let b = { cost_priority = priority; cost_subgoals = subgoals } in
       let tac = FullHint.run h tac in
-      (tac, b, lazy (FullHint.print env sigma h))
+      let forinfo = true in (* todo: should check for info vs debug *)
+      (tac, b, lazy (FullHint.print ~forinfo env sigma h))
   in
   List.map tac_of_hint hintl
 
@@ -166,6 +167,8 @@ type search_state = {
   tacres : (Proofview_monad.goal_with_state * delayed_db) list;
   last_tactic : Pp.t Lazy.t;
   prev : prev_search_state;
+  from_goals : int list;
+  to_goals : int list;
 }
 
 and prev_search_state = (* for info eauto *)
@@ -249,6 +252,10 @@ module Search = struct
   let is_failure (e, _) = match e with SearchFailure -> true | _ -> false
 
   let search ?(debug=false) dblist local_lemmas s =
+    let from_goals = ref [] in
+    let goals_to_ints gls =
+      List.map (fun gl -> Evar.repr (Proofview.Goal.goal gl)) gls
+    in
     let rec explore p s =
       let () = msg_with_position p s in
       if Int.equal s.depth 0 then Proofview.tclZERO SearchFailure
@@ -263,6 +270,9 @@ module Search = struct
           let ps = if s.prev == Unknown then Unknown else State s in
           branching db dblist local_lemmas >>= fun tacs ->
           let map (isrec, mkdb, tac, pp) =
+            Proofview.Goal.goals >>=
+            fun gl -> Proofview.Monad.List.map (fun x -> x) gl >>= fun goals ->
+              from_goals := goals_to_ints goals;
             Proofview.tclONCE tac >>= fun () ->
             Proofview.Unsafe.tclGETGOALS >>= fun lgls ->
             Proofview.tclEVARMAP >>= fun sigma ->
@@ -272,7 +282,10 @@ module Search = struct
               else s.depth
             in
             let lgls = List.map map lgls in
-            Proofview.tclUNIT { depth; tacres = lgls @ rest; last_tactic = pp; prev = ps; }
+            Proofview.Goal.goals >>=
+            fun gl -> Proofview.Monad.List.map (fun x -> x) gl >>= fun goals ->
+            Proofview.tclUNIT { depth; tacres = lgls @ rest; last_tactic = pp; prev = ps;
+              from_goals = !from_goals; to_goals = goals_to_ints goals}
           in
           let tacs = List.map map tacs in
           explore_many 1 p tacs
@@ -324,19 +337,68 @@ let pr_dbg_header = function
   | Debug -> Feedback.msg_notice (str "(* debug eauto: *)")
   | Info  -> Feedback.msg_notice (str "(* info eauto: *)")
 
+let format_trace ?(indent=0) ?(bullets=[]) trace =
+  (* A goal may appear in from_gls for multiple trace entries.
+     Use the last entry in the map. *)
+  let map = List.fold_left (fun map (_,last_tactic,from_gls,to_gls) ->
+      List.fold_left (fun map from_gl ->
+          Int.Map.add from_gl (to_gls,last_tactic) map
+        ) map from_gls
+    ) Int.Map.empty trace
+  in
+
+  let rec dfs indent ?(bulletnum=(1,3,0)) ?(bulletmap=Int.Map.empty) from_gl =
+    (* get the next bullet that's not in bullets *)
+    let next_bullet (dig,lim,n) =
+      let rec int_to_bullet ?(rv=[]) (dig,lim,n) =
+        if dig = 0 then String.concat "" rv
+        else
+          let rv = String.make 1 ("-+*".[n - 3*(n/3)]) :: rv in
+          int_to_bullet (dig-1,lim,n/3) ~rv
+      in
+      let next (dig,lim,n) =
+        let n = n + 1 in
+        if lim = n then dig+1,lim*3,0
+        else dig,lim,n
+      in
+      let rec aux n =
+        let bullet = int_to_bullet n in
+        if List.mem bullet bullets then aux (next n) else bullet ^ " ", (next n)
+      in
+      aux bulletnum
+    in
+    let to_gls,last_tactic = Int.Map.find from_gl map in
+    let bullet = try (Int.Map.find from_gl bulletmap) with Not_found -> "" in
+    let nindent = if bullet <> "" then indent + 2 else indent in
+    let nindent, bulletnum, bulletmap =
+      match List.length to_gls with
+      | 0 -> nindent-2, bulletnum, bulletmap
+      | 1 -> nindent, bulletnum, bulletmap
+      | _ ->
+        let nbullet, bulletnum = next_bullet bulletnum in
+        nindent, bulletnum, List.fold_left (fun acc to_gl -> Int.Map.add to_gl nbullet acc) bulletmap to_gls
+    in
+
+    let indentstr = (String.make indent ' ') in
+    Feedback.msg_notice (str indentstr ++ str bullet ++ Lazy.force last_tactic);
+    List.iter (fun to_gl -> dfs nindent ~bulletnum ~bulletmap to_gl) to_gls;
+  in
+  match trace with
+  (* should always be a single item in from_gls *)
+  | (_,_,[from_gl],_) :: _ -> dfs indent from_gl
+  | _ -> failwith "format_trace"
+
 let pr_info dbg s =
   if dbg != Info then ()
   else
-    let rec loop s =
+    let rec aux s rv =
       match s.prev with
-        | Unknown | Init -> s.depth
-        | State sp ->
-          let mindepth = loop sp in
-          let indent = String.make (mindepth - sp.depth) ' ' in
-          Feedback.msg_notice (str indent ++ Lazy.force s.last_tactic ++ str ".");
-          mindepth
+      | Init
+      | Unknown -> rv
+      | State ss ->
+        aux ss ((0, s.last_tactic, s.from_goals, s.to_goals) :: rv)
     in
-    ignore (loop s)
+    format_trace (aux s [])
 
 (** Eauto main code *)
 
@@ -345,6 +407,8 @@ let make_initial_state evk dbg n localdb =
     tacres = [evk, localdb];
     last_tactic = lazy (mt());
     prev = if dbg == Info then Init else Unknown;
+    from_goals = [];
+    to_goals = [];
   }
 
 let e_search_auto ?(debug = Off) ?depth lems db_list =

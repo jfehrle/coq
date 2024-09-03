@@ -458,6 +458,8 @@ val declare_constant
   -> constant_entry
   -> Constant.t
 
+val set_reg_callback : (KerName.t -> Decls.logical_kind -> bool -> unit) -> unit
+
 (** Like [declare_definition] but also returns the universes and universe constraints added to the
     global environment *)
 val declare_definition_full

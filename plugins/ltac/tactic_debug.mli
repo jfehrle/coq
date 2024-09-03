@@ -59,3 +59,7 @@ val push_chunk : ltac_trace -> unit
 
 (** Pop a trace chunk (multiple frames) from the trace chunk stack *)
 val pop_chunk : unit -> unit
+
+val tac_loc : 'a gen_tactic_expr -> string * Loc.t option
+
+val dump_tac : ?indent:int -> raw_tactic_expr -> unit

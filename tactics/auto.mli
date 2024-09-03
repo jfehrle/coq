@@ -53,3 +53,10 @@ val gen_auto : ?debug:debug ->
     See [gen_auto] for an explanation of the different options.*)
 val gen_trivial : ?debug:debug ->
   delayed_open_constr list -> hint_db_name list option -> unit Proofview.tactic
+
+val fwd_intern_foreach : (Hints.foreach_info -> (Id.t * Id.t) list -> Id.t list ->
+  Gentactic.glob_generic_tactic) ref
+
+type stats = { tries: int; successes: int; dups: int}
+
+val auto_stats : stats ref

@@ -399,6 +399,11 @@ type constant_obj = {
   cst_loc : Loc.t option;
 }
 
+let reg_callback = ref (fun (kn : KerName.t) (kind : Decls.logical_kind) (is_new : bool) -> ())
+
+let set_reg_callback c =
+  reg_callback := c
+
 let load_constant i ((sp,kn), obj) =
   if Nametab.exists_cci sp then
     raise (DeclareUniv.AlreadyDeclared (None, Libnames.basename sp));
@@ -410,7 +415,8 @@ let load_constant i ((sp,kn), obj) =
   begin match obj.cst_locl with
     | Locality.ImportNeedQualified -> local_csts := Cset_env.add con !local_csts
     | Locality.ImportDefaultBehavior -> ()
-  end
+  end;
+  !reg_callback kn obj.cst_kind false
 
 (* Opening means making the name without its module qualification available *)
 let open_constant i ((sp,kn), obj) =
@@ -428,11 +434,12 @@ let check_exists id =
   if exists_name id then
     raise (DeclareUniv.AlreadyDeclared (None, id))
 
-let cache_constant ((sp,kn), obj) =
-  let kn = Global.constant_of_delta_kn kn in
+let cache_constant ((sp,kn0), obj) =
+  let kn = Global.constant_of_delta_kn kn0 in
   let gr = GlobRef.ConstRef kn in
   Nametab.push ?user_warns:obj.cst_warn (Nametab.Until 1) sp gr;
   Dumpglob.add_constant_kind kn obj.cst_kind;
+  !reg_callback kn0 obj.cst_kind true;
   obj.cst_loc |> Option.iter (fun loc -> Nametab.set_cci_src_loc (TrueGlobal gr) loc)
 
 let discharge_constant obj = Some obj
