@@ -385,13 +385,14 @@ and tac_of_hint dbg db_list local_db concl =
       conclPattern concl p tacast
   in
   let pr_hint h env sigma =
-    let origin = match FullHint.database h with
+   let (lev,_,_,_) = dbg in
+   let forinfo = lev = Info in
+   let origin = match FullHint.database h with
     | None -> mt ()
-    | Some n -> str " (in " ++ str n ++ str ")"
+    | Some n -> if forinfo then str "  (* in " ++ str n ++ str " *)"
+                           else str " (in " ++ str n ++ str ")"
     in
-    let (lev,_,_,_) = dbg in
-    let forinfo = lev = Info in
-    FullHint.print ~forinfo env sigma h ++ (if forinfo then str "." else origin)
+    FullHint.print ~forinfo env sigma h ++ origin
   in
   fun h -> tclLOG dbg (pr_hint h) (FullHint.run h tactic)
 
