@@ -313,27 +313,56 @@ Creating hint databases
 ```````````````````````
 
 Hint databases can be created with the :cmd:`Create HintDb` command or implicitly
-by adding a hint to an unknown database.  We recommend you always use :cmd:`Create HintDb`
-and then imediately use :cmd:`Hint Constants` and :cmd:`Hint Variables` to make
-those settings explicit.
+by adding a hint to an unknown database.  Databases created with
+:cmd:`Create HintDb` have the default setting `Transparent` (i.e. unfold all)
+for `Constants`, `Projections` and `Variables`, while implicitly created databases
+have the `Opaque` setting (i.e. unfold none).  We recommend using :cmd:`Hint Constants`,
+:cmd:`Hint Projections` and :cmd:`Hint Variables` immediately after :cmd:`Create HintDb`
+to make these settings explicit.
 
-Note that the default transparency
-settings differ between these two methods of creation.  Databases created with
-:cmd:`Create HintDb` have the default setting `Transparent` for both `Variables`
-and `Constants`, while implicitly created databases have the `Opaque` setting.
+Use :cmd:`Hint Opaque` and :cmd:`Hint Transparent` to control the opacity of
+individual items.  Hint opacity settings influence which hints the search tactics
+try, but they have no effect on how the selected tactic is executed.  The proof
+search tactics use unification to choose which which tactics to try, for example
+whether the goal unifies with a theorem given by :cmd:`Hint Resolve`.  Unfolding
+transparent items is part of the unification process.  The settings are completely
+independent of the non-hint :cmd:`Opaque` and :cmd:`Transparent` settings.
 
 .. cmd:: Create HintDb @ident {? discriminated }
 
-   Creates a new hint database named :n:`@ident`. The database is
-   implemented by a Discrimination Tree (DT) that serves as a filter to select
-   the lemmas that will be applied. When discriminated, the DT uses
-   transparency information to decide if a constant should considered rigid for
-   filtering, making the retrieval more efficient. By contrast, undiscriminated
-   databases treat all constants as transparent, resulting in a larger
-   number of selected lemmas to be applied, and thus putting more pressure on
-   unification.
+   Creates a new hint database named :n:`@ident`.  If the hint database already
+   exists, its current data is dropped
+   (see `#16934 <https://github.com/coq/coq/issues/16934>`_).
+   All constants, variables and projections are set to default to unfoldable (use
+   :cmd:`Hint Constants` to change this).
 
-   By default, hint databases are undiscriminated.
+   By default, hint databases are undiscriminated.  We recommend using `discriminated`.
+   Note: despite the terminology, discrimination trees are always used to pattern match
+   some types of hints.
+
+Performance considerations
+``````````````````````````
+
+The proof search tactics decide which hints to try by first selecting hints
+whose pattern has the same :term:`head constant` as the goal.  Then the selected
+hints are tried as follows (ordered from best performing to worst performing):
+
+- For hints other than :cmd:`Hint Extern`, if the database is discriminated and
+  the pattern doesn't contain unfoldable (transparent) items, the full
+  pattern must match the goal before the hint will be tried.
+- If a hint other than `Hint Extern` contains unfoldable items, it will be tried
+  even if the pattern doesn't match.
+- `Extern` hints are tried if their pattern matches the goal while treating all
+  items in the hint pattern and the goal as opaque (i.e., a purely syntactic search)
+- `Extern` hints with no pattern are always tried.  (Therefore, you should
+  provide a pattern in these hints whenever possible.)
+
+Matching on the head constant is very fast.  Matching the pattern is fast
+if it doesn't require unfolding definitions.  You can avoid unnecessary unfolding
+of definitions by making them :cmd:`Hint Opaque` by trial and error (if the
+proof search fails after making something opaque, then the unfolding is necessary).
+
+Note: currently, Coq won't unfold the head constant even if it is transparent.
 
 Hint databases defined in the Rocq standard library
 ```````````````````````````````````````````````````
@@ -375,7 +404,7 @@ At Rocq startup, only the core database is nonempty and ready to be used immedia
                mainly used in the ``FSets`` and ``FMaps`` libraries.
 
 You are advised not to put your own hints in the core database, but
-use one or more databases specific to your development.
+instead to use one or more databases specific to your development.
 
 .. _creating_hints:
 
@@ -433,9 +462,10 @@ Creating Hints
          hint_info ::= %| {? @natural } {? @one_pattern }
          one_pattern ::= @one_term
 
-      The first form adds each :n:`@qualid` as a hint with the head symbol of the type of
-      :n:`@qualid` to the specified hint databases (:n:`@ident`\s). The cost of the hint is the number of
-      subgoals generated by :tacn:`simple apply` :n:`@qualid` or, if specified, :n:`@natural`. The
+      The first form adds each :n:`@qualid` as a hint with the head symbol of the
+      type of :n:`@qualid` to the specified hint databases (:n:`@ident`\s). The
+      cost of the hint is the number of subgoals generated by :tacn:`simple apply`
+      :n:`@qualid` or, if specified, :n:`@natural`. The
       associated pattern is inferred from the conclusion of the type of
       :n:`@qualid` or, if specified, the given :n:`@one_pattern`.
 
@@ -489,7 +519,8 @@ Creating Hints
 
       For each :n:`@qualid` that is an inductive type, adds all its constructors as
       hints of type ``Resolve``. Then, when the conclusion of current goal has the form
-      :n:`(@qualid ...)`, :tacn:`auto` will try to apply each constructor.
+      :n:`(@qualid ...)`, :tacn:`auto` will try to apply each constructor using
+      :tacn:`exact`.
 
       .. exn:: @qualid is not an inductive type
          :undocumented:
@@ -504,10 +535,37 @@ Creating Hints
       :name: Hint Transparent; Hint Opaque
 
       Adds transparency hints to the database, making each :n:`@qualid`
-      a transparent or opaque constant during resolution. This information is used
-      during unification of the goal with any lemma in the database and inside the
-      discrimination network to relax or constrain it in the case of discriminated
-      databases.
+      transparent or opaque during resolution.  The proof search tactics use
+      unification to determine whether to try most hints, for example checking if
+      the goal unifies with the theorem used in a :cmd:`Hint Resolve` hint.  The
+      transparency hints control whether to unfold the item during unification.
+      Note that transparency hints are independent of the non-hint :cmd:`Opaque`
+      and :n:`Transparent` settings.
+
+      .. example:: Independence of Hint Opaque and Opaque
+
+         .. coqtop:: in
+
+            Definition one := 1.
+            Opaque one.  (* not relevant to hint selection *)
+
+            Theorem bar: 1=1.  reflexivity.  Qed.
+
+            Create HintDb db.       (* constants, etc. transparent by default *)
+            Hint Opaque one : db.   (* except for "one" *)
+            Hint Resolve bar : db.  (* tactic is not tried if one is Hint Opaque *)
+            Set Typeclasses Debug Verbosity 1.
+
+            Goal one = 1.
+            Fail typeclasses eauto with db nocore.  (* fail: no match for (one = 1) *)
+
+            Hint Transparent one : db.
+            Succeed typeclasses eauto with db nocore.  (* success: now bar is tried *)
+            Fail unfold one.                           (* fail: one is still Opaque *)
+
+         .. coqtop:: none
+
+            Abort.
 
       .. exn:: Cannot coerce @qualid to an evaluable reference.
          :undocumented:
@@ -515,16 +573,20 @@ Creating Hints
    .. cmd:: Hint {| Constants | Projections | Variables } {| Transparent | Opaque } {? : {+ @ident } }
       :name: Hint Constants; Hint Projections; Hint Variables
 
-      Sets the transparency flag for constants, projections or variables for the specified hint
-      databases.
-      These flags affect the unification of hints in the database.
-      We advise using this just after a :cmd:`Create HintDb` command.
+      Sets the default transparency for constants, projections or variables for
+      the specified hint databases.  Existing transparency settings for individual
+      items (e.g., set with :cmd:`Hint Opaque`) are dropped.
+      We advise using this command just after a :cmd:`Create HintDb` command.
 
    .. cmd:: Hint Extern @natural {? @one_pattern } => @ltac_expr {? : {+ @ident } }
 
       Extends :tacn:`auto` with tactics other than :tacn:`apply` and
       :tacn:`unfold`. :n:`@natural` is the cost, :n:`@one_pattern` is the pattern
       to match and :n:`@ltac_expr` is the action to apply.
+
+      We recommend providing a pattern whenever possible.  Hints with patterns
+      are tried only if the pattern matches without unfolding transparent constants
+      (i.e., a syntactic match).  Hints without patterns are always tried.
 
       .. note::
 
@@ -538,8 +600,8 @@ Creating Hints
 
             Hint Extern 4 (~(_ = _)) => discriminate : core.
 
-         Now, when the head of the goal is a disequality, ``auto`` will try
-         discriminate if it does not manage to solve the goal with hints with a
+         Now, when the head of the goal is an inequality, ``auto`` will try
+         `discriminate` if it does not manage to solve the goal with hints with a
          cost less than 4.
 
       One can even use some sub-patterns of the pattern in
@@ -722,10 +784,12 @@ Creating Hints
 
 .. cmd:: Print HintDb @ident
 
-   This command displays all hints from database :n:`@ident`.  Hints
-   in each group ("For ... ->") are shown in the order in which they will be tried
-   (first to last).  Note that hints with the same cost are tried in
-   reverse of the order they're defined in, i.e., last to first.
+   This command displays all hints from database :n:`@ident`.  Hints are grouped by
+   the :term:`head constants <head constant>` of their patterns ("For ... ->").
+   The groups are shown ordered alphabetically on the last component of the head
+   constant name.   Within each group, hints are shown in the order in which they
+   will be tried (first to last).  Note that hints with the same cost are tried in
+   reverse of the order they're defined in, i.e., last defined is used first.
 
 Hint locality
 `````````````

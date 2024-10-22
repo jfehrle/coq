@@ -530,10 +530,8 @@ which reduction engine to use.  See :ref:`type-cast`.)  For example:
        unfolding is applied to all constants that are not listed.
        Notice that the ``delta`` doesn't apply to variables bound by a let-in
        construction inside the term itself (use ``zeta`` to inline these).
-       Opaque constants are never unfolded except by :tacn:`vm_compute` and
-       :tacn:`native_compute`
-       (see `#4476 <https://github.com/coq/coq/issues/4476>`_ and
-       :ref:`controlling-the-reduction-strategies`).
+       Opaque constants are not unfolded by most tactics
+       (see :ref:`controlling-the-reduction-strategies`).
 
    `iota`
      :term:`iota-reduction` of pattern matching (`match`) over a constructed term and reduction
@@ -976,11 +974,16 @@ which supports additional fine-tuning.
 
 .. cmd:: Opaque {? ! } {+ @reference }
 
-   Marks the specified constants as :term:`opaque` so tactics won't :term:`unfold` them
-   with :term:`delta-reduction`.
+   Marks the specified constants as :term:`opaque` so that most tactics won't
+   :term:`unfold` them with :term:`delta-reduction`.
    "Constants" are items defined by commands such as :cmd:`Definition`,
    :cmd:`Let` (with an explicit body), :cmd:`Fixpoint`, :cmd:`CoFixpoint`
    and :cmd:`Function`.
+
+   :tacn:`reflexivity`, :tacn:`apply`, :tacn:`vm_compute`
+   and :tacn:`native_compute` may unfold opaque constants (see
+   `#4476 <https://github.com/coq/coq/issues/4476>`_).  Conversion tactics
+   such as :tacn:`simpl` and :tacn:`unfold` do not unfold opaque constants.
 
    This command accepts the :attr:`global` attribute.  By default, the scope
    of :cmd:`Opaque` is limited to the current section or module.
