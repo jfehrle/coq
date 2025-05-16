@@ -2,6 +2,8 @@
 Set Ltac Debug.
 Set Ltac Debug History 100.
 
+(* set breakpoint on "split", should see b_x in the stack;
+   only stops once on each tactic in a_x *)
 Module Abbrev.
 Ltac a_x := split; apply I; idtac.
 Ltac b_x := a_x.

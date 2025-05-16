@@ -501,7 +501,7 @@ object(self)
     RocqDriver.bind call begin function
     | Fail x -> self#handle_failure_aux ~move_insert x
     | Good goals ->
-      let in_debugger = Coq.is_stopped_in_debugger _ct in
+      let in_debugger = RocqDriver.is_stopped_in_debugger _ct in
       proof#set_goals goals in_debugger;
       proof#refresh ~force:true;
       let op = forward_get_other_proof () in

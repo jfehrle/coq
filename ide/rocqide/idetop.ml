@@ -192,7 +192,7 @@ let concl_next_tac =
   ])
 
 let sugg_name env sigma g =
-  if Printer.print_goal_names () then
+  if Printer.print_goal_name sigma g then
     Some (Names.Id.to_string (Termops.evar_suggested_name env sigma g))
   else None
 

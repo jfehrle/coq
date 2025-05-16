@@ -178,7 +178,7 @@ End Variables.
 
 (* pattern variables and parameters:
    type of "poly" is unknown here
-   Bug: variables p and p1 created by Ltac2 should be hidden
+   Bug: variables p and p0 created by Ltac2 should be hidden
 *)
 Module PatVars.
 Ltac2 y (a,poly) :=

@@ -305,7 +305,7 @@ type 'a or_glb_tacexpr =
  }
 
 type environment = {
-  env_ist : typed_valexpr Id.Map.t;
+  env_ist : typed_valexpr Id.Map.t;  (* todo: rename to "bnd"? *)
   locs : Loc.t option list;
   stack : (string * Loc.t option) list option;
   varmaps : typed_valexpr Id.Map.t list;

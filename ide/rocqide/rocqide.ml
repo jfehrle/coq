@@ -733,7 +733,7 @@ let send_to_rocq_aux name f sn =
   let f = RocqDriver.seq (f sn) (update_status sn) in
   ignore @@ RocqDriver.try_grab sn.rocqtop f info
 
-let send_to_rocq f = on_current_term (send_to_rocq_aux name f)
+let send_to_rocq name f = on_current_term (send_to_rocq_aux name f)
 
 let db_continue opt sn =
   RocqDriver.try_grab ~db:true sn.rocqtop (sn.rocqops#process_db_continue opt
@@ -833,7 +833,7 @@ module Nav = struct
     ignore @@ resume_debugger ?sid Interface.StepOutRev
   let backward_one_sid ?sid _ = maybe_update_breakpoints ();
     if not (resume_debugger ?sid Interface.StepOverRev) then  (* right?? *)
-      send_to_rocq "back one" (fun sn -> init_bpts sn; sn.coqops#backtrack_last_phrase)
+      send_to_rocq "back one" (fun sn -> init_bpts sn; sn.rocqops#backtrack_last_phrase)
   let backward_one x = backward_one_sid x
   let run_to_cursor _ = maybe_update_breakpoints ();
     send_to_rocq "run to cursor" (fun sn -> sn.rocqops#go_to_insert)
@@ -1081,7 +1081,7 @@ let db_stack_n_goals sn _ =
       (fun () -> Minilib.log "Rocq busy, discarding db_stack")
   );
   RocqDriver.add_do_when_ready sn.rocqtop (fun _ ->
-    ignore @@ Coq.try_grab ~db:true sn.rocqtop (sn.rocqops#show_goals true)
+    ignore @@ RocqDriver.try_grab ~db:true sn.rocqtop (sn.rocqops#show_goals true)
       (fun () -> Minilib.log "Rocq busy, discarding show_goals")
   )
 

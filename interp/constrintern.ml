@@ -2785,11 +2785,6 @@ let intern_uninstantiated_constr_pattern env sigma ?(as_type=false) ?strict_chec
             ?strict_check ~pattern_mode:true ~ltacvars env sigma c in
   uninstantiated_pattern_of_glob_constr env c
 
-let intern_uninstantiated_constr_pattern env sigma ?(as_type=false) ?strict_check ?(ltacvars=empty_ltac_sign) c =
-  let c = intern_gen (if as_type then IsType else WithoutTypeConstraint)
-            ?strict_check ~pattern_mode:true ~ltacvars env sigma c in
-  uninstantiated_pattern_of_glob_constr c
-
 let intern_core kind env sigma ?strict_check ?(pattern_mode=false) ?(ltacvars=empty_ltac_sign)
       { Genintern.intern_ids = ids; Genintern.notation_variable_status = vl } c =
   let tmp_scope = scope_of_type_kind env sigma kind in

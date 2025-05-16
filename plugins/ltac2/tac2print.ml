@@ -36,7 +36,7 @@ let t_list =
 let c_nil = change_kn_label t_list (Id.of_string_soft "[]")
 let c_cons = change_kn_label t_list (Id.of_string_soft "::")
 let t_array =
-  KerName.make Tac2env.coq_prefix (Label.of_id (Id.of_string "array"))
+  KerName.make Tac2env.rocq_prefix (Label.of_id (Id.of_string "array"))
 
 (** Type printing *)
 
@@ -332,21 +332,22 @@ let pr_glbexpr_gen lvl ~avoid c =
       begin match Tac2env.interp_type kn with
       | _, GTydDef None -> str "<abstr>"
       | _, GTydDef _ | _, GTydRec _ | _, GTydOpn -> assert false
-      in
-      let br = order_branches cst_br ncst_br def in
-      let pr_branch (cstr, vars, p) =
-        let cstr = change_kn_label kn cstr in
-        let cstr = pr_constructor cstr in
-        let avoid = List.fold_left Termops.add_vname avoid vars in
-        let vars = match vars with
-        | [] -> mt ()
-        | _ -> spc () ++ pr_sequence pr_name vars
+      | _, GTydAlg { galg_constructors = def } ->
+        let br = order_branches cst_br ncst_br def in
+        let pr_branch (cstr, vars, p) =
+          let cstr = change_kn_label kn cstr in
+          let cstr = pr_constructor cstr in
+          let avoid = List.fold_left Termops.add_vname avoid vars in
+          let vars = match vars with
+            | [] -> mt ()
+            | _ -> spc () ++ pr_sequence pr_name vars
+          in
+          hov 4 (str "|" ++ spc () ++ hov 0 (cstr ++ vars ++ spc () ++ str "=>") ++ spc () ++
+                 hov 2 (pr_glbexpr E5 avoid p)) ++ spc ()
         in
-        hov 4 (str "|" ++ spc () ++ hov 0 (cstr ++ vars ++ spc () ++ str "=>") ++ spc () ++
-          hov 2 (pr_glbexpr E5 avoid p)) ++ spc ()
-      in
       let br = List.map (fun (a,b,c) -> (a, List.map (fun (d,e) -> d) b, c)) br in
       prlist pr_branch br
+      end
     | Tuple n ->
       let (vars, p) = if Int.equal n 0 then ([||], cst_br.(0)) else ncst_br.(0) in
       let vars = Array.map (fun (a,b) -> a) vars in
@@ -867,17 +868,22 @@ let rec pr_valexpr_gen env sigma maptv lvl v t = match kind t with
       let t2 = f ty in
       begin match t2 with
         | GTypVar _ -> str "<poly>" (* type is not bound *)
-        | _ -> pr_valexpr env sigma maptv v t2
+        | _ -> pr_valexpr_gen env sigma maptv lvl v t2
       end
     | None -> str "<poly>"
-  end| GTypRef (Other kn, params) ->
+  end
+| GTypRef (Other kn, params) ->
   let pr = try Some (KNmap.find kn !printers) with Not_found -> None in
+  (* workaround: todo: default printer shows "[1;2]" as ":: 1\n (:: 2 [])"
+     "[| 1;2 |]" as "[| <poly>; <poly>\n |]" *)
+  let pr = if KerName.equal kn t_list || KerName.equal kn t_array then None else pr in
   begin match pr with
   | Some pr ->
     (* for now assume all printers produce atomic expressions so no need to pass [lvl] *)
     pr.val_printer env sigma v params
   | None ->
     let n, repr = Tac2env.interp_type kn in
+    (* TODO: are t_list and t_array cases still needed? (need to pass maptv) *)
     if KerName.equal kn t_list then
       pr_val_list env sigma (to_list (fun v -> repr_to Tac2ffi.valexpr v) v) (List.hd params) maptv
     else if KerName.equal kn t_array then
@@ -899,7 +905,7 @@ let rec pr_valexpr_gen env sigma maptv lvl v t = match kind t with
         let (_, id, tpe) = find_constructor n false alg.galg_constructors in
         let knc = change_kn_label kn id in
         let args = pr_constrargs env sigma params args tpe maptv in
-        paren (pr_constructor knc ++ spc () ++ args)
+        hv 2 (paren (pr_constructor knc ++ spc () ++ args))
     | GTydRec rcd ->
       let (_, args) = Tac2ffi.to_block v in
       pr_record env sigma params args rcd maptv
@@ -942,7 +948,7 @@ and pr_record env sigma params args rcd maptv =
   let pr_field ((id, t), arg) =
     Id.print id ++ spc () ++ str ":=" ++ spc () ++ pr_valexpr_gen env sigma maptv E1 arg t
   in
-  str "{" ++ spc () ++ prlist_with_sep pr_semicolon pr_field fields ++ spc () ++ str "}"
+  hv 2 (str "{" ++ spc () ++ prlist_with_sep pr_semicolon pr_field fields ++ spc () ++ str "}")
 
 and pr_val_list env sigma args tpe maptv =
   let pr v = pr_valexpr_gen env sigma maptv E4 v tpe in
@@ -950,7 +956,7 @@ and pr_val_list env sigma args tpe maptv =
     hov 1 (str "[" ++ prlist_with_sep pr_semicolon pr args ++ str "]")
 
 and pr_val_array env sigma maptv arr tpe =
-  let pr v = pr_valexpr env sigma maptv v tpe in
+  let pr v = pr_valexpr_gen env sigma maptv E4 v tpe in
   if Array.length arr = 0 then str "[| |]" else
     hv 2 (str "[|" ++ spc () ++ prvect_with_sep pr_semicolon pr arr ++ spc() ++ str "|]")
 

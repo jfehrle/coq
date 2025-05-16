@@ -570,7 +570,7 @@ values for each stack frame are shown in a new panel.
 
 The debugger is based on the non-visual |Ltac| :ref:`debugger <interactive-debugger>`.
 
-Ltac2 support and other improvements are new in 8.20.
+Ltac2 support and other improvements are new in 9.1.
 If you encounter bugs or usability issues, please report them.
 The behavior and user interface will evolve as the debugger is refined.
 There are notes on bugs and potential enhancements at the end of
@@ -688,7 +688,7 @@ You will see this code if you :n:`Step in` on an :n:`apply`.
 
 **Goal display**
 
-8.20 adds support for proof diffs while in the debugger.  In this case, diffs
+9.1 adds support for proof diffs while in the debugger.  In this case, diffs
 are shown relative to the previous subtactic in the current tactic.  For example,
 for the expression :n:`my_tac1; my_tac2`, when stopped at :n:`my_tac2`, diffs
 are computed between the state before executing :n:`my_tac1` and the
@@ -697,7 +697,7 @@ current state.  This lets you see the net effect of :n:`my_tac1`.
 For now, goal display while in the debugger doesn't show background, shelved or
 given up goals.
 
-As of 8.20, changing goal display options in the View menu are applied immediately
+As of 9.1, changing goal display options in the View menu are applied immediately
 while in the debugger.
 
 Call Stack and Variables

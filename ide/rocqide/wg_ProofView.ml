@@ -80,7 +80,7 @@ let mode_tactic sel_cb (proof : #GText.view_skel) goals ~unfoc_goals hints = mat
       in
       let fg_cnt = List.length goals in
       let goal_cnt = fg_cnt +
-        (if Coq.PrintOpt.printing_unfocused () then List.length unfoc_goals else 0) in
+        (if RocqDriver.PrintOpt.printing_unfocused () then List.length unfoc_goals else 0) in
       let head_str = Printf.sprintf
         "%d %s\n" fg_cnt (if 1 = fg_cnt then "goal" else "goals")
       in
@@ -125,7 +125,7 @@ let mode_tactic sel_cb (proof : #GText.view_skel) goals ~unfoc_goals hints = mat
         proof#buffer#insert "\n"
       in
 
-      let insert_wo_hyps ~shownum i _ DebuggerTypes.{ goal_ccl = g; goal_name = name } =
+      let insert_wo_hyps ~shownum i DebuggerTypes.{ goal_ccl = g; goal_name = name } =
         proof#buffer#insert (goal_str ~shownum i goal_cnt name);
         insert_xml proof#buffer (Richpp.richpp_of_pp ~width g);
         proof#buffer#insert "\n"
@@ -136,7 +136,7 @@ let mode_tactic sel_cb (proof : #GText.view_skel) goals ~unfoc_goals hints = mat
           let DebuggerTypes.{ goal_hyp = hyps; goal_ccl = cur_goal; goal_name = cur_name } = g in
           insert_w_hyps ~shownum hyps cur_goal cur_name (i+1);
         else
-          insert_wo_hyps ~shownum (i+1) () g
+          insert_wo_hyps ~shownum (i+1) g
       in
 
       proof#buffer#insert head_str;
@@ -149,7 +149,7 @@ let mode_tactic sel_cb (proof : #GText.view_skel) goals ~unfoc_goals hints = mat
         ignore(proof#buffer#place_cursor ~where:(proof#buffer#end_iter)); (* why? *)
         if unfoc_goals <> [] then begin
           proof#buffer#insert "\nUnfocused Goals:\n";
-          Util.List.fold_left_i fold_goal ~shownum:false (i+fg_cnt) () unfoc_goals
+          List.iteri (fun i g -> insert_wo_hyps ~shownum:false (i+fg_cnt) g) unfoc_goals
         end
       end;
       ignore(proof#buffer#place_cursor
@@ -254,7 +254,7 @@ let proof_view () =
       | NoFocusGoals { bg; shelved; given_up } -> [], bg
       in
       let numgoals = List.length fg +
-         (if Coq.PrintOpt.printing_unfocused () then List.length bg else 0) in
+         (if RocqDriver.PrintOpt.printing_unfocused () then List.length bg else 0) in
       let new_sel = !sel_goal_num + incr in
       sel_goal_num :=
         if new_sel < 0 then numgoals - 1

@@ -9,8 +9,8 @@
 (************************************************************************)
 
 open Tac2expr
-open Tac2ffi
 open Tac2typing_env
+open Tac2val
 
 (* avoid mutual dependency between Tac2typing_env and Tac2expr *)
 type valtype = TVar.t glb_typexpr option  (* todo: keep option? *)

@@ -11,7 +11,7 @@
 open Pp
 open Names
 open Tac2expr
-open Tac2ffi
+open Tac2val
 
 (* todo: why isn't "open Tac2env" sufficient for these 2 types? *)
 type environment = Tac2env.environment
@@ -157,6 +157,7 @@ let rec dump_expr ?(indent=0) e =
   | CTacPrj _ -> printloc "CTacPrj" e
   | CTacSet _ -> printloc "CTacSet" e
   | CTacExt _ -> printloc "CTacExt" e
+  | CTacGlb _ -> printloc "CTacGlb" e
 
 let dump_Cexpr loc e =
   let loc = match loc with

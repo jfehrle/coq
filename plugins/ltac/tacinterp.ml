@@ -1348,8 +1348,7 @@ and interp_app loc ist fv largs : Val.t Ftactic.t =
               ; poly
               ; extra = TacStore.set ist.extra f_trace trace
               } in
-            let (stack, _) = trace in
-            do_profile stack ~count_call:false
+            do_profile trace.stack ~count_call:false
               (catch_error_tac_loc loc trace (val_interp (ensure_loc loc ist) body)) >>= fun v ->
             Ftactic.return (name_vfun (push_appl appl largs) v)
           end

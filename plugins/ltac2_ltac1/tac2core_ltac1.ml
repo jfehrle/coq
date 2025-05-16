@@ -125,6 +125,35 @@ let ltac1_core n = core_prefix Tac2env.ltac1_prefix n
 let t_ltac1 = ltac1_core "t"
 let ltac1_lambda = ltac1_core "lambda"
 
+let call_from_ltac2_to_1 ist2 =
+  let open Ltac_plugin.Tacinterp in
+  let ist1 = default_ist () in
+  if DebugCommon.get_debug () then begin
+    let prev_chunks = match ist2.stack with
+    | None -> []
+    | Some stack ->
+      if stack = [] then ist2.prev_chunks
+      else (Tac2debug.get_chunk ist2) :: ist2.prev_chunks
+    in
+    let extra = TacStore.set ist1.extra f_trace { empty_trace with prev_chunks } in
+    { ist1 with extra }
+  end else
+    ist1
+
+let call_from_ltac1_to_2 ist1 =
+  let open Ltac_plugin.Tacinterp in
+  let env = Tac2interp.empty_environment () in
+  if DebugCommon.get_debug () then begin
+    let prev_chunks = match TacStore.get ist1.extra f_trace with
+    | None -> []
+    | Some trace ->
+      if trace.stack = [] then trace.prev_chunks
+      else (Ltac_plugin.Tactic_debug.get_chunk ist1.lfun trace) :: trace.prev_chunks
+    in
+    { env with prev_chunks }
+  end else
+    env
+
 let () =
   let intern ist (ids, tac) =
     let map { CAst.v = id } = id in
@@ -138,16 +167,16 @@ let () =
     let ty = List.fold_left fold (gtypref t_unit) ids in
     GlbVal (ids, tac), ty
   in
-  let interp _ (ids, tac) =
+  let interp ist2 (ids, tac) =
     let clos args =
       let add lfun id v =
         let v = Tac2ffi.repr_to ltac1 v in
         Id.Map.add id v lfun
       in
       let lfun = List.fold_left2 add Id.Map.empty ids args in
-      let ist = { env_ist = Id.Map.empty } in
+      let ist = Tac2interp.empty_environment () in
       let lfun = Tac2interp.set_env ist lfun in
-      let ist = Ltac_plugin.Tacinterp.default_ist () in
+      let ist = call_from_ltac2_to_1 ist2 in
       let ist = { ist with Geninterp.lfun = lfun } in
       let tac = (Ltac_plugin.Tacinterp.eval_tactic_ist ist tac : unit Proofview.tactic) in
       tac >>= fun () ->
@@ -197,16 +226,16 @@ let () =
     let ty = List.fold_left fold (gtypref t_ltac1) ids in
     GlbVal (ids, tac), ty
   in
-  let interp _ (ids, tac) =
+  let interp ist2 (ids, tac) =
     let clos args =
       let add lfun id v =
         let v = Tac2ffi.repr_to ltac1 v in
         Id.Map.add id v lfun
       in
       let lfun = List.fold_left2 add Id.Map.empty ids args in
-      let ist = { env_ist = Id.Map.empty } in
+      let ist = Tac2interp.empty_environment () in
       let lfun = Tac2interp.set_env ist lfun in
-      let ist = Ltac_plugin.Tacinterp.default_ist () in
+      let ist = call_from_ltac2_to_1 ist2 in
       let ist = { ist with Geninterp.lfun = lfun } in
       return (Tac2ffi.repr_of ltac1 (Tacinterp.Value.of_closure ist tac))
     in
@@ -387,7 +416,7 @@ let () =
     (* Evaluate the Ltac2 quotation eagerly *)
     let idtac = Value.of_closure { ist with lfun = Id.Map.empty }
         (CAst.make (Tacexpr.TacId [])) in
-    let ist = { env_ist = Id.Map.empty } in
+    let ist = call_from_ltac1_to_2 ist in
     Tac2interp.interp ist tac >>= fun v ->
     let v = idtac in
     Ftactic.return v
@@ -400,8 +429,8 @@ let () =
     let args = List.map mk_arg ids in
     let clos = CAst.make (Tacexpr.TacFun
         (nas, CAst.make (Tacexpr.TacML (ltac2_eval, mk_arg self_id :: args)))) in
-    let self = GTacFun (List.map (fun id -> Name id) ids, tac) in
-    let self = Tac2interp.interp_value { env_ist = Id.Map.empty } self in
+    let self = GTacFun (List.map (fun id -> Name id) ids, None, tac) in
+    let self = Tac2interp.interp_value (call_from_ltac1_to_2 ist) self in
     let self = Geninterp.Val.inject (Geninterp.Val.Base typ_ltac2) self in
     let ist = { ist with lfun = Id.Map.singleton self_id self } in
     Ftactic.return (Value.of_closure ist clos)
@@ -409,9 +438,9 @@ let () =
   Geninterp.register_interp0 wit_ltac2in1 interp
 
 let () =
-  let interp ist tac =
-    let ist = { env_ist = Id.Map.empty } in
-    Tac2interp.interp ist tac >>= fun v ->
+  let interp ist1 tac =
+    let ist2 = call_from_ltac1_to_2 ist1 in
+    Tac2interp.interp ist2 tac >>= fun v ->
     let v = repr_to ltac1 v in
     Ftactic.return v
   in

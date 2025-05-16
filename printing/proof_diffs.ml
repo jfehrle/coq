@@ -339,6 +339,32 @@ let diff_goal ?(short=false) ?og_s ng =
 
 (*** Code to determine which calls to compare between the old and new proofs ***)
 
+
+let get_proof_context (p : Proof.t) =
+  let Proof.{sigma} = Proof.data p in
+  let agoal = Evar.Set.choose (Proof.all_goals p) in
+  let env = Evd.evar_filtered_env (Global.env ()) (Evd.find_undefined sigma agoal) in
+  sigma, env
+
+let to_constr pf =
+  let open CAst in
+  let pprf = Proof.partial_proof pf in
+  (* pprf generally has only one element, but it may have more in the derive plugin *)
+  let t = List.hd pprf in
+  let sigma, env = get_proof_context pf in
+  let x = Constrextern.extern_constr env sigma t in  (* todo: right options?? *)
+  x.v
+
+(* variant for debugger *)
+let to_constr2 env sigma goals pf =
+  let open CAst in
+  let pprf = Proof.partial_proof pf in
+  (* pprf generally has only one element, but it may have more in the derive plugin *)
+  let t = List.hd pprf in  (* todo: reasonable? correct? *)
+  let env = Evd.evar_filtered_env env (Evd.find_undefined sigma (List.hd goals)) in
+  let x = Constrextern.extern_constr env sigma t in  (* todo: right options?? *)
+  x.v
+
 module GoalMap = Evar.Map
 
 let goal_to_evar g sigma = Names.Id.to_string (Termops.evar_suggested_name (Global.env ()) sigma g)
@@ -404,10 +430,9 @@ let map_goal g (osigma, map) = match GoalMap.find_opt g map with
 
 (* Create a map from new goals to old goals for proof diff. *)
 let make_goal_map_i goal_map_args =
-  let open Evar.Set in
   let ogs = goal_map_args.oall_goals in
   let ngs = goal_map_args.nall_goals in
-  let { Proof.sigma } = Proof.data np in
+  let sigma = goal_map_args.nsigma in
 
   let fold_old_evar oevk acc =
     match Evd.find sigma oevk with

@@ -267,9 +267,6 @@ sig
   (** Recover a manipulation function at a given type. Must be [ExtraArg]. *)
 
   val mem : _ genarg_type -> bool
-  (** Is this type registered? (must be [ExtraArg]) *)
-
-  val mem : _ genarg_type -> bool
   (** Is this type registered? *)
 
   val fold_keys : (ArgT.any -> 'acc -> 'acc) -> 'acc -> 'acc

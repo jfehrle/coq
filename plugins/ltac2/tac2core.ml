@@ -1744,7 +1744,7 @@ let () =
   let interp env (ids,c) =
     let open Ltac_pretype in
     let get_preterm id = match Id.Map.find_opt id env.env_ist with
-      | Some v -> to_preterm v
+      | Some {e} -> to_preterm e
       | None -> assert false
     in
     let closure = {
@@ -1804,37 +1804,6 @@ let () =
     ml_raw_print = raw_print;
   } in
   define_ml_object Tac2quote.wit_reference obj
-
-LOST 2 ROUTINES
-(* routines to copy prev_chunks between Ltac1 and Ltac2 *)
-let call_from_ltac2_to_1 ist2 =
-  let open Ltac_plugin.Tacinterp in
-  let ist1 = default_ist () in
-  if DebugCommon.get_debug () then begin
-    let prev_chunks = match ist2.stack with
-    | None -> []
-    | Some stack ->
-      if stack = [] then ist2.prev_chunks
-      else (Tac2debug.get_chunk ist2) :: ist2.prev_chunks
-    in
-    let extra = TacStore.set ist1.extra f_trace { empty_trace with prev_chunks } in
-    { ist1 with extra }
-  end else
-    ist1
-
-let call_from_ltac1_to_2 ist1 =
-  let open Ltac_plugin.Tacinterp in
-  let env = Tac2interp.empty_environment () in
-  if DebugCommon.get_debug () then begin
-    let prev_chunks = match TacStore.get ist1.extra f_trace with
-    | None -> []
-    | Some trace ->
-      if trace.stack = [] then trace.prev_chunks
-      else (Ltac_plugin.Tactic_debug.get_chunk ist1.lfun trace) :: trace.prev_chunks
-    in
-    { env with prev_chunks }
-  end else
-    env
 
 (** Ltac2 in terms *)
 
@@ -1908,7 +1877,7 @@ let () =
 let () =
   let interp _ist tac =
     (* XXX should we be doing something with the ist? *)
-    let tac = Tac2interp.(interp empty_environment) tac in
+    let tac = Tac2interp.(interp (empty_environment ())) tac in
     Proofview.tclBIND tac (fun _ ->
         Ftactic.return (Geninterp.Val.inject (Geninterp.val_tag (topwit Stdarg.wit_unit)) ()))
   in
@@ -1947,7 +1916,6 @@ let () =
   Genprint.register_noval_print0 wit_ltac2_var_quotation pr_raw pr_glb
 
 let () =
-  BROKEN?
   let subs ntnvars globs (ids, tac as orig) =
     if Id.Set.is_empty ids then
       (* closed tactic *)
@@ -1964,6 +1932,7 @@ let () =
           Id.Set.union used_ntnvars used, (Name id, c) :: accu
       in
       let used, bnd = Id.Set.fold fold ids (Id.Set.empty, []) in
+      let bnd = List.map (fun (n,e) -> (n,e,None)) bnd in (* TODO: are types available? *)
       let tac = if List.is_empty bnd then tac else GTacLet (false, bnd, tac) in
       (used, tac)
   in

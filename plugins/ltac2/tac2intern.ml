@@ -130,7 +130,7 @@ type not_value_reason =
 
 let rec check_value = function
 | GTacAtm (AtmInt _) | GTacVar _ | GTacPrm _ -> None
-| GTacFun (bnd,_) -> assert (not (CList.is_empty bnd)); None
+| GTacFun (bnd,_,_) -> assert (not (CList.is_empty bnd)); None
 | GTacAtm (AtmStr _) -> Some MutString
 | GTacApp _ -> Some Application
 | GTacRef kn ->
@@ -144,11 +144,11 @@ let rec check_value = function
   else Some (MutCtor kn)
 | GTacLet (_, bnd, e) ->
   (* in the recursive case the bnd are guaranteed to be values but it doesn't hurt to check *)
-  List.find_map (fun (_, e) -> check_value e) ((Anonymous,e)::bnd)
+  List.find_map (fun (_, e, _) -> check_value e) ((Anonymous,e,None)::bnd)
 | GTacPrj (kn,e,i) -> if is_pure_field kn i then check_value e
   else Some (MutProj kn)
 | GTacCse _ | GTacSet _ | GTacExt _
-| GTacWth _ | GTacFullMatch _ -> Some MaybeValButNotSupported
+| GTacWth _ | GTacFullMatch _ | GTacAls _ -> Some MaybeValButNotSupported
 
 let is_rec_rhs = function
 | GTacFun _ -> true
@@ -1209,10 +1209,12 @@ let rec intern_rec env tycon {loc;v=e} =
       env, tycon) (env,tycon) nas tl
   in
   let (e, t) = intern_rec env tycon (exp e) in
+(*
   let () =
     (* TODO better loc? *)
     check_unused_variables ?loc env nas
   in
+*)
   let t = match tycon with
     | None -> List.fold_right (fun t accu -> GTypArrow (t, accu)) tl t
     | Some tycon -> tycon
@@ -1278,7 +1280,9 @@ let rec intern_rec env tycon {loc;v=e} =
   in
   let fname = Names.ModPath.to_string modpath ^ "." ^ sname in
   let body = expand_notation ?loc el kn in
-  let v = if CList.is_empty el then body else CAst.make ?loc @@ CTacLet(false, el, body) in
+(*  TODO *)
+(*  let v = if CList.is_empty el then body else CAst.make ?loc @@ CTacLet(false, el, body) in *)
+  let v = body in
   let ex = intern_rec env tycon v in
   (match ex with
   | (GTacLet (_,_,(GTacApp _)) as ex2), g
@@ -1415,18 +1419,22 @@ let rec intern_rec env tycon {loc;v=e} =
       let () = unify ?loc env ty tycon in
       tycon
   in
-  let args = List.map (fun (na, arg, ty) ->
-      let ty = Option.map (subst_type tysubst) ty in
+  let args = List.map (fun (na, arg, ty0) ->
+      let ty = Option.map (subst_type tysubst) ty0 in
       let () = match na.CAst.v, ty with
         | Anonymous, None | Name _, Some _ -> ()
         | Anonymous, Some _ | Name _, None -> assert false
       in
       let e, _ = intern_rec env ty arg in
-      na.CAst.v, e)
+      na.CAst.v, e, None)  (* TODO: WRONG? *)
       args
   in
   if CList.is_empty args then body, ty
-  else GTacLet (false, args, body), ty
+  else begin
+    (* FIX *)
+(*    let args = List.map (fun (n,e) -> (n.t,e,None)) args in *)
+    GTacLet (false, args, body), ty
+  end
 
 and intern_rec_with_constraint env e exp =
   let (er, t) = intern_rec env (Some exp) e in
@@ -1451,7 +1459,7 @@ and intern_let env loc ids el tycon e =
   let (e, elp) = List.fold_left_map fold e el in
   let env = List.fold_left (fun accu (na, _, t, _) -> push_name na t accu) env elp in
   let (e, t) = intern_rec env tycon e in
-  let () = check_unused_variables ?loc env (List.map pi1 elp) in
+  let () = check_unused_variables ?loc env (List.map (fun (a,_,_,_) -> a) elp) in
   let el = List.map (fun (na, e, _, wt) -> na, e, wt) elp in
   (GTacLet (false, el, e), t)
 
@@ -1518,7 +1526,7 @@ and intern_let_rec env loc el tycon e =
   let (e, t) = intern_rec env tycon e in
   let () =
     (* TODO better loc? *)
-    check_unused_variables ?loc env (List.map fst el)
+    check_unused_variables ?loc env (List.map (fun (a,_,_) -> a) el)
   in
   (GTacLet (true, el, e), t)
 

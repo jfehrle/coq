@@ -234,7 +234,7 @@ let update_bpt fname offset opt =
           (try
             let p = Loadpath.find_load_path (CUnix.physical_path_of_string dirname) in
             DirPath.repr (Loadpath.logical p)
-          with _ -> []))
+          with exn when CErrors.noncritical exn -> []))
     end
   in
   let dirpath = DirPath.to_string dp in
@@ -493,9 +493,10 @@ let get_vars framenum =
 
 let fmt_goal gl =
   let env = Proofview.Goal.env gl in
+  let sigma = Tacmach.project gl in
   let concl = Proofview.Goal.concl gl in
-  let penv = Termops.Internal.print_named_context env in
-  let pc = Printer.pr_econstr_env env (Tacmach.project gl) concl in
+  let penv = Termops.Internal.print_named_context env sigma in
+  let pc = Printer.pr_econstr_env env sigma concl in
     str"  " ++ hv 0 (penv ++ fnl () ++
                    str "============================" ++ fnl ()  ++
                    str" "  ++ pc) ++ fnl () ++ fnl ()
