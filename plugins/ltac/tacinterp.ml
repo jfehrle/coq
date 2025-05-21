@@ -1113,7 +1113,8 @@ let rec val_interp ist ?(appl=UnnamedAppl) (tac:glob_tactic_expr) : Val.t Ftacti
 
 and eval_tactic_ist ?(db=false) ist tac : unit Proofview.tactic =
   let (loc, tac2) = CAst.(tac.loc, tac.v) in
-  let eval = match tac2 with
+  Control.check_for_interrupt ();
+  match tac2 with
   | TacAtom t ->
       let call = LtacAtomCall t in
       let trace = push_trace(loc,call) ist in
@@ -1237,14 +1238,6 @@ and eval_tactic_ist ?(db=false) ist tac : unit Proofview.tactic =
         Proofview.Trace.name_tactic name (catch_error_tac_loc loc trace (tac args ist))
       in
       Ftactic.run args tac
-  in
-  Control.check_for_interrupt ();
-  match curr_debug ist with
-  | DebugOn lev when db && (can_stop tac2) ->
-    let eval v = eval
-    in
-    Tactic_debug.debug_prompt lev tac eval ist.lfun (TacStore.get ist.extra f_trace)
-  | _ -> eval
 
 and force_vrec ist v : Val.t Ftactic.t =
   match to_tacvalue v with

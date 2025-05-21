@@ -667,6 +667,7 @@ indication that this has happened.
 .. unfortunately not working:
    Note: This `Wiki page <https://github.com/coq/coq/wiki/Configuration-of-CoqIDE#the-alternative-set-of-bindings>`_
    describes a way to change RocqIDE key bindings.
+
 **Ltac2 Specifics**
 
 Stepping through an Ltac2 expression stops at each tactic/function call
