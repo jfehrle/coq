@@ -11,6 +11,8 @@
 type 'a cmp = 'a -> 'a -> int
 type 'a eq = 'a -> 'a -> bool
 
+val test : bool
+
 include module type of List
 
 (** {6 Equality, testing} *)

@@ -235,7 +235,7 @@ let add_rewrite_hints kn c ref =
     begin match kind c with
     | Ind ((i,_),u) ->
       begin match Names.MutInd.to_string i with
-        | "Coq.Init.Logic.eq" ->
+        | "Corelib.Init.Logic.eq" ->
           let qid = Libnames.qualid_of_string (KerName.to_string kn) in
 (*          Printf.eprintf "Sizes lhs = %d rhs = %d\n\n%!" (get_len l.(1)) (get_len l.(2)); *)
 (*          (try *)
@@ -249,21 +249,23 @@ let add_rewrite_hints kn c ref =
           add_hint (!fwd_do_rewrite qid (get_pri diff) rtol ) ref;
           (* todo: don't add symmetric rules such as add_comm twice *)
           add_hint (!fwd_do_rewrite qid (get_pri (- diff)) (not rtol)) ref
+(*          DUPLICATES FOR PERF MEASUREMENT: *)
+(*          ; add_hint (!fwd_do_rewrite qid (get_pri diff) rtol ) ref; *)
+(*          add_hint (!fwd_do_rewrite qid (get_pri (- diff)) (not rtol)) ref *)
 
-        | "Coq.Init.Logic.iff" -> () (* todo *)
+        | "Corelib.Init.Logic.iff" -> () (* todo *)
         | _ -> ()
       end;
     | _ -> ()
     end
   | _ -> ()
 
-let test = (try let _ = Sys.getenv("TEST") in true with _ -> false)
-
 let () = Declare.set_reg_callback (fun (kn:KerName.t) (kind:Decls.logical_kind) (is_new:bool) ->
     let verbose = false in
-    if test then try begin
-      if verbose then Printf.eprintf "reg_callback %s\n%!" (Names.KerName.to_string kn);
-      Printexc.record_backtrace true;
+    if CList.test then try begin
+(*      if verbose then Printf.eprintf "reg_callback %s\n%!" (Names.KerName.to_string kn); *)
+      begin try ignore @@ Hints.searchtable_map "AUTO" with Not_found ->
+        Hints.create_hint_db false "AUTO" TransparentState.empty true end;
       let cst = Global.constant_of_delta_kn kn in
       let ref = GlobRef.ConstRef cst in
       let (typ, _) = Typeops.type_of_global_in_context (Global.env ()) ref in
@@ -281,7 +283,7 @@ let () = Declare.set_reg_callback (fun (kn:KerName.t) (kind:Decls.logical_kind) 
 (*        Printf.eprintf "%s %s\n%!" (Decls.tk_to_string tk) *)
 (*          (Pp.string_of_ppcmds (Printer.pr_global ref)); *)
         (* note you can pass multiple theorems with HintsResolveEntry *)
-        if test && is_new then pr_constr typ;
+(*        if CList.test && is_new then pr_constr typ; *)
         add_hint ((HintsResolveEntry [{ hint_priority = Some pri; hint_pattern = None }, true, ref])) ref;
       | Decls.IsDefinition df ->
 (*        Printf.eprintf "%s %s\n%!" (Decls.df_to_string df) *)

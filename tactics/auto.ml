@@ -24,9 +24,6 @@ open Hints
 (*          tactics with a trace mechanism for automatic search           *)
 (**************************************************************************)
 
-let test = (try let _ = Sys.getenv("TEST") in true with _ -> false)
-let _ = test
-
 let fwd_intern_foreach = ref ((fun x -> failwith "fwd_intern_foreach") :
     Hints.foreach_info -> (Id.t * Id.t) list -> Id.t list ->
     Gentactic.glob_generic_tactic)
@@ -181,6 +178,7 @@ type stats = { tries: int; successes: int; dups: int}
 (* success = non-duplicate successes *)
 
 let init_stats = {tries=0; successes=0; dups=0}
+let try_time = ref 0.
 
 let auto_stats = ref init_stats
 
@@ -194,6 +192,12 @@ let get_counts tacstr =
 (* exception when the proof state has already been seen in the "auto" search *)
 exception DuplicateProofState
 
+let get_time () =
+  let open Unix in
+(* gettimeofday() *)
+  let t = times () in
+  t.tms_utime +. t.tms_stime
+
 (** A tracing tactic for debug/info trivial/auto *)
 let tclLOG (dbg,pr,depth,trace) pp tac =
   (* todo: need to check hashcode for non-info cases *)
@@ -204,14 +208,14 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
     in
     if (List.length goals) = 0 then begin
       let _ = pp in
-(*      if test then Printf.eprintf "applied %s\n%!" (Pp.string_of_ppcmds pp); *)
+(*      if CList.test then Printf.eprintf "applied %s\n%!" (Pp.string_of_ppcmds pp); *)
       true, 0
     end else begin
       let key = List.fold_left (fun acc g -> (Proofview.Goal.hyps g, Proofview.Goal.concl g) :: acc) [] goals in
       let hash = Hashtbl.hash_param 256 256 key in
       let is_new = not (PSHash.mem pshash key) in
       if is_new then PSHash.replace pshash key ();
-(*      if test then Printf.eprintf "newhash %b %d %d %d %s\n%!" is_new hash !successes !dups (Pp.string_of_ppcmds pp); *)
+(*      if CList.test then Printf.eprintf "newhash %b %d %d %d %s\n%!" is_new hash !successes !dups (Pp.string_of_ppcmds pp); *)
       is_new, hash
     end
   in
@@ -238,13 +242,14 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
       let tacstr = Pp.string_of_ppcmds (pp env sigma) in
       auto_stats := { !auto_stats with tries=(!auto_stats.tries+1) };
       let counts = get_counts tacstr in
-      let saved_tries = counts.tries+1 in
+(*      let saved_tries = counts.tries+1 in *)
       hintCounts := HintCounts.add tacstr { counts with tries = counts.tries+1} !hintCounts;
       (* For "info (trivial/auto)", we store a log trace *)
       let from_gls = ref [] in
       let goals_to_ints gls =
         List.map (fun gl -> Evar.repr (Proofview.Goal.goal gl)) gls
       in
+      let start = get_time () in
       Proofview.(tclIFCATCH (
           Proofview.Goal.goals >>=
           fun gl -> Monad.List.map (fun x -> x) gl >>= fun goals ->
@@ -252,13 +257,13 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
             let (_,hashbefore) = newhash goals pp in
             *)
             from_gls := goals_to_ints goals;
-            begin try
-              let _ = Str.search_forward (Str.regexp "simple apply plus_Sn_m") tacstr 0 in
-              let concl = Proofview.Goal.concl (List.hd goals) in
-              let pc = Printer.pr_econstr_env env sigma concl in
-              Feedback.msg_notice (int saved_tries ++ spc () ++ str tacstr ++ fnl () ++ str "goal is " ++ pc)
-            with Not_found -> ();
-            end;
+(*            begin try *)
+(*              let _ = Str.search_forward (Str.regexp "simple apply plus_Sn_m") tacstr 0 in *)
+(*              let concl = Proofview.Goal.concl (List.hd goals) in *)
+(*              let pc = Printer.pr_econstr_env env sigma concl in *)
+(*              Feedback.msg_notice (int saved_tries ++ spc () ++ str tacstr ++ fnl () ++ str "goal is " ++ pc) *)
+(*            with Not_found -> (); *)
+(*            end; *)
           tac >>= fun v ->
           Proofview.Goal.goals >>=
           fun gl ->
@@ -267,31 +272,33 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
             let is_new = ref false in
             let hash = ref 0 in
             Monad.List.map (fun x -> x) gl >>= fun goals ->
-            if !fst then begin
-              fst := false;
-              let (n,h) = newhash goals pp in
-              is_new := n;
-              hash := h
-            end;
-            let pp env sigma =
-              pp env sigma ++ Pp.spc () (* ++ Pp.int !hash *)
-            in
-            if !is_new then begin
-              auto_stats := { !auto_stats with successes=(!auto_stats.successes+1) };
-              let counts = get_counts tacstr in
-              hintCounts := HintCounts.add tacstr { counts with successes = counts.successes+1} !hintCounts;
-              trace := (depth, Some pp, !from_gls, goals_to_ints goals) :: !trace;
-              tclUNIT v
-            end else begin
-(*              if test then Printf.eprintf "DuplicateProofState\n%!"; *)
-              auto_stats := { !auto_stats with dups=(!auto_stats.dups+1) };
-              let counts = get_counts tacstr in
-              hintCounts := HintCounts.add tacstr { counts with dups = counts.dups+1} !hintCounts;
-              tclZERO DuplicateProofState
-            end
-        ) Proofview.tclUNIT
-         (fun (exn, info) ->
-             tclZERO ~info exn))
+              if !fst then begin
+                fst := false;
+                let (n,h) = newhash goals pp in
+                is_new := n;
+                hash := h
+              end;
+              let pp env sigma =
+                pp env sigma ++ Pp.spc () (* ++ Pp.int !hash *)
+              in
+              if !is_new then begin
+                auto_stats := { !auto_stats with successes=(!auto_stats.successes+1) };
+                let counts = get_counts tacstr in
+                hintCounts := HintCounts.add tacstr { counts with successes = counts.successes+1} !hintCounts;
+                trace := (depth, Some pp, !from_gls, goals_to_ints goals) :: !trace;
+                tclUNIT v
+              end else begin
+  (*              if CList.test then Printf.eprintf "DuplicateProofState\n%!"; *)
+                auto_stats := { !auto_stats with dups=(!auto_stats.dups+1) };
+                let counts = get_counts tacstr in
+                hintCounts := HintCounts.add tacstr { counts with dups = counts.dups+1} !hintCounts;
+                tclZERO DuplicateProofState
+              end
+      ) Proofview.tclUNIT
+        (fun (exn, info) ->
+          let stop = get_time () in
+          try_time := !try_time +. (stop -. start); (* system time? *)
+          tclZERO ~info exn))
 
 let format_trace ?(indent=0) ?(bullets=[]) env sigma trace =
   (* A goal may appear in from_gls for multiple trace entries.
@@ -588,7 +595,7 @@ let search d n db_list lems =
         let hyps = Proofview.Goal.hyps gl in
         let v_val = var_values gl in
 (*
-        if test then begin
+        if CList.test then begin
           let open Context in
             List.iter (fun hyp ->
             match hyp with
@@ -641,6 +648,7 @@ let gen_auto ?(debug=Off) n lems dbnames =
   PSHash.reset pshash;
   hintCounts := HintCounts.empty;
   auto_stats := init_stats;
+  try_time := 0.;
   Hints.wrap_hint_warning @@
     Proofview.Goal.enter begin fun gl ->
     let n = match n with None -> default_search_depth | Some n -> n in
@@ -654,6 +662,9 @@ let gen_auto ?(debug=Off) n lems dbnames =
     let stats = delay (fun () -> if debug = Info then
       Feedback.msg_notice (str (Printf.sprintf "%d tries %d successes %d duplicates"
         !auto_stats.tries !auto_stats.successes !auto_stats.dups));
+(*      let fails = !auto_stats.tries - (!auto_stats.successes + !auto_stats.dups) in *)
+(*      if CList.test then Printf.eprintf "avg fail time (elapsed) = %f\n%!" *)
+(*        (!try_time /. (Float.of_int fails)); *)
       HintCounts.iter (fun tac counts ->
           Feedback.msg_notice (Pp.str (Printf.sprintf "%5d  %5d  %5d  %s"
             counts.tries counts.successes counts.dups tac))) !hintCounts;

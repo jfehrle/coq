@@ -7,7 +7,7 @@ Ltac myauto :=
   else idtac "failure".
 (* Print HintDb AUTO. *)
 
-Create HintDb plus discriminated.
+(* Create HintDb plus discriminated. *)
 Hint Constants Opaque : AUTO.
 Hint Projections Opaque : AUTO.
 Hint Variables Opaque : AUTO.
@@ -260,5 +260,5 @@ Qed.
 
 (* mult_n_O: forall n : nat, 0 = n * 0 *)
 
-Require Import ZArith.
+(* Require Import ZArith. *)
 (* Search "_ * _". *)

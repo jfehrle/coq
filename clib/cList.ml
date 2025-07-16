@@ -11,6 +11,8 @@
 type 'a cmp = 'a -> 'a -> int
 type 'a eq = 'a -> 'a -> bool
 
+let test = (try let _ = Sys.getenv("TEST") in true with _ -> false)
+
 include List
 
 (** Tail-rec implementation of usual functions. This is a well-known trick used

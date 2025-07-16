@@ -1106,13 +1106,6 @@ let rec val_interp ist ?(appl=UnnamedAppl) (tac:glob_tactic_expr) : Val.t Ftacti
         Tactic_debug.debug_prompt lev tac eval ist.lfun (TacStore.get ist.extra f_trace)
   | _ -> value_interp ist >>= fun v -> return (name_vfun appl v)
 
-and newhash s goals =
-  let hash o = Hashtbl.hash_param 256 256 o in
-  let hash = List.fold_left
-          (fun acc g -> acc lxor (hash (Proofview.Goal.hyps g))
-                            lxor (hash (Proofview.Goal.concl g)))
-          0 goals in
-  Printf.eprintf "%s: #goals = %d hash = %d\n%!" s (List.length goals) hash
 
 and eval_tactic_ist ist tac : unit Proofview.tactic =
   let (loc, tac2) = CAst.(tac.loc, tac.v) in
@@ -1125,21 +1118,16 @@ and eval_tactic_ist ist tac : unit Proofview.tactic =
   | TacFun _ | TacLetIn _ | TacMatchGoal _ | TacMatch _ -> interp_tactic ist tac
   | TacId [] -> Proofview.tclLIFT (db_breakpoint (curr_debug ist) [])
   | TacId s ->
-      let str = ref ("zzz") in
       let msgnl =
         let open Ftactic in
         interp_message ist s >>= fun msg ->
-        str:= Pp.string_of_ppcmds msg;
         return (hov 0 msg , hov 0 msg)
       in
       let print (_,msgnl) = Proofview.(tclLIFT (NonLogical.print_info msgnl)) in
       let log (msg,_) = Proofview.Trace.log (fun () -> msg) in
       let break = Proofview.tclLIFT (db_breakpoint (curr_debug ist) s) in
       Ftactic.run msgnl begin fun msgnl ->
-        print msgnl <*> log msgnl <*> Proofview.Goal.goals >>=
-          fun gl -> Proofview.Monad.List.map (fun x -> x) gl >>= fun goals ->
-          newhash !str goals;
-        break
+        print msgnl <*> log msgnl <*> break
       end
   | TacFail (g,n,s) ->
       let msg = interp_message ist s in
@@ -2209,7 +2197,6 @@ let () =
       optread  = (fun () -> !log_trace);
       optwrite = (fun b -> log_trace := b) }
 
-(* let test = (try let _ = Sys.getenv("TEST") in true with _ -> false) *)
 let in_tac tac = Genarg.in_gen (rawwit Tacarg.wit_ltac) tac   (* from mlg *)
 
 (* used to pass values into Hints Extern "foreach" construct *)
@@ -2231,7 +2218,7 @@ begin try  (* todo: remove try *)
 
   ComHints.intern_hint_extern patcom raw vals
 
-with Nametab.GlobalizationError qid as e -> (* if test then *)
+with Nametab.GlobalizationError qid as e -> (* if CList.test then *)
   Printexc.print_backtrace stderr;
   Printf.eprintf "exception %s for %s\n%!" (Printexc.to_string e) (Libnames.string_of_qualid qid);
   failwith "intern_foreach exception"

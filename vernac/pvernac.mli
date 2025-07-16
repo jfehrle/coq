@@ -29,6 +29,7 @@ module Vernac_ :
     val main_entry : vernac_control option Entry.t
     val red_expr : raw_red_expr Entry.t
     val hint_info : hint_info_expr Entry.t
+    val get_generic_tactic : string -> Gentactic.raw_generic_tactic
   end
 
 (* To be removed when the parser is made functional wrt the tactic

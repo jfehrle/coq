@@ -23,6 +23,8 @@ open Locality
 open Attributes
 open Synterp
 
+module Proof_ = Proof
+
 module NamedDecl = Context.Named.Declaration
 
 (* Utility functions, at some point they should all disappear and
@@ -1796,8 +1798,8 @@ let vernac_set_end_tac pstate tac =
 (************)
 (* Commands *)
 
-let vernac_create_hintdb ~module_local id b =
-  Hints.create_hint_db module_local id TransparentState.full b
+let vernac_create_hintdb ~module_local dbname b =
+  Hints.create_hint_db module_local dbname TransparentState.full b
 
 let warn_implicit_core_hint_db =
   CWarnings.create ~name:"implicit-core-hint-db" ~category:Deprecation.Version.v8_10
@@ -2660,6 +2662,59 @@ let translate_vernac_synterp ?loc ~atts v = let open Vernactypes in match v with
   (* Extensions *)
   | EVernacExtend f -> f
 
+let stats_tac : Gentactic.glob_generic_tactic option ref = ref None
+
+let run_stats_tac proof (k,l) =  (* k is theorem_kind *)
+  if CList.test && !stats_tac = None then begin
+    let env = Global.env () in
+    let ltacvars = Names.Id.Set.empty in
+    let tacstr = try Sys.getenv("STATS_TAC")
+      with _ -> "timeout 100 progress info_auto 5 with nocore AUTO" in
+(*    let tacstr = "timeout 1 do 1000 do 10000 idtac" in *)
+    Printf.eprintf "tactic string = '%s'\n%!" tacstr;
+    (* todo: get_generic_tactic may raise exceptions (hide them??) *)
+    let tac = Pvernac.Vernac_.get_generic_tactic tacstr in
+    stats_tac := Some (Gentactic.intern ~ltacvars env tac);
+  end;
+  if CList.test then begin match !stats_tac with
+  | Some tacexp ->
+    let ((id,u),(bl,c)) = List.hd l in
+    let thm_id = id.v in
+    let mname = match c.loc with
+      | None -> "???"
+      | Some loc -> match loc.fname with
+        | InFile { dirpath; file } -> file; (* { dirpath : string option; file : string } *)
+        | ToplevelInput -> "Top"
+    in
+
+    let tac = Gentactic.interp tacexp in
+    let env = Global.env() in
+    let proof = Declare.Proof.get proof in
+    let open Proofview in
+    let status = ref "success" in
+    let tac2 = tclORELSE tac
+        (fun (e, info) ->  (* ? print exn to stderr?  Use CErrors.print e to get Pp.t *)
+            status := (match e with
+            | Tacticals.FailError (i,lzpp)
+              when Pp.string_of_ppcmds (Lazy.force lzpp) =
+                  "[Proofview.tclTIMEOUT] Tactic timeout!" -> "timeout"
+            | _ -> "failure");
+(*            Proofview.tclZERO ~info e) *)
+            Proofview.tclUNIT ())
+    in
+    let start = Auto.get_time () in
+    let _ = Proof_.run_tactic env tac2 proof in
+    let stop = Auto.get_time () in
+
+    let real = stop -. start in
+    let round f = (floor (f *. 1e3)) *. 1e-3 in
+    let stats = !Auto.auto_stats in
+    Printf.eprintf "%s,%s,%s,%1.3f,%d,%d,%d\n%!"
+      mname (Id.to_string thm_id) !status (round real)
+      stats.tries stats.successes stats.dups
+  | None -> ()
+  end
+
 let translate_pure_vernac ?loc ~atts v = let open Vernactypes in match v with
   | VernacAbortAll
   | VernacRestart
@@ -2702,7 +2757,10 @@ let translate_pure_vernac ?loc ~atts v = let open Vernactypes in match v with
        vernac_definition_interactive dkind lid bl typ)
 
   | VernacStartTheoremProof (k,l) ->
-    vtopenproof(fun () -> with_def_attributes ~atts vernac_start_proof k l)
+    vtopenproof(fun () ->
+        let proof = with_def_attributes ~atts vernac_start_proof k l in
+        run_stats_tac proof (k,l);
+        proof)
   | VernacExactProof c ->
     vtcloseproof (fun ~lemma ->
         unsupported_attributes atts;

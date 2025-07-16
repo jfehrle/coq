@@ -31,9 +31,6 @@ open Patternops
 open Tacred
 open Printer
 
-let test = (try let _ = Sys.getenv("TEST") in true with _ -> false)
-let _ = test
-
 module NamedDecl = Context.Named.Declaration
 
 (****************************************)
@@ -738,7 +735,7 @@ struct
     let se = find k db in
     let pat = lookup_tacs env sigma concl se in
     let rv = merge_entry secvars db [] pat in
-(*    if test then Printf.eprintf "# hints matched = %d\n%!" (List.length rv); *)
+(*    if CList.test then Printf.eprintf "# hints matched = %d\n%!" (List.length rv); *)
     rv
 
   (* [c] contains an existential *)
@@ -944,8 +941,8 @@ let make_apply_entry env sigma hnf info ?name (c, cty, ctx) =
       with Bound -> failwith "make_apply_entry" in
     let miss, hyps = Clenv.clenv_missing ce in
     let nmiss = List.length miss in
-(*    if test && (hyps + nmiss > 0) then Printf.eprintf "hyps = %d nmiss = %d\n%!" hyps nmiss; *)
-(*    if test && nmiss > 0 then begin *)
+(*    if CList.test && (hyps + nmiss > 0) then Printf.eprintf "hyps = %d nmiss = %d\n%!" hyps nmiss; *)
+(*    if CList.test && nmiss > 0 then begin *)
 (*      List.iter (fun i -> Printf.eprintf "  %s" (Pp.string_of_ppcmds (Names.Name.print i))) miss; *)
 (*      Printf.eprintf "\n%!"; *)
 (*    end; *)
@@ -996,7 +993,7 @@ let make_resolves env sigma (eapply, hnf) info ~check cr =
                              [make_exact_entry env sigma info ?name;
                               make_apply_entry env sigma hnf info ?name] (* generates both in some cases *)
   in
-(*  if test && (List.length ents > 1) then Printf.eprintf "# ents = %d\n" (List.length ents);                              *)
+(*  if CList.test && (List.length ents > 1) then Printf.eprintf "# ents = %d\n" (List.length ents);                              *)
   if check && List.is_empty ents then
     user_err
       (pr_leconstr_env env sigma c ++ spc() ++

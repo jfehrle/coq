@@ -11,9 +11,6 @@
 open Util
 open Names
 
-let test = (try let _ = Sys.getenv("TEST") in true with _ -> false)
-let _ = test
-
 (** (Partial) implementation of the [Hint] command; some more
    functionality still lives in tactics/hints.ml *)
 
@@ -89,7 +86,7 @@ let intern_hint_extern patcom tacexp vars =
   let ltacvars = match pat with None -> Id.Set.empty | Some (l, _) -> l in
   let ltacvars = Id.Set.union ltacvars (Id.Set.of_list vars) in
 (*
-  if test then begin
+  if CList.test then begin
     Printf.eprintf "# ltacvars = %d: " (Id.Set.cardinal ltacvars);
     List.iter (fun el -> Printf.eprintf "%s " (Names.Id.to_string el))
       (Id.Set.elements ltacvars);

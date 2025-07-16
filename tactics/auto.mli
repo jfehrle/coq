@@ -60,3 +60,5 @@ val fwd_intern_foreach : (Hints.foreach_info -> (Id.t * Id.t) list -> Id.t list 
 type stats = { tries: int; successes: int; dups: int}
 
 val auto_stats : stats ref
+
+val get_time : unit -> float
