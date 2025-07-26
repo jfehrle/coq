@@ -87,21 +87,22 @@ let exact h =
 
 (* Util *)
 
-(* Serait-ce possible de compiler d'abord la tactique puis de faire la
-   substitution sans passer par bdize dont l'objectif est de préparer un
-   terme pour l'affichage ? (HH) *)
+(* Would it be possible to compile the tactic first and then perform the
+substitution without going through bdize, whose purpose is to prepare a
+term for display? (HH) *)
 
-(* Si on enlève le dernier argument (gl) conclPattern est calculé une
-fois pour toutes : en particulier si Pattern.somatch produit une UserError
-Ce qui fait que si la conclusion ne matche pas le pattern, Auto échoue, même
-si après Intros la conclusion matche le pattern.
+(* If we remove the last argument (gl), conclPattern is calculated once
+and for all: in particular, if Pattern.somatch produces a UserError
+This means that if the conclusion doesn't match the pattern, Auto fails, even
+if after Intros the conclusion matches the pattern.
 *)
 
-(* conclPattern doit échouer avec error car il est rattraper par tclFIRST *)
+(* conclPattern must fail with an error because it is caught by tclFIRST *)
 
-let conclPattern concl pat tac =
+let conclPattern concl pat ?(recc=false) tac =
   let constr_bindings env sigma =
     match pat with
+    | _ when recc -> Proofview.tclUNIT Id.Map.empty  (* bindings for rec patterns not implemented *)
     | None -> Proofview.tclUNIT Id.Map.empty
     | Some pat ->
         try
@@ -219,6 +220,7 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
       is_new, hash
     end
   in
+  let tacstr = ref "" in
   match dbg with
     | Off -> tac
     | Debug ->
@@ -239,11 +241,11 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
     | Info ->
       let env = Global.env () in
       let sigma = Evd.from_env env in
-      let tacstr = Pp.string_of_ppcmds (pp env sigma) in
+      tacstr := Pp.string_of_ppcmds (pp env sigma);
       auto_stats := { !auto_stats with tries=(!auto_stats.tries+1) };
-      let counts = get_counts tacstr in
+      let counts = get_counts !tacstr in
 (*      let saved_tries = counts.tries+1 in *)
-      hintCounts := HintCounts.add tacstr { counts with tries = counts.tries+1} !hintCounts;
+      hintCounts := HintCounts.add !tacstr { counts with tries = counts.tries+1} !hintCounts;
       (* For "info (trivial/auto)", we store a log trace *)
       let from_gls = ref [] in
       let goals_to_ints gls =
@@ -283,20 +285,24 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
               in
               if !is_new then begin
                 auto_stats := { !auto_stats with successes=(!auto_stats.successes+1) };
-                let counts = get_counts tacstr in
-                hintCounts := HintCounts.add tacstr { counts with successes = counts.successes+1} !hintCounts;
+                let counts = get_counts !tacstr in
+                hintCounts := HintCounts.add !tacstr { counts with successes = counts.successes+1} !hintCounts;
                 trace := (depth, Some pp, !from_gls, goals_to_ints goals) :: !trace;
                 tclUNIT v
               end else begin
   (*              if CList.test then Printf.eprintf "DuplicateProofState\n%!"; *)
                 auto_stats := { !auto_stats with dups=(!auto_stats.dups+1) };
-                let counts = get_counts tacstr in
-                hintCounts := HintCounts.add tacstr { counts with dups = counts.dups+1} !hintCounts;
+                let counts = get_counts !tacstr in
+                hintCounts := HintCounts.add !tacstr { counts with dups = counts.dups+1} !hintCounts;
                 tclZERO DuplicateProofState
               end
       ) Proofview.tclUNIT
         (fun (exn, info) ->
           let stop = get_time () in
+          begin match exn with
+          | DuplicateProofState -> ()
+          | _ -> (* Printf.eprintf "exception in '%s': %s\n%!" !tacstr (Pp.string_of_ppcmds (CErrors.print exn)); *) ()
+          end;
           try_time := !try_time +. (stop -. start); (* system time? *)
           tclZERO ~info exn))
 
@@ -478,7 +484,7 @@ and tac_of_hint dbg db_list local_db concl v_val h =
          let info = Exninfo.reify () in
          Tacticals.tclFAIL ~info (str"Unbound reference")
        end
-    | Extern (p, tacast, bnds, saved) ->
+    | Extern (p, tacast, bnds, recc, saved) ->
       (* Cartesian product *)
       let cprod v_vals =
         let rec aux v_vals rv =
@@ -504,20 +510,21 @@ and tac_of_hint dbg db_list local_db concl v_val h =
       in
 
       if bnds <> [] && v_val <> [] then begin
-        (* todo: generated values should depend on HYP, IND, etc. *)
-        let v_vals = List.init (List.length bnds) (fun _ -> v_val) in
+        let v_vals = List.map (fun (bv, bt) ->
+          List.map (fun (v,vartype) -> v)
+            (List.filter (fun (v,vt) -> vt = (Id.to_string bt)) v_val)) bnds in
         if false then pr_lofl (cprod v_vals);
         List.map (fun vals ->
-            let t' = conclPattern concl p
+            let t' = conclPattern concl p ~recc
                                  (!fwd_intern_foreach saved bnds vals) in
             tclLOG dbg (pr_hint ~vals h) (FullHint.run h (fun _ -> t'))
           ) (cprod v_vals)
         |> Tacticals.tclFIRST
       end else
-        conclPattern concl p tacast
+        conclPattern concl p ~recc tacast
   in
   match FullHint.repr h with
-  | Extern (_,_, (_ :: _) (* bnds *),_) when v_val <> [] -> FullHint.run h tactic
+  | Extern (_,_, (_ :: _) (* bnds *),_,_) when v_val <> [] -> FullHint.run h tactic
   | _ -> tclLOG dbg (pr_hint h) (FullHint.run h tactic)
 
 (** The use of the "core" database can be de-activated by passing
@@ -547,26 +554,15 @@ exception SearchBound
 (* todo: return different values depending on HYP, IND, ... *)
 
 let var_values gl =
-  let env = Proofview.Goal.env gl in
   let sigma = Proofview.Goal.sigma gl in
-(*  let concl = Proofview.Goal.concl gl in *)
   let hyps = Proofview.Goal.hyps gl in
 
   let open Context in
-  let is_prop env sigma term =
-    let sort = Retyping.get_sort_of env sigma term in
-    EConstr.ESorts.is_prop sigma sort
-  in
   let hnames = List.concat (List.map (fun i ->
       match i with
       | Named.Declaration.LocalAssum ({binder_name=id}, typ) ->
-        (* todo: want to get only Props, not Sets *)
-        let a = Tacmach.pf_get_type_of gl typ in
-        let _ = Tacmach.pf_get_type_of gl a in
-        let _ = is_prop env sigma typ in
-        let _ : EConstr.types = typ in
-        let _ : Evd.econstr = typ in
-        [id]
+        let vartype = if EConstr.isInd sigma typ then "IND" else "HYP" in
+        [id, vartype]
       | Named.Declaration.LocalDef ({binder_name=id}, value, typ) -> []) (* Probably a set *)
     hyps)
   in
@@ -660,14 +656,17 @@ let gen_auto ?(debug=Off) n lems dbnames =
     let d = mk_auto_dbg debug in
     let delay f = Proofview.tclUNIT () >>= fun () -> f () in
     let stats = delay (fun () -> if debug = Info then
-      Feedback.msg_notice (str (Printf.sprintf "%d tries %d successes %d duplicates"
-        !auto_stats.tries !auto_stats.successes !auto_stats.dups));
+      Feedback.msg_notice (str (Printf.sprintf "%d tries %d successes %d duplicates %d fails"
+        !auto_stats.tries !auto_stats.successes !auto_stats.dups
+        (!auto_stats.tries - !auto_stats.successes - !auto_stats.dups)));
 (*      let fails = !auto_stats.tries - (!auto_stats.successes + !auto_stats.dups) in *)
 (*      if CList.test then Printf.eprintf "avg fail time (elapsed) = %f\n%!" *)
 (*        (!try_time /. (Float.of_int fails)); *)
       HintCounts.iter (fun tac counts ->
-          Feedback.msg_notice (Pp.str (Printf.sprintf "%5d  %5d  %5d  %s"
-            counts.tries counts.successes counts.dups tac))) !hintCounts;
+          Feedback.msg_notice (Pp.str (Printf.sprintf "%5d %5d %5d %5d  %s"
+            counts.tries counts.successes counts.dups
+            (counts.tries - counts.successes - counts.dups)
+            tac))) !hintCounts;
       Proofview.tclUNIT ()) in
     Tacticals.tclTHEN
       (tclTRY_dbg d (search d n db_list lems))

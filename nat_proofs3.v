@@ -1,16 +1,11 @@
 (* todo: use Ltac2, pass in a parameter *)
 Ltac myauto :=
   tryif
-  timeout 100
-    progress info_auto 5 with nocore AUTO
+  timeout 20
+     progress info_auto 5 with nocore AUTO
   then idtac "success: "
   else idtac "failure".
 (* Print HintDb AUTO. *)
-
-(* Create HintDb plus discriminated. *)
-Hint Constants Opaque : AUTO.
-Hint Projections Opaque : AUTO.
-Hint Variables Opaque : AUTO.
 
 Hint Extern 250 => foreach IND: induction IND : AUTO.
 Hint Extern 1 => progress simpl : AUTO.

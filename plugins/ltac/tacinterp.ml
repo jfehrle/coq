@@ -2227,7 +2227,7 @@ end
 let _ = Auto.fwd_intern_foreach := intern_foreach
 
 (* generate "Hint Extern pri => rewrite qid" hint entry *)
-let do_rewrite qid pri rtol =
+let do_rewrite qid pri rtol pat =
   let c = CAst.make @@ CRef (qid, None) in
   let evars = false in
   let tac =
@@ -2235,6 +2235,7 @@ let do_rewrite qid pri rtol =
     {onhyps=Some []; concl_occs=AllOccurrences},None)) in
   let raw = Gentactic.of_raw_genarg (in_tac tac) in
   let glob : Gentactic.glob_generic_tactic = ComHints.intern_hint_extern None raw [] in
-  Hints.HintsExternEntry ({ hint_priority = Some pri; hint_pattern = None }, glob, [], (None, raw, []))
+  let pat, recc = try let _ = Sys.getenv("NO_RPATS") in None, false with _ -> pat, true in
+  Hints.HintsExternEntry ({ hint_priority = Some pri; hint_pattern = pat }, glob, [], recc, (None, raw, []))
 
 let _ = ComSearch.fwd_do_rewrite := do_rewrite

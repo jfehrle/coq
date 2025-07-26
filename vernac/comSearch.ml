@@ -166,32 +166,39 @@ let rec get_head c =
     get_head c
   | _ -> c
 
+let pr_constr_line ?(indent=0) c =
+  if indent >= 0 then begin
+    let open Constr in
+    let s = match kind c with
+    | Rel i -> "Rel " ^ (string_of_int i)
+    | Var _ -> "Var"
+    | Meta n -> "Meta " ^ (string_of_int n)
+    | Evar _ -> "Evar"
+    | Sort _ -> "Sort"
+    | Cast _ -> "Cast"
+    | Prod (na,t,c) -> "Prod " ^ (Pp.string_of_ppcmds (Name.print na.binder_name))
+    | Lambda (na, t, c) -> "Lambda " ^ (Pp.string_of_ppcmds (Name.print na.binder_name))
+    | LetIn (na,b,t,c) -> "LetIn " ^ (Pp.string_of_ppcmds (Name.print na.binder_name))
+    | App _ -> "App"
+    | Const (c,u) -> "Const " ^ (Names.Constant.to_string c)
+    | Ind ((i,_),u) -> "Ind " ^ (Names.MutInd.to_string i)
+    | Construct (((c,i),_),u) -> Printf.sprintf "Construct %s %d" (Names.MutInd.to_string c) i
+    | Case _ -> "Case"
+    | Fix _ -> "Fix"
+    | CoFix _ -> "CoFix"
+    | Proj _ -> "Proj"
+    | Int _ -> "Int"
+    | Float _ -> "Float"
+    | String _ -> "String"
+    | Array _ -> "Array"
+    in
+    Printf.eprintf "%s%s\n%!" (String.make indent ' ') s
+  end
+
+(* todo: consolidate with Hints.pr_constr *)
 let rec pr_constr ?(indent=0) c =
   let open Constr in
-  let s = match kind c with
-  | Rel i -> "Rel " ^ (string_of_int i)
-  | Var _ -> "Var"
-  | Meta _ -> "Meta"
-  | Evar _ -> "Evar"
-  | Sort _ -> "Sort"
-  | Cast _ -> "Cast"
-  | Prod (na,t,c) -> "Prod " ^ (Pp.string_of_ppcmds (Name.print na.binder_name))
-  | Lambda _ -> "Lambda"
-  | LetIn _ -> "LetIn"
-  | App _ -> "App"
-  | Const (c,u) -> "Const " ^ (Names.Constant.to_string c)
-  | Ind ((i,_),u) -> "Ind " ^ (Names.MutInd.to_string i)
-  | Construct (((c,i),_),u) -> Printf.sprintf "Construct %s %d" (Names.MutInd.to_string c) i
-  | Case _ -> "Case"
-  | Fix _ -> "Fix"
-  | CoFix _ -> "CoFix"
-  | Proj _ -> "Proj"
-  | Int _ -> "Int"
-  | Float _ -> "Float"
-  | String _ -> "String"
-  | Array _ -> "Array"
-  in
-  Printf.eprintf "%s%s\n%!" (String.make indent ' ') s;
+  pr_constr_line ~indent c;
   let indent = indent + 2 in
   match kind c with
   | Prod (na,t,c) ->
@@ -203,17 +210,49 @@ let rec pr_constr ?(indent=0) c =
   | Lambda (na,t,c) ->
     pr_constr ~indent t;
     pr_constr ~indent c;
+  | Case (ci,u,params,p,iv,c,brs) ->
+(*
+    | Case      of case_info * 'univs * 'constr array * ('types,'r) pcase_return * 'constr pcase_invert * 'constr * ('constr,'r) pcase_branch array
+type ('constr,'r) pcase_branch = (Name.t,'r) Context.pbinder_annot array * 'constr
+type ('a,'r) pbinder_annot = { binder_name : 'a; binder_relevance : 'r }
+*)
+    let open Context in
+    Array.iter (fun p -> pr_constr ~indent p) params;
+    (* todo: iv *)
+    let (pannota,_),_ = p in
+    Array.iter (fun pcr ->
+            Printf.eprintf "%s(pretn nb) %s\n%!" (String.make indent ' ')
+              (Pp.string_of_ppcmds (Name.print pcr.binder_name))) pannota;
+    Array.iter (fun (pannota,c) ->
+        Array.iter (fun nb ->
+            Printf.eprintf "%s(brs nb) %s\n%!" (String.make indent ' ')
+              (Pp.string_of_ppcmds (Name.print nb.binder_name))) pannota;
+        let indent = indent + 2 in
+        pr_constr ~indent c
+    ) brs;
+    pr_constr ~indent c;
   | _ -> ()
+
+(* todo: something more elegant *)
+let errors_regexp = Str.regexp (String.concat {|\||} [
+  "cannot be used as a hint.";
+  "Head pattern or sub-pattern must be a global constant"
+  ])
+
 
 let add_hint hint ref =
   let open Hints in
   try
     add_hints ~locality:SuperGlobal ["AUTO"] hint
-  with | e -> ()
-(*  Printf.eprintf "Can't add %s\n%!" (Pp.string_of_ppcmds (Printer.pr_global ref)) *)
+  with
+    | UserError pp when try let _ = Str.search_forward errors_regexp (Pp.string_of_ppcmds pp) 0 in true with Not_found -> false -> ()
+    | e -> Printf.eprintf "add_hint Error: for %s: %s\n"
+      (Pp.string_of_ppcmds (Printer.pr_global ref))
+      (Printexc.to_string e)
 
 let fwd_do_rewrite = ref ((fun x -> failwith "fwd_do_rewrite") :
-    Libnames.qualid -> int -> bool -> Hints.hints_entry)
+    Libnames.qualid -> int -> bool ->
+    (Names.Id.Set.t * Pattern.constr_pattern) option -> Hints.hints_entry)
 
 let rec hyps_len c =
   let open Constr in
@@ -227,13 +266,144 @@ let get_pri diff =
    else if diff = 0 then 150
    else 200) + diff
 
+let whitelist = ["mult_n_Sm";
+                "my_mult_n_Sm";
+                "my_add_cancel_r";
+                "my_dist_plus_mul";
+                "my_mul_comm";
+                "my_mult_Sn_m";
+                "my_plus_assoc";
+                "my_plus_comm";
+                "my_plus_n_O";
+                "my_plus_n_Sm";
+                "plus_O_n";
+                "plus_Sn_m";
+                "plus_n_O";
+                "plus_n_Sm";
+                "pred_Sn";
+                "rev3";
+                "rev4";
+                "rev5";
+                "rev6"]
+let _ = whitelist
+
+let rew_sig = ref false
+
+let replace_Rel c =
+(*  pr_constr c; *)
+(*  Printf.eprintf "replace_Rel, print while replacing:\n%!"; *)
+  let head = get_head c in
+  let metaMap = ref Int.Map.empty in
+  let rec upd before_head indent vars c =
+    let open Constr in
+    let before_head' = before_head && (c != head) in
+    if !rew_sig then pr_constr_line ~indent c;
+    let indent = if indent >= 0 then indent + 2 else indent in
+    let recur vars c = Constr.map (upd before_head' indent vars) c in
+    match kind c with
+    | Prod (na,_,_) when before_head ->
+      let vars = (match na.binder_name with
+          | Name id ->
+            let meta = Evarutil.new_meta () in
+            metaMap := Int.Map.add meta id !metaMap;
+            Some (mkMeta meta)
+          | Anonymous -> None) :: vars
+      in
+      (match kind (recur vars c) with
+      | Prod (_,_,c') -> c'
+      | _ -> assert false)
+    | Lambda _ | LetIn _ | Fix _ | CoFix _ ->
+      recur (None::vars) c
+    | Rel n ->
+      let len = List.length vars in
+      if n > len then Printf.eprintf "Error: nth of %d, length = %d\n%!" n (List.length vars);
+      (match List.nth vars (n-1) with
+      | Some meta -> meta
+      | None -> c)
+    | Case (ci,u,pms,p,iv,b,bl) ->
+      let vars2 = ref vars in
+      let map_under_context f d =
+        let (nas, p) = d in
+        let rec newvars n vars = if n = 0 then vars else newvars (n-1) (None :: vars) in
+        vars2 := newvars (Array.length nas) vars;
+        let p' = (recur !vars2) p in
+        if p' == p then d else (nas, p')
+      in
+      let map_return_predicate f (p,r as v) =
+        begin
+          let (nas, _) = p in
+          let open Context in
+          if !rew_sig then Printf.eprintf "as <names>: %s\n%!" (String.concat " " (Array.to_list (Array.map (fun i -> Pp.string_of_ppcmds (Name.print i.binder_name)) nas)));
+        end;
+        let p' = map_under_context f p in
+        if p == p' then v else p', r
+      in
+      let map_branches f bl =
+        let bl' = Array.map (map_under_context f) bl in
+        if Array.for_all2 (==) bl' bl then bl else bl'
+      in
+      let f = recur vars in
+      let pms' = Array.Smart.map f pms in
+      let b' = f b in
+      let iv' = map_invert f iv in
+      let p' = map_return_predicate f p in
+      let bl' = map_branches (recur !vars2) bl in
+      if b'==b && iv'==iv && p'==p && bl'==bl && pms'==pms then c
+      else mkCase (ci, u, pms', p', iv', b', bl')
+    | _ -> recur vars c
+  in
+  let indent = if !rew_sig then 0 else -1 in
+  let c' = upd true indent [] c in
+  c', !metaMap
+
+let meta_regexp = Str.regexp {|META\([0-9]*\)|}
+
+let replace_PMeta p map =
+  let rec upd p =
+    let open Pattern in
+    match p with
+    | PMeta (Some id) ->
+      let s = Id.to_string id in
+      if Str.string_match meta_regexp s 0 then
+        let n = int_of_string (Str.matched_group 1 s) in
+        PMeta (Some (Int.Map.find n map))  (* Not_found? *)
+      else p
+    | _ -> Patternops.map upd p
+  in
+  upd p
+
+
+let get_info (c : EConstr.t) =
+  let env = Global.env() in
+  let sigma = Evd.from_env env in
+  let c, map = replace_Rel (EConstr.to_constr sigma c) in
+  if !rew_sig then Printf.eprintf "after replace:\n%!";
+  if !rew_sig then pr_constr c;
+  let c = EConstr.of_constr c in
+  let ids = List.fold_left (fun set (meta,id) -> Id.Set.add id set) Id.Set.empty (Int.Map.bindings map) in
+(*  let idlist = List.map (fun id -> Names.Id.to_string id) (Id.Set.elements ids) in *)
+(*  if CList.test then *)
+(*    Printf.eprintf "get_info ids: %s\n%!" (String.concat " " idlist); *)
+  let lhs, rhs = match EConstr.kind sigma c with
+  | App (c,l) -> l.(1), l.(2)
+  | _ -> assert false
+  in
+  ids, map, lhs, rhs
+
+let to_pat c ids map =
+  let env = Global.env() in
+  let sigma = Evd.from_env env in
+  let pat = Patternops.pattern_of_constr env sigma c in
+  let pat = replace_PMeta pat map in
+  Some (ids, pat)
+
 (* todo: also add for registered setoid equalities *)
-let add_rewrite_hints kn c ref =
+let add_rewrite_hints kn c0 ref =
   let open Constr in
-  match kind (get_head c) with
+  match kind (get_head c0) with
   | App (c,l) ->
     begin match kind c with
-    | Ind ((i,_),u) ->
+    | Ind ((i,_),_) ->
       begin match Names.MutInd.to_string i with
         | "Corelib.Init.Logic.eq" ->
           let qid = Libnames.qualid_of_string (KerName.to_string kn) in
@@ -245,10 +415,16 @@ let add_rewrite_hints kn c ref =
           let rtol = diff >= 0 in
 
           let cst = Global.constant_of_delta_kn kn in
-          let ref = GlobRef.ConstRef cst in
-          add_hint (!fwd_do_rewrite qid (get_pri diff) rtol ) ref;
+          let ref_ = GlobRef.ConstRef cst in
+          (* todo: for debugging UNBOUND_REL in rew_sig *)
+(*          rew_sig := (KerName.to_string kn) = "Corelib.Init.Specif.rew_sig"; *)
+          if !rew_sig then Printf.eprintf "kn = %s\n%!" (KerName.to_string kn);
+          let ids, map, lhs, rhs = get_info (EConstr.of_constr c0) in
+          let lpat = to_pat lhs ids map in
+          let rpat = to_pat rhs ids map in
+          add_hint (!fwd_do_rewrite qid (get_pri diff) rtol lpat) ref_;
           (* todo: don't add symmetric rules such as add_comm twice *)
-          add_hint (!fwd_do_rewrite qid (get_pri (- diff)) (not rtol)) ref
+          add_hint (!fwd_do_rewrite qid (get_pri (- diff)) (not rtol) rpat) ref
 (*          DUPLICATES FOR PERF MEASUREMENT: *)
 (*          ; add_hint (!fwd_do_rewrite qid (get_pri diff) rtol ) ref; *)
 (*          add_hint (!fwd_do_rewrite qid (get_pri (- diff)) (not rtol)) ref *)
@@ -270,7 +446,8 @@ let () = Declare.set_reg_callback (fun (kn:KerName.t) (kind:Decls.logical_kind) 
       let ref = GlobRef.ConstRef cst in
       let (typ, _) = Typeops.type_of_global_in_context (Global.env ()) ref in
       let hlen = hyps_len typ in
-      if hlen = 0 then
+(*      let label = Id.to_string (Label.to_id (KerName.label kn)) in *)
+      if hlen = 0 (* && List.mem label whitelist *) then
         add_rewrite_hints kn typ ref;
       let clen = get_len (get_head typ) in
       let pri = get_pri (hlen - clen) in

@@ -65,3 +65,5 @@ type 'a pat_interp_fun = Environ.env -> Evd.evar_map -> Ltac_pretype.ltac_var_ma
 val interp_pattern : uninstantiated_pattern pat_interp_fun
 
 val register_interp_pat : (_, 'g, _) Genarg.genarg_type -> 'g pat_interp_fun -> unit
+
+val map : (constr_pattern -> constr_pattern) -> constr_pattern -> constr_pattern

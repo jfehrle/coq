@@ -23,4 +23,5 @@ val interp_search_restriction : Libnames.qualid list search_restriction -> Libna
 val interp_search : Environ.env -> Evd.evar_map ->
   searchable -> Libnames.qualid list search_restriction -> unit
 
-val fwd_do_rewrite : (Libnames.qualid -> int -> bool -> Hints.hints_entry) ref
+val fwd_do_rewrite : (Libnames.qualid -> int -> bool ->
+  (Names.Id.Set.t * Pattern.constr_pattern) option -> Hints.hints_entry) ref

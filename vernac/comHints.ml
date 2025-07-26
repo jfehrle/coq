@@ -155,7 +155,7 @@ let interp_hints ~poly h =
           , gr ))
     in
     HintsResolveEntry (List.flatten (List.map constr_hints_of_ind lqid))
-  | HintsExtern (pri, patcom, tacexp, bnds) ->
+  | HintsExtern (pri, patcom, tacexp, bnds, recc) ->
     let saved = (patcom, tacexp, bnds) in
     let validate_bnds bnds =
       let valid_foreach = Id.Set.of_list (List.map (fun i -> Names.Id.of_string i) ["HYP"; "IND"]) in
@@ -179,4 +179,4 @@ let interp_hints ~poly h =
     let tacexp = intern_hint_extern patcom tacexp lhsvars in
     let bnds' = List.map (fun CAst.({v=l}, {v=r}) -> (l,r)) bnds in
     HintsExternEntry
-      ({Typeclasses.hint_priority = Some pri; hint_pattern = pat}, tacexp, bnds', saved)
+      ({Typeclasses.hint_priority = Some pri; hint_pattern = pat}, tacexp, bnds', recc, saved)

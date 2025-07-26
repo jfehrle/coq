@@ -31,6 +31,48 @@ open Patternops
 open Tacred
 open Printer
 
+
+let rec pr_constr ?(indent=0) c =
+  let open Constr in
+  let s = match kind c with
+  | Rel i -> "Rel " ^ (string_of_int i)
+  | Var _ -> "Var"
+  | Meta _ -> "Meta"
+  | Evar _ -> "Evar"
+  | Sort _ -> "Sort"
+  | Cast _ -> "Cast"
+  | Prod (na,t,c) -> "Prod " ^ (Pp.string_of_ppcmds (Name.print na.binder_name))
+  | Lambda _ -> "Lambda"
+  | LetIn _ -> "LetIn"
+  | App _ -> "App"
+  | Const (c,u) -> "Const " ^ (Names.Constant.to_string c)
+  | Ind ((i,_),u) -> "Ind " ^ (Names.MutInd.to_string i)
+  | Construct (((c,i),_),u) -> Printf.sprintf "Construct %s %d" (Names.MutInd.to_string c) i
+  | Case _ -> "Case"
+  | Fix _ -> "Fix"
+  | CoFix _ -> "CoFix"
+  | Proj _ -> "Proj"
+  | Int _ -> "Int"
+  | Float _ -> "Float"
+  | String _ -> "String"
+  | Array _ -> "Array"
+  in
+  Printf.eprintf "%s%s\n%!" (String.make indent ' ') s;
+  let indent = indent + 2 in
+  match kind c with
+  | Prod (na,t,c) ->
+    pr_constr ~indent t;
+    pr_constr ~indent c
+  | App (c,l) ->
+    pr_constr ~indent c;
+    Array.iter (fun i -> pr_constr ~indent i) l
+  | Lambda (na,t,c) ->
+    pr_constr ~indent t;
+    pr_constr ~indent c;
+  | _ -> ()
+
+let _ = pr_constr
+
 module NamedDecl = Context.Named.Declaration
 
 (****************************************)
@@ -110,8 +152,8 @@ type 'a hint_ast =
   | Res_pf_THEN_trivial_fail of 'a (* Hint Immediate *)
   | Unfold_nth of Evaluable.t (* Hint Unfold *)
   | Extern     of Pattern.constr_pattern option * Gentactic.glob_generic_tactic *
-    (Names.Id.t * Names.Id.t) list (* Hint Extern *)
-    * foreach_info
+    (Names.Id.t * Names.Id.t) list * (* Hint Extern *)
+    bool * foreach_info
 
 
 type 'a hints_path_atom_gen =
@@ -166,6 +208,8 @@ type ('a,'db) with_metadata =
   (** A number lower is higher priority *)
   ; pat     : hint_pattern option
   (** A pattern for the concl of the Goal *)
+  ; recc    : bool
+  (** true = use pattern recursively in the term *)
   ; name    : GlobRef.t option
   (** A potential name to refer to the hint *)
   ; db : 'db
@@ -256,19 +300,19 @@ let get_default_pattern (h : hint hint_ast) = match h with
   assert false
 
 (* Nov 98 -- Papageno *)
-(* Les Hints sont ré-organisés en plusieurs databases.
+(* Hints are reorganized into multiple databases.
 
-  La table impérative "searchtable", de type "hint_db_table",
-   associe une database (hint_db) à chaque nom.
+The imperative table "searchtable", of type "hint_db_table",
+associates a database (hint_db) with each name.
 
-  Une hint_db est une table d'association fonctionelle constr -> search_entry
-  Le constr correspond à la constante de tête de la conclusion.
+A hint_db is a functional association table constr -> search_entry
+The constr corresponds to the leading constant of the conclusion.
 
-  Une search_entry est un triplet comprenant :
-     - la liste des tactiques qui n'ont pas de pattern associé
-     - la liste des tactiques qui ont un pattern
-     - un discrimination net borné (Btermdn.t) constitué de tous les
-       patterns de la seconde liste de tactiques *)
+A search_entry is a triplet comprising:
+- the list of tactics that do not have an associated pattern
+- the list of tactics that have a pattern
+- a bounded net discrimination (Btermdn.t) consisting of all the
+  patterns in the second list of tactics *)
 
 type stored_data = int * full_hint
     (* First component is the index of insertion in the table, to keep most recent first semantics. *)
@@ -382,38 +426,80 @@ end
 type search_entry = {
   sentry_nopat : StoredData.t;
   sentry_pat : StoredData.t;
+  sentry_pat_rec : StoredData.t;
   sentry_bnet : Bounded_net.t;
+  sentry_bnet_rec : Bounded_net.t;
   sentry_mode : hint_mode array list;
 }
 
 let empty_se st = {
   sentry_nopat = StoredData.empty;
   sentry_pat = StoredData.empty;
+  sentry_pat_rec = StoredData.empty;
   sentry_bnet = Bounded_net.empty st;
+  sentry_bnet_rec = Bounded_net.empty st;
   sentry_mode = [];
 }
 
 let add_tac pat t se =
+  let v = snd t in
+  let uid = v.code.uid in
   match pat with
   | None ->
-    let uid = (snd t).code.uid in
     if StoredData.mem uid se.sentry_nopat then se
     else { se with sentry_nopat = StoredData.add t se.sentry_nopat }
   | Some pat ->
-    let uid = (snd t).code.uid in
-    if StoredData.mem uid se.sentry_pat then se
-    else { se with
-        sentry_pat = StoredData.add t se.sentry_pat;
-        sentry_bnet = Bounded_net.add se.sentry_bnet pat t; }
+    if v.recc then
+      if StoredData.mem uid se.sentry_pat_rec then se
+      else
+        { se with
+            sentry_pat_rec = StoredData.add t se.sentry_pat_rec;
+            sentry_bnet_rec = Bounded_net.add se.sentry_bnet_rec pat t; }
+    else
+      if StoredData.mem uid se.sentry_pat then se
+      else { se with
+          sentry_pat = StoredData.add t se.sentry_pat;
+          sentry_bnet = Bounded_net.add se.sentry_bnet pat t; }
 
 let rebuild_dn st se =
   let dn' = Bounded_net.build st (StoredData.elements se.sentry_pat) in
-  { se with sentry_bnet = dn' }
+  let dn_rec' = Bounded_net.build st (StoredData.elements se.sentry_pat_rec) in
+  { se with sentry_bnet = dn'; sentry_bnet_rec = dn_rec' }
 
-let lookup_tacs env sigma concl se =
-  let l' = Bounded_net.lookup env sigma se.sentry_bnet concl in  (* here *)
+module UidSet = Int.Set
+
+let forward_pr_hint : (?vals:Names.Id.t list ->
+                                ?forinfo:bool ->
+                                Environ.env -> Evd.evar_map -> hint hint_ast with_uid -> Pp.t) ref
+                     = ref (fun ?(vals=[]) ?(forinfo=false) env sigma h -> failwith "forward_pr_hint")
+
+let lookup_tacs env sigma concl se get_se =
+  let l' = Bounded_net.lookup env sigma se.sentry_bnet concl in
   let sl' = List.stable_sort pri_order_int l' in
-  merge_set (StoredData.elements se.sentry_nopat) sl'
+  let merged = merge_set (StoredData.elements se.sentry_nopat) sl' in
+  let rec do_match (rmatches, seen) c =
+    let l' = match kind sigma c with
+      (* todo: is only App sufficient? *)
+      | App _ ->
+        let hdc = try Some (decompose_app_bound sigma c) with Bound -> None in
+        begin match hdc with
+        | Some (globref, _) ->
+          let se = get_se globref in
+          let rv = Bounded_net.lookup env sigma se.sentry_bnet_rec c in
+(*          List.iter (fun (_,h) -> Printf.eprintf "DT matched %s\n%!" (Pp.string_of_ppcmds (!forward_pr_hint env sigma h.code))) rv; *)
+          rv
+        | None -> []
+        end
+      | _ -> []
+    in
+    let l' = List.filter (fun (uid, _) -> try not (UidSet.mem uid seen) with Not_found -> true) l' in
+    let seen = UidSet.union seen (UidSet.of_list (List.map (fun (uid, _) -> uid) l')) in
+    let sl' = List.stable_sort pri_order_int l' in
+    let m = List.merge Stored.compare rmatches sl' in
+    EConstr.fold sigma do_match (m, seen) c;
+  in
+  let rec_matches,_ = do_match ([], UidSet.empty) concl in
+  List.merge Stored.compare merged rec_matches
 
 let merge_context_set_opt sigma ctx = match ctx with
 | None -> sigma
@@ -728,22 +814,23 @@ struct
     let h = List.sort pri_order_int db.hintdb_nopat in
     let h = merge_set (StoredData.elements se.sentry_nopat) h in
     let h = merge_set (StoredData.elements se.sentry_pat) h in
+    let h = merge_set (StoredData.elements se.sentry_pat_rec) h in
     List.map_filter (realize_tac secvars) h
 
   (* Precondition: concl has no existentials *)
-  let map_auto env sigma ~secvars (k,args) concl db =
-    let se = find k db in
-    let pat = lookup_tacs env sigma concl se in
+  let map_auto env sigma ~secvars (hdc,args) concl db =
+    let se = find hdc db in
+    let pat = lookup_tacs env sigma concl se (fun c -> find c db) in
     let rv = merge_entry secvars db [] pat in
 (*    if CList.test then Printf.eprintf "# hints matched = %d\n%!" (List.length rv); *)
     rv
 
   (* [c] contains an existential *)
-  let map_eauto env sigma ~secvars (k,args) concl db =
-    let se = find k db in
+  let map_eauto env sigma ~secvars (hdc,args) concl db =
+    let se = find hdc db in
       match matches_modes sigma args se.sentry_mode with
       | Some m ->
-        let pat = lookup_tacs env sigma concl se in
+        let pat = lookup_tacs env sigma concl se (fun c -> find c db) in
         ModeMatch (m, merge_entry secvars db [] pat)
       | None -> ModeMismatch
 
@@ -803,6 +890,7 @@ struct
     let grs = List.fold_left (fun accu gr -> GlobRef.Set.add gr accu) GlobRef.Set.empty grs in
     let nopat = StoredData.remove grs se.sentry_nopat in
     let pat = StoredData.remove grs se.sentry_pat in
+    (* todo: Extern Hints aren't removable (yet) *)
     if pat == se.sentry_pat && nopat == se.sentry_nopat then se
     else
       let se = { se with sentry_nopat = nopat; sentry_pat = pat } in
@@ -819,7 +907,9 @@ struct
   let remove_one env gr db = remove_list env [gr] db
 
   let get_entry se =
+    (* todo: why the [] on the next line? *)
     let h = merge_set (StoredData.elements se.sentry_nopat) (merge_set (StoredData.elements se.sentry_pat) []) in
+    let h = merge_set (StoredData.elements se.sentry_pat_rec) h in
     List.map snd h
 
   let iter f db =
@@ -920,7 +1010,7 @@ let make_exact_entry env sigma info ?name (c, cty, ctx) =
         in
         let h = { rhint_term = c; rhint_type = cty; rhint_uctx = ctx; rhint_arty = 0 } in
         (Some hd,
-         { pri; pat = Some pat; name;
+         { pri; pat = Some pat; recc = false; name;
            db = (); secvars; bnds = [];
            code = with_uid (Give_exact h); })
 
@@ -955,13 +1045,13 @@ let make_apply_entry env sigma hnf info ?name (c, cty, ctx) =
     let h = { rhint_term = c; rhint_type = cty; rhint_uctx = ctx; rhint_arty = hyps; } in
     if Int.equal nmiss 0 then
       (Some hd,
-       { pri; pat = Some pat; name;
+       { pri; pat = Some pat; recc = false; name;
          db = ();
          secvars; bnds = [];
          code = with_uid (Res_pf h); })
     else
       (Some hd,
-       { pri; pat = Some pat; name;
+       { pri; pat = Some pat; recc = false; name;
          db = (); secvars; bnds = [];
          code = with_uid (ERes_pf h); })
   | _ -> failwith "make_apply_entry"
@@ -1020,13 +1110,14 @@ let make_unfold eref =
   (Some g,
    { pri = 4;
      pat = None;
+     recc = false;
      name = Some g;
      db = ();
      secvars = secvars_of_global (Global.env ()) g;
      bnds = [];
      code = with_uid (Unfold_nth eref) })
 
-let make_extern pri pat tacast bnds saved =
+let make_extern pri pat tacast bnds recc saved =
   let hdconstr = match pat with
   | None -> None
   | Some c ->
@@ -1038,11 +1129,12 @@ let make_extern pri pat tacast bnds saved =
   (hdconstr,
    { pri = pri;
      pat = Option.map (fun p -> SyntacticPattern p) pat;
+     recc;
      name = None;
      db = ();
      secvars = Id.Pred.empty; (* Approximation *)
      bnds;
-     code = with_uid (Extern (pat, tacast, bnds, saved)) })
+     code = with_uid (Extern (pat, tacast, bnds, recc, saved)) })
 
 let make_mode ref m =
   let open Term in
@@ -1066,6 +1158,7 @@ let make_trivial env sigma r =
   (Some hd,
    { pri=1;
      pat = Some DefaultPattern;
+     recc = false;
      name = name;
      db = ();
      secvars = secvars_of_constr env sigma c;
@@ -1168,8 +1261,8 @@ let inDB : db_obj -> obj =
                   subst_function = (fun (_,x) -> x);
                   classify_function = classify_db; }
 
-let create_hint_db l n ts b =
-  let hint = {db_local=l; db_name=n; db_use_dn=b; db_ts=ts} in
+let create_hint_db l n ts use_dn =
+  let hint = {db_local=l; db_name=n; db_use_dn=use_dn; db_ts=ts} in
   Lib.add_leaf (inDB hint)
 
 type hint_action =
@@ -1297,10 +1390,10 @@ let subst_autohint (subst, obj) =
       | Unfold_nth ref ->
           let ref' = subst_evaluable_reference subst ref in
           if ref==ref' then data.code.obj else Unfold_nth ref'
-      | Extern (pat, tac, bnds, saved) ->
+      | Extern (pat, tac, bnds, recc, saved) ->
           let pat' = Option.Smart.map (subst_pattern env sigma subst) pat in
           let tac' = Gentactic.subst subst tac in
-          if pat==pat' && tac==tac' then data.code.obj else Extern (pat', tac', bnds, saved)
+          if pat==pat' && tac==tac' then data.code.obj else Extern (pat', tac', bnds, recc, saved)
     in
     let name' = Option.Smart.map (subst_global_reference subst) data.name in
     let uid' = subst_kn subst data.code.uid in
@@ -1487,17 +1580,17 @@ let add_transparency l b ~locality dbnames =
       Lib.add_leaf (inAutoHint hint))
     dbnames
 
-let add_extern info tacast bnds saved ~locality dbname =
+let add_extern info tacast bnds recc saved ~locality dbname =
   let pat = match info.hint_pattern with
   | None -> None
   | Some (_, pat) -> Some pat
   in
   let hint = make_hint ~locality dbname
-                       (AddHints [make_extern (Option.get info.hint_priority) pat tacast bnds saved]) in
+                       (AddHints [make_extern (Option.get info.hint_priority) pat tacast bnds recc saved]) in
   Lib.add_leaf (inAutoHint hint)
 
-let add_externs info tacast bnds saved ~locality dbnames =
-  List.iter (add_extern info tacast bnds saved ~locality) dbnames
+let add_externs info tacast bnds recc saved ~locality dbnames =
+  List.iter (add_extern info tacast bnds recc saved ~locality) dbnames
 
 let add_trivials env sigma l ~locality dbnames =
   List.iter
@@ -1519,7 +1612,7 @@ type hints_entry =
   | HintsTransparencyEntry of Evaluable.t hints_transparency_target * bool
   | HintsModeEntry of GlobRef.t * hint_mode list
   | HintsExternEntry of hint_info * Gentactic.glob_generic_tactic *
-    (Names.Id.t * Names.Id.t) list * foreach_info
+    (Names.Id.t * Names.Id.t) list * bool * foreach_info
 
 let default_prepare_hint_ident = Id.of_string "H"
 
@@ -1594,8 +1687,8 @@ let add_hints ~locality dbnames h =
   | HintsUnfoldEntry lhints -> add_unfolds lhints ~locality dbnames
   | HintsTransparencyEntry (lhints, b) ->
       add_transparency lhints b ~locality dbnames
-  | HintsExternEntry (info, tacexp, bnds, saved) ->
-      add_externs info tacexp bnds saved ~locality dbnames
+  | HintsExternEntry (info, tacexp, bnds, recc, saved) ->
+      add_externs info tacexp bnds recc saved ~locality dbnames
 
 let warn_non_reference_hint_using =
   CWarnings.create ~name:"non-reference-hint-using" ~category:CWarnings.CoreCategories.deprecated
@@ -1681,7 +1774,7 @@ let pr_hint ?(vals=[]) ?(forinfo=false) env sigma h =
       (str"simple apply " ++ pr_hint_elt env sigma c ++ str" ; trivial") ++ period
   | Unfold_nth c ->
     str"unfold " ++  pr_evaluable_reference c
-  | Extern (_, tac, bnds, _) ->
+  | Extern (_, tac, bnds, _, _) ->
     let drop_parens s =
       let len = String.length s in
       if s.[0] = '(' && s.[len-1] = ')' then
@@ -1725,10 +1818,14 @@ let pr_hint ?(vals=[]) ?(forinfo=false) env sigma h =
     if forinfo then cmd' ++ str ".  (*external*)"
     else str "(*external*) " ++ cmd'
 
+let _ = forward_pr_hint := pr_hint
+
 let pr_id_hint env sigma (id, v) =
   let pr_pat p = match p.pat with
   | None -> mt ()
-  | Some (ConstrPattern p | SyntacticPattern p) -> str", pattern " ++ pr_lconstr_pattern_env env sigma p
+  | Some (ConstrPattern p | SyntacticPattern p) ->
+    let recc = if v.recc then "rec " else "" in
+    str", pattern " ++ str recc ++ pr_lconstr_pattern_env env sigma p
   | Some DefaultPattern -> str", pattern " ++ pr_leconstr_env env sigma (get_default_pattern v.code.obj)
   in
   (pr_hint env sigma v.code ++ str" (cost " ++ int v.pri ++ pr_pat v
@@ -1972,7 +2069,7 @@ struct
   let subgoals (h : t) = match h.code.obj with
   | Res_pf h | ERes_pf h | Give_exact h | Res_pf_THEN_trivial_fail h -> Some h.hint_arty
   | Unfold_nth _ -> Some 1
-  | Extern _ -> None
+  | Extern _ -> None  (* todo: allow specifying arity in Hint Extern? *)
 
   let repr (h : t) = h.code.obj
 end

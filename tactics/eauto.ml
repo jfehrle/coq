@@ -136,7 +136,7 @@ and e_my_find_search env sigma db_list local_db secvars concl =
         Tacticals.tclTHEN (unify_e_resolve st h)
           (e_trivial_fail_db db_list local_db)
       | Unfold_nth c -> reduce (Unfold [AllOccurrences,c]) onConcl
-      | Extern (pat, tacast, _, _) -> conclPattern concl pat tacast
+      | Extern (pat, tacast, _, _, _) -> conclPattern concl pat tacast
       in
       (* We cannot determine statically the cost of subgoals of an Extern hint,
          so approximate it by the hint's priority. *)

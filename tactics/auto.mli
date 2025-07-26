@@ -30,7 +30,8 @@ val unify_resolve : Unification.unify_flags -> hint -> unit Proofview.tactic
    if the term concl matches the pattern pat, (in sense of
    [Pattern.somatches], then replace [?1] [?2] metavars in tacast by the
    right values to build a tactic *)
-val conclPattern : constr -> constr_pattern option -> Gentactic.glob_generic_tactic -> unit Proofview.tactic
+val conclPattern : constr -> constr_pattern option -> ?recc:bool -> Gentactic.glob_generic_tactic ->
+  unit Proofview.tactic
 
 (** [default_auto] runs the tactic [auto] with:
     - Maximum search depth [default_search_depth].

@@ -240,7 +240,7 @@ type 'constr pexistential = Evar.t * 'constr SList.t
 
 type ('constr, 'types, 'sort, 'univs, 'r) kind_of_term =
   | Rel       of int
-  (** Gallina-variable introduced by [forall], [fun], [let-in], [fix], or [cofix]. *)
+  (** Gallina-variable introduced by [forall], [fun], [let-in], [match], [fix], or [cofix]. *)
   | Var       of Id.t
   (** Gallina-variable that was introduced by Vernacular-command that
      extends the local context of the currently open section (i.e.

@@ -11,7 +11,7 @@
 type 'a cmp = 'a -> 'a -> int
 type 'a eq = 'a -> 'a -> bool
 
-let test = (try let _ = Sys.getenv("TEST") in true with _ -> false)
+let test = try let _ = Sys.getenv("TEST") in true with _ -> false
 
 include List
 

@@ -43,8 +43,8 @@ type 'a hint_ast =
   | Res_pf_THEN_trivial_fail of 'a (* Hint Immediate *)
   | Unfold_nth of Evaluable.t (* Hint Unfold *)
   | Extern     of Pattern.constr_pattern option * Gentactic.glob_generic_tactic *
-    (Names.Id.t * Names.Id.t) list (* Hint Extern *)
-    * foreach_info
+    (Names.Id.t * Names.Id.t) list * (* Hint Extern *)
+    bool * foreach_info
 
 type hint
 
@@ -180,7 +180,7 @@ type hints_entry =
   | HintsTransparencyEntry of Evaluable.t hints_transparency_target * bool
   | HintsModeEntry of GlobRef.t * hint_mode list
   | HintsExternEntry of hint_info * Gentactic.glob_generic_tactic *
-    (Names.Id.t * Names.Id.t) list * foreach_info
+    (Names.Id.t * Names.Id.t) list * bool * foreach_info
 
 val searchtable_map : hint_db_name -> hint_db
 
@@ -250,3 +250,5 @@ val pr_applicable_hint : Proof.t -> Pp.t
 val pr_hint_ref : env -> evar_map -> GlobRef.t -> Pp.t
 val pr_hint_db_by_name : env -> evar_map -> hint_db_name -> Pp.t
 val pr_hint_db_env : env -> evar_map -> Hint_db.t -> Pp.t
+
+val pr_constr : ?indent:int -> Constr.constr -> unit

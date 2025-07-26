@@ -340,9 +340,10 @@ let pr_hints db h pr_c pr_pat =
     | HintsConstructors c ->
       keyword "Constructors"
       ++ spc() ++ prlist_with_sep spc pr_qualid c
-    | HintsExtern (n,c,tac,bnds) ->
+    | HintsExtern (n,c,tac,bnds, recc) ->
       (* todo: not used by Print HintDb, how is this called? *)
       let pat = match c with None -> mt () | Some pat -> pr_pat pat in
+      let pat = if recc then str " rec" ++ pat else pat in
       (* similar code in Hints.pr_hint *)
       let bnds = match bnds with
         | [] -> mt ()

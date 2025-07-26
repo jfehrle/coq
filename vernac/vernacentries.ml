@@ -1798,8 +1798,8 @@ let vernac_set_end_tac pstate tac =
 (************)
 (* Commands *)
 
-let vernac_create_hintdb ~module_local dbname b =
-  Hints.create_hint_db module_local dbname TransparentState.full b
+let vernac_create_hintdb ~module_local dbname use_dn =
+  Hints.create_hint_db module_local dbname TransparentState.full use_dn
 
 let warn_implicit_core_hint_db =
   CWarnings.create ~name:"implicit-core-hint-db" ~category:Deprecation.Version.v8_10
@@ -2889,9 +2889,9 @@ let translate_pure_vernac ?loc ~atts v = let open Vernactypes in match v with
         vernac_existing_class id)
 
   (* Commands *)
-  | VernacCreateHintDb (dbname,b) ->
+  | VernacCreateHintDb (dbname,use_dn) ->
     vtdefault(fun () ->
-        with_module_locality ~atts vernac_create_hintdb dbname b)
+        with_module_locality ~atts vernac_create_hintdb dbname use_dn)
 
   | VernacRemoveHints (dbnames,ids) ->
     vtdefault(fun () ->

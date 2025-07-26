@@ -102,8 +102,8 @@ GRAMMAR EXTEND Gram
       | IDENT "Validate"; IDENT "Proof" -> { VernacSynPure VernacValidateProof }
       (* Hints for Auto and EAuto *)
       | IDENT "Create"; IDENT "HintDb" ;
-          id = IDENT ; b = [ IDENT "discriminated" -> { true } | -> { false } ] ->
-            { VernacSynPure (VernacCreateHintDb (id, b)) }
+          id = IDENT ; use_dn = [ IDENT "discriminated" -> { true } | -> { false } ] ->
+            { VernacSynPure (VernacCreateHintDb (id, use_dn)) }
       | IDENT "Remove"; IDENT "Hints"; ids = LIST1 global; dbnames = opt_hintbases ->
           { VernacSynPure (VernacRemoveHints (dbnames, ids)) }
       | IDENT "Hint"; h = hint; dbnames = opt_hintbases ->
@@ -143,11 +143,21 @@ GRAMMAR EXTEND Gram
       | IDENT "Mode"; l = global; m = mode -> { HintsMode (l, m) }
       | IDENT "Unfold"; lqid = LIST1 global -> { HintsUnfold lqid }
       | IDENT "Constructors"; lc = LIST1 global -> { HintsConstructors lc }
-      | IDENT "Extern"; n = natural; c = OPT Constr.constr_pattern ; "=>";
+      | IDENT "Extern"; n = natural;
+        crecc = [crecc = OPT [
+          recc = OPT [IDENT "rec" -> { true }];
+          c = Constr.constr_pattern -> { (c,recc) } ] ->
+          { (crecc) } ];
+        "=>";
         bnds = OPT foreach_list;
         tac = generic_tactic ->
         { let bnds = match bnds with | Some bnds -> bnds | None -> [] in
-          Vernacexpr.HintsExtern (n,c, tac, bnds) }
+          let (c, recc) = match crecc with
+          | Some (c,Some _) -> Some c, true
+          | Some (c,None) -> Some c, false
+          | None -> None, false
+          in
+          Vernacexpr.HintsExtern (n,c, tac, bnds, recc) }
   ] ]
     ;
   mode:

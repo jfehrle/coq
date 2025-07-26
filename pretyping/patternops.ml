@@ -652,3 +652,76 @@ let pattern_of_glob_constr env c =
   let metas = ref Id.Set.empty in
   let p = pat_of_raw env (Metas metas) [] c in
   (!metas, p)
+
+let map f p = match p with
+  | PRef _ | PVar _ | PRel _ | PSort _ | PMeta _ | PInt _ | PFloat _
+    | PString _ | PExtra _ -> p
+  | PEvar (evk,l) ->
+    let l' = List.map f l in
+    if l'==l then p
+    else PEvar (evk,l')
+  | PApp (f0,args) ->
+    let f0' = f f0 in
+    let args' = Array.map f args in
+    if args'==args && f0' == f0 then p
+    else PApp (f0',args')
+  | PSoApp (i,args) ->
+    let args' = List.map f args in
+    if args' == args then p
+    else PSoApp (i,args')
+  | PProj (p0,c) ->
+    let c' = f c in
+    if c'==c then p
+    else PProj (p0,c')
+  | PLambda (na,t,c) ->
+    let t' = f t in
+    let c' = f c in
+    if t'==t && c'==c then p
+    else PLambda (na,t',c')
+  | PProd (na,t,c) ->
+    let t' = f t in
+    let c' = f c in
+    if t'==t && c'==c then p
+    else PProd (na,t',c')
+  | PLetIn (na,b,t,c) ->
+    let b' = f b in
+    let t' = Option.map f t in
+    let c' = f c in
+    if b'==b && t'==t && c'==c then p
+    else PLetIn (na,b',t',c')
+  | PIf (c,b1,b2) ->
+    let c' = f c in
+    let b1' = f b1 in
+    let b2' = f b2 in
+    if c'==c && b1'==b1 && b2'==b2 then p
+    else PIf (c',b1',b2')
+  | PCase (info,p0,tm,bl) ->
+    let p0' = Option.map (fun ((na,a) as x) ->
+        let a' = f a in
+        if a'==a then x
+        else (na,a')
+      ) p0 in
+    let tm' = f tm in
+    let bl' = List.map (fun ((a,b,c) as x) ->
+        let c' = f c in
+        if c'==c then x
+        else (a,b,c')
+      ) bl in
+    if p0'==p0 && tm'==tm && bl'==bl then p
+    else PCase (info,p0',tm',bl')
+  | PFix (lni,(lna,tl,bl)) ->
+    let tl' = Array.map f tl in
+    let bl' = Array.map f bl in
+    if tl'==tl && bl'==bl then p
+    else PFix (lni,(lna,tl',bl'))
+  | PCoFix (ln,(lna,tl,bl)) ->
+    let tl' = Array.map f tl in
+    let bl' = Array.map f bl in
+    if tl'==tl && bl'==bl then p
+    else PCoFix (ln,(lna,tl',bl'))
+  | PArray(t,def,ty) ->
+    let t' = Array.map f t in
+    let def' = f def in
+    let ty' = f ty in
+    if t'==t && def'==def && ty'==ty then p
+    else PArray (t',def',ty')
