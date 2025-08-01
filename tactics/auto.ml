@@ -248,6 +248,7 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
       hintCounts := HintCounts.add !tacstr { counts with tries = counts.tries+1} !hintCounts;
       (* For "info (trivial/auto)", we store a log trace *)
       let from_gls = ref [] in
+      let concl = ref [] in
       let goals_to_ints gls =
         List.map (fun gl -> Evar.repr (Proofview.Goal.goal gl)) gls
       in
@@ -266,6 +267,7 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
 (*              Feedback.msg_notice (int saved_tries ++ spc () ++ str tacstr ++ fnl () ++ str "goal is " ++ pc) *)
 (*            with Not_found -> (); *)
 (*            end; *)
+          concl := if goals = [] then [] else [Proofview.Goal.concl (List.hd goals)];
           tac >>= fun v ->
           Proofview.Goal.goals >>=
           fun gl ->
@@ -301,7 +303,18 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
           let stop = get_time () in
           begin match exn with
           | DuplicateProofState -> ()
-          | _ -> (* Printf.eprintf "exception in '%s': %s\n%!" !tacstr (Pp.string_of_ppcmds (CErrors.print exn)); *) ()
+          | _ ->
+            let tacs_regexp = Str.regexp (String.concat {|\||} [
+(*              "simple apply mult_n_Sm"; *)
+              "dont match this";
+              ]) in
+            let exnstr = Pp.string_of_ppcmds (CErrors.print exn) in
+            if (try let _ = Str.search_forward tacs_regexp !tacstr 0 in true with Not_found -> false) then begin
+              Printf.eprintf "exception in '%s': %s\n%!" !tacstr exnstr;
+              if !concl <> [] then Printf.eprintf "concl is %s\n%!"
+                (Pp.string_of_ppcmds (Printer.pr_leconstr_env env sigma (List.hd !concl)));
+            end;
+            ()
           end;
           try_time := !try_time +. (stop -. start); (* system time? *)
           tclZERO ~info exn))
@@ -407,7 +420,7 @@ let hintmap_of env sigma secvars hdc concl =
         (fun db -> match Hint_db.map_eauto env sigma ~secvars hdc concl db with
                    | ModeMatch (_, l) -> l
                    | ModeMismatch -> [])
-      else Hint_db.map_auto env sigma ~secvars hdc concl
+      else Hint_db.map_auto ~auto:true env sigma ~secvars hdc concl
 
 let exists_evaluable_reference env = function
   | Evaluable.EvalConstRef _ -> true

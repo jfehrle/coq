@@ -144,7 +144,7 @@ module Hint_db :
     (** All hints associated to the reference.
         Precondition: no evars should appear in the arguments, so no modes
         are checked. *)
-    val map_auto : env -> evar_map -> secvars:Id.Pred.t ->
+    val map_auto : ?auto:bool -> env -> evar_map -> secvars:Id.Pred.t ->
        (GlobRef.t * constr array) -> constr -> t -> FullHint.t list
 
     val remove_one : Environ.env -> GlobRef.t -> t -> t

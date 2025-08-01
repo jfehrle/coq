@@ -235,6 +235,7 @@ type ('a,'r) pbinder_annot = { binder_name : 'a; binder_relevance : 'r }
 
 (* todo: something more elegant *)
 let errors_regexp = Str.regexp (String.concat {|\||} [
+  "don't match this";
   "cannot be used as a hint.";
   "Head pattern or sub-pattern must be a global constant"
   ])
@@ -245,7 +246,9 @@ let add_hint hint ref =
   try
     add_hints ~locality:SuperGlobal ["AUTO"] hint
   with
-    | UserError pp when try let _ = Str.search_forward errors_regexp (Pp.string_of_ppcmds pp) 0 in true with Not_found -> false -> ()
+    | UserError pp when (try
+        let _ = Str.search_forward errors_regexp (Pp.string_of_ppcmds pp) 0 in true
+        with Not_found -> false) -> ()
     | e -> Printf.eprintf "add_hint Error: for %s: %s\n"
       (Pp.string_of_ppcmds (Printer.pr_global ref))
       (Printexc.to_string e)
@@ -457,15 +460,17 @@ let () = Declare.set_reg_callback (fun (kn:KerName.t) (kind:Decls.logical_kind) 
       let open Hints in
       match kind with
       | Decls.IsProof tk ->
-(*        Printf.eprintf "%s %s\n%!" (Decls.tk_to_string tk) *)
-(*          (Pp.string_of_ppcmds (Printer.pr_global ref)); *)
-        (* note you can pass multiple theorems with HintsResolveEntry *)
+(*        Printf.eprintf "%s: %s  %s\n%!" (Decls.tk_to_string tk) *)
+(*          (Pp.string_of_ppcmds (Printer.pr_global ref)) *)
+(*          (KerName.to_string kn); *)
 (*        if CList.test && is_new then pr_constr typ; *)
         add_hint ((HintsResolveEntry [{ hint_priority = Some pri; hint_pattern = None }, true, ref])) ref;
       | Decls.IsDefinition df ->
-(*        Printf.eprintf "%s %s\n%!" (Decls.df_to_string df) *)
-(*          (Pp.string_of_ppcmds (Printer.pr_global ref)); *)
-        if Constr.isProd typ then
+(*        Printf.eprintf "%s: %s  %s\n%!" (Decls.df_to_string df) *)
+(*        (Pp.string_of_ppcmds (Printer.pr_global ref)) *)
+(*        (KerName.to_string kn); *)
+        (* todo: need definitions or not? *)
+        if false &&  Constr.isProd typ then (* todo: ever need Definitions as hints? *)
           add_hint ((HintsResolveEntry [{ hint_priority = Some pri; hint_pattern = None }, true, ref])) ref;
       | _ -> (* Printf.eprintf "logical kind %s\n%!" (Decls.lk_to_string kind); *) ()
     end with | Not_found -> Printf.eprintf "Not_found\n%!"

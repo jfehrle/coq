@@ -717,7 +717,7 @@ val map_none : secvars:Id.Pred.t -> t -> full_hint list
 val map_all : secvars:Id.Pred.t -> GlobRef.t -> t -> full_hint list
 val map_eauto : Environ.env -> evar_map -> secvars:Id.Pred.t ->
                 (GlobRef.t * constr array) -> constr -> t -> full_hint list with_mode
-val map_auto : Environ.env -> evar_map -> secvars:Id.Pred.t ->
+val map_auto : ?auto:bool ->Environ.env -> evar_map -> secvars:Id.Pred.t ->
                (GlobRef.t * constr array) -> constr -> t -> full_hint list
 val add_list : env -> evar_map -> hint_entry list -> t -> t
 val remove_one : Environ.env -> GlobRef.t -> t -> t
@@ -818,12 +818,11 @@ struct
     List.map_filter (realize_tac secvars) h
 
   (* Precondition: concl has no existentials *)
-  let map_auto env sigma ~secvars (hdc,args) concl db =
+  let map_auto ?(auto=false) env sigma ~secvars (hdc,args) concl db =
     let se = find hdc db in
     let pat = lookup_tacs env sigma concl se (fun c -> find c db) in
-    let rv = merge_entry secvars db [] pat in
-(*    if CList.test then Printf.eprintf "# hints matched = %d\n%!" (List.length rv); *)
-    rv
+    let l = merge_entry secvars db [] pat in
+    if auto then List.filter (fun h -> (match h.code.obj with | ERes_pf _ -> false | _ -> true)) l else l
 
   (* [c] contains an existential *)
   let map_eauto env sigma ~secvars (hdc,args) concl db =

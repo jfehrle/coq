@@ -9,7 +9,7 @@ Ltac myauto :=
 
 Hint Extern 250 => foreach IND: induction IND : AUTO.
 Hint Extern 1 => progress simpl : AUTO.
-Hint Extern 0 => reflexivity : AUTO.
+Hint Extern 0 (?a = ?b) => reflexivity : AUTO.
 Hint Extern 1 => foreach HYP: rewrite <- HYP : AUTO.
 
 (* Print HintDb AUTO. *)

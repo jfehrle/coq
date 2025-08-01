@@ -2709,9 +2709,10 @@ let run_stats_tac proof (k,l) =  (* k is theorem_kind *)
     let real = stop -. start in
     let round f = (floor (f *. 1e3)) *. 1e-3 in
     let stats = !Auto.auto_stats in
-    Printf.eprintf "%s,%s,%s,%1.3f,%d,%d,%d\n%!"
+    let fails = stats.tries - stats.successes - stats.dups in
+    Printf.eprintf "%s,%s,%s,%1.3f,%d,%d,%d,%d\n%!"
       mname (Id.to_string thm_id) !status (round real)
-      stats.tries stats.successes stats.dups
+      stats.tries stats.successes stats.dups fails
   | None -> ()
   end
 
