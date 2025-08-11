@@ -44,7 +44,6 @@ Definition notT (A:Type) := A -> False.
 (** Create the "core" hint database, and set its transparent state for
   variables and constants explicitly. *)
 
-Create HintDb AUTO discriminated.
 Create HintDb core.
 #[global]
 Hint Variables Opaque : core.

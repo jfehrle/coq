@@ -2669,7 +2669,7 @@ let run_stats_tac proof (k,l) =  (* k is theorem_kind *)
     let env = Global.env () in
     let ltacvars = Names.Id.Set.empty in
     let tacstr = try Sys.getenv("STATS_TAC")
-      with _ -> "timeout 100 progress info_auto 5 with nocore AUTO" in
+      with _ -> "timeout 10 progress info_auto 5 with nocore AUTO" in
 (*    let tacstr = "timeout 1 do 1000 do 10000 idtac" in *)
     Printf.eprintf "tactic string = '%s'\n%!" tacstr;
     (* todo: get_generic_tactic may raise exceptions (hide them??) *)

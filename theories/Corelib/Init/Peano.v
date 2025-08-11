@@ -30,6 +30,7 @@ Require Import Ltac.
 Require Import Datatypes.
 Require Import Logic.
 Require Corelib.Init.Nat.
+Require Import Auto.
 
 Open Scope nat_scope.
 Local Notation "0" := O.
@@ -59,6 +60,7 @@ Hint Immediate eq_add_S: core.
 
 Theorem not_eq_S : forall n m:nat, n <> m -> S n <> S m.
 Proof.
+  Succeed red;info_auto 5 with nocore AUTO.
   red; auto.
 Qed.
 #[global]
@@ -144,7 +146,25 @@ Qed.
 #[global]
 Hint Resolve mult_n_O: core.
 
+Theorem plus_assoc: forall q r p: nat, p + (q + r) = p + q + r.
+auto with nocore AUTO.
+Qed.
+
+(* Print HintDb AUTO. *)
 Lemma mult_n_Sm : forall n m:nat, n * m + n = n * S m.
+(* intros.
+info_auto 1 with nocore AUTO.
+induction n.  (* failing here *)
+- reflexivity.
+-
+progress info_auto with nocore AUTO.
+  simpl.
+  rewrite <- plus_n_Sm.
+  rewrite <- plus_assoc.
+  rewrite <- IHn.
+
+  reflexivity.
+*)
 Proof.
   intros n m; induction n as [| p H]; simpl; auto.
   destruct H; rewrite <- plus_n_Sm; apply eq_S.

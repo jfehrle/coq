@@ -10,6 +10,8 @@
 
 Require Import Notations Logic Datatypes.
 Require Decimal Hexadecimal Number.
+Require Import Auto.
+
 Local Open Scope nat_scope.
 
 (**********************************************************************)

@@ -271,7 +271,7 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
           tac >>= fun v ->
           Proofview.Goal.goals >>=
           fun gl ->
-            if List.length goals != 1 then PSHash.reset pshash;  (* start over *)
+            if List.length gl != 1 then PSHash.reset pshash;  (* start over *)
             let fst = ref true in  (* ICK *)
             let is_new = ref false in
             let hash = ref 0 in
@@ -444,6 +444,8 @@ let intro_register dbg kont db =
       Tacticals.onLastDecl (fun decl -> kont (extend_local_db decl db))
     end
 
+exception No_match
+
 let rec trivial_fail_db dbg db_list local_db =
   Proofview.tclINDEPENDENT @@
     Tacticals.tclORELSE0 (dbg_assumption dbg) @@
@@ -465,6 +467,70 @@ let rec trivial_fail_db dbg db_list local_db =
          end
       |> Tacticals.tclFIRST
     end
+
+and pr_hint ?(vals=[]) dbg h env sigma =
+   let (lev,_,_,_) = dbg in
+   let forinfo = lev = Info in
+   let origin = match FullHint.database h with
+    | None -> mt ()
+    | Some n -> if forinfo then str "  (* in " ++ str n ++ str " *)"
+                  else str " (in " ++ str n ++ str ")"
+    in
+    FullHint.print ~vals ~forinfo env sigma h ++ origin
+
+and expand_foreach dbg concl v_val h =
+  (* Cartesian product *)
+  let cprod v_vals =
+    let rec aux v_vals rv =
+      match v_vals with
+      | _ :: l :: tl ->
+        let rv2 = ref [] in
+        List.iter (fun i ->
+            List.iter (fun r -> rv2 := (i :: r) :: !rv2) rv
+        ) l;
+        aux (l :: tl) (List.rev !rv2)
+      | hd :: _ -> rv
+      | [] -> []
+    in
+    let rev = List.rev v_vals in
+    aux rev (List.map (fun i -> [i])(List.hd rev))
+  in
+  let pr_lofl lofl =
+    List.iter (fun l -> Printf.eprintf "[";
+      List.iter (fun id -> Printf.eprintf "%s " (Id.to_string id)) l;
+      Printf.eprintf "] "
+    ) lofl;
+    Printf.eprintf "\n%!";
+  in
+  let _ = pr_lofl in
+
+(*  if CList.test then begin *)
+(*  	Printf.eprintf "\n*Enter expand_foreach\n%!"; *)
+(*    Printf.eprintf "v_val at entry:\n%!"; *)
+(*    pr_lofl [List.map (fun (v,vt) -> v) v_val]; *)
+(*  end; *)
+  match FullHint.repr h with
+  | Extern (p, tacast, bnds, recc, saved) ->
+  (*      let _ : int = conclPattern concl p ~recc tacast in    unit Proofview.tactic *)
+    begin match bnds, v_val with
+    | [], _ -> [conclPattern concl p ~recc tacast]
+    | _ :: _, [] -> []
+    | _ :: _, _ :: _ ->
+      let v_vals = List.map (fun (bv, bt) ->
+        List.map (fun (v,vartype) -> v)
+          (List.filter (fun (v,vt) -> vt = (Id.to_string bt)) v_val)) bnds in
+(*      Printf.eprintf "\nv_vals\n%!"; *)
+(*      pr_lofl v_vals; *)
+      (* if false then pr_lofl (cprod v_vals); *)
+      List.map (fun vals ->
+          let t' = conclPattern concl p ~recc
+                               (!fwd_intern_foreach saved bnds vals) in
+          tclLOG dbg (pr_hint dbg ~vals h) (FullHint.run h (fun _ ->
+(*            Printf.eprintf "Tactic foreach item vals = %!"; (pr_lofl [vals]); *)
+            t'))
+        ) (cprod v_vals)
+    end
+  | _ -> []
 
 and tac_of_hint dbg db_list local_db concl v_val h =
   let pr_hint ?(vals=[]) h env sigma =
@@ -498,48 +564,18 @@ and tac_of_hint dbg db_list local_db concl v_val h =
          Tacticals.tclFAIL ~info (str"Unbound reference")
        end
     | Extern (p, tacast, bnds, recc, saved) ->
-      (* Cartesian product *)
-      let cprod v_vals =
-        let rec aux v_vals rv =
-          match v_vals with
-          | _ :: l :: tl ->
-            let rv2 = ref [] in
-            List.iter (fun i ->
-                List.iter (fun r -> rv2 := (i :: r) :: !rv2) rv
-            ) l;
-            aux (l :: tl) (List.rev !rv2)
-          | hd :: _ -> rv
-          | [] -> []
-        in
-        let rev = List.rev v_vals in
-        aux rev (List.map (fun i -> [i])(List.hd rev))
+      let rec make_tclOR tacs =
+        match tacs with
+        | t1 :: [] -> t1
+        | t1 :: (t2 :: _ as tl) -> Tacticals.tclOR t1 (make_tclOR tl)
+        | [] -> Proofview.tclZERO No_match
       in
-      let pr_lofl lofl =
-        List.iter (fun l -> Printf.eprintf "[";
-          List.iter (fun id -> Printf.eprintf "%s " (Id.to_string id)) l;
-          Printf.eprintf "] "
-        ) lofl;
-        Printf.eprintf "\n%!";
-      in
-
-      if bnds <> [] && v_val <> [] then begin
-        let v_vals = List.map (fun (bv, bt) ->
-          List.map (fun (v,vartype) -> v)
-            (List.filter (fun (v,vt) -> vt = (Id.to_string bt)) v_val)) bnds in
-        if false then pr_lofl (cprod v_vals);
-        List.map (fun vals ->
-            let t' = conclPattern concl p ~recc
-                                 (!fwd_intern_foreach saved bnds vals) in
-            tclLOG dbg (pr_hint ~vals h) (FullHint.run h (fun _ -> t'))
-          ) (cprod v_vals)
-        |> Tacticals.tclFIRST
-      end else
-        conclPattern concl p ~recc tacast
-  in
-  match FullHint.repr h with
-  | Extern (_,_, (_ :: _) (* bnds *),_,_) when v_val <> [] -> FullHint.run h tactic
-  | _ -> tclLOG dbg (pr_hint h) (FullHint.run h tactic)
-
+      (* returning a list here with a List.concat elsewhere fails strangely :-( *)
+      make_tclOR (expand_foreach dbg concl v_val h)
+    in
+    match FullHint.repr h with
+    | Extern (_,_,bnds,_,_) when bnds <> [] -> FullHint.run h tactic
+    | _ -> tclLOG dbg (pr_hint h) (FullHint.run h tactic)
 (** The use of the "core" database can be de-activated by passing
     "nocore" amongst the databases. *)
 

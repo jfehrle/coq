@@ -236,6 +236,7 @@ type ('a,'r) pbinder_annot = { binder_name : 'a; binder_relevance : 'r }
 (* todo: something more elegant *)
 let errors_regexp = Str.regexp (String.concat {|\||} [
   "don't match this";
+  "This command does not support the global attribute in sections";
   "cannot be used as a hint.";
   "Head pattern or sub-pattern must be a global constant"
   ])
