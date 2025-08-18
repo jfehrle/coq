@@ -31,6 +31,7 @@ exception FailError of int * Pp.t Lazy.t
 
 let catch_failerror (e, info) =
   match e with
+  | Logic_monad.Tac_Timeout -> tclZERO ~info e
   | FailError (lvl,s) when lvl > 0 ->
     tclZERO ~info (FailError (lvl - 1, s))
   | e ->
@@ -480,10 +481,27 @@ let tclDELAYEDWITHHOLES check x tac =
     tclWITHHOLES check (tac x) sigma
   end
 
+(* workaround for unreliable "timeout" tactic (sometimes fails to interrupt tactic on WSL2 *)
+let saved_timeout = ref None
+let set_timeout n =
+  saved_timeout := Some (Unix.gettimeofday () +. (float_of_int (n+1)))
+let clear_timeout () = saved_timeout := None
+let check_timeout () =
+  match !saved_timeout with
+  | Some timeout ->
+    if Unix.gettimeofday () > timeout then begin
+      Printf.eprintf "timeout by polling\n%!";
+      raise Logic_monad.Tac_Timeout
+    end
+  | None -> ()
+
 let tclTIMEOUT n t =
   Proofview.tclOR
-    (Proofview.tclTIMEOUT n t)
-    begin function (e, info) -> match e with
+    (set_timeout n; tclTHEN (Proofview.tclTIMEOUT n t)
+      (tclLIFT (NonLogical.make clear_timeout)))
+    begin function (e, info) ->
+      clear_timeout ();
+      match e with
       | Logic_monad.Tac_Timeout as e ->
         let info = Exninfo.reify () in
         Proofview.tclZERO ~info (FailError (0,lazy (CErrors.print e)))

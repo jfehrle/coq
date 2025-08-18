@@ -129,6 +129,7 @@ val check_evar_list : Environ.env -> evar_map -> Evar.Set.t -> evar_map -> Evar.
      as "axioms", that is that an evar of [evars] instantiated by an
      evar of [origsigma] is considered to be instantiated *)
 
+val check_timeout : unit -> unit
 val tclTIMEOUT : int -> unit tactic -> unit tactic
 val tclTIME : string option -> 'a tactic -> 'a tactic
 

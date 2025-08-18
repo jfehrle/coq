@@ -2669,7 +2669,7 @@ let run_stats_tac proof (k,l) =  (* k is theorem_kind *)
     let env = Global.env () in
     let ltacvars = Names.Id.Set.empty in
     let tacstr = try Sys.getenv("STATS_TAC")
-      with _ -> "timeout 10 progress info_auto 5 with nocore AUTO" in
+      with _ -> "timeout 10 progress info_auto 6 with nocore AUTO" in
 (*    let tacstr = "timeout 1 do 1000 do 10000 idtac" in *)
     Printf.eprintf "tactic string = '%s'\n%!" tacstr;
     (* todo: get_generic_tactic may raise exceptions (hide them??) *)
@@ -2693,14 +2693,14 @@ let run_stats_tac proof (k,l) =  (* k is theorem_kind *)
     let open Proofview in
     let status = ref "success" in
     let tac2 = tclORELSE tac
-        (fun (e, info) ->  (* ? print exn to stderr?  Use CErrors.print e to get Pp.t *)
-            status := (match e with
+        (fun (e, info) ->
+          status := (match e with
             | Tacticals.FailError (i,lzpp)
               when Pp.string_of_ppcmds (Lazy.force lzpp) =
                   "[Proofview.tclTIMEOUT] Tactic timeout!" -> "timeout"
-            | _ -> "failure");
-(*            Proofview.tclZERO ~info e) *)
-            Proofview.tclUNIT ())
+            | e when (Printexc.to_string e = "Rocq Error: Failed to progress.") -> "failure"
+            | e -> if CList.test then Printf.eprintf "run_stats_tac exception: %s\n" (Printexc.to_string e); "failure");
+          Proofview.tclUNIT ())
     in
     let start = Auto.get_time () in
     let _ = Proof_.run_tactic env tac2 proof in

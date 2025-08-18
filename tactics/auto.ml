@@ -227,10 +227,24 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
       (* For "debug (trivial/auto)", we directly output messages *)
       let s = String.make (depth+1) '*' in
       Proofview.(tclIFCATCH (
+          Proofview.Goal.goals >>=
+          fun gl -> Monad.List.map (fun x -> x) gl >>= fun from_goals ->
+          tclEVARMAP >>= fun sigma0 ->
+          tclENV >>= fun env0 ->
           tac >>= fun v ->
           tclENV >>= fun env ->
           tclEVARMAP >>= fun sigma ->
+          Proofview.Goal.goals >>=
+          fun gl -> Monad.List.map (fun x -> x) gl >>= fun goals ->
           Feedback.msg_notice (str s ++ spc () ++ pp env sigma ++ str ". (*success*)");
+          if from_goals <> [] then begin
+            let from_goal = (Proofview.Goal.goal (List.hd from_goals)) in
+            Feedback.msg_notice (str "From " ++ int (Evar.repr from_goal) ++ str " " ++
+              (Printer.pr_econstr_env env0 sigma0 (Proofview.Goal.concl (List.hd from_goals))));
+            List.iteri (fun gnum gl -> Feedback.msg_notice (str "Goal " ++ int (gnum+1) ++ str ": "
+              ++ int (Evar.repr (Proofview.Goal.goal gl)) ++ str " " ++
+              (Printer.pr_econstr_env env sigma (Proofview.Goal.concl gl)) )) goals;
+          end;
           tclUNIT v
         ) tclUNIT
           (fun (exn, info) ->
@@ -399,7 +413,13 @@ let tclTRY_dbg d tac =
       pr_info_trace env sigma d;
       Proofview.tclUNIT () in
   let after = delay (fun () -> pr_info_nop d; Proofview.tclUNIT ()) in
-  Tacticals.tclORELSE0 tac after
+  Proofview.tclTHEN
+    (Proofview.tclORELSE tac (fun (e,info) ->
+      (* todo: OK for use by trivial? *)
+      match e with
+      | Logic_monad.Tac_Timeout -> Proofview.tclZERO ~info e
+      | _ -> Proofview.tclUNIT ()))
+    after
 
 (**************************************************************************)
 (*                           The Trivial tactic                           *)
@@ -565,6 +585,7 @@ and tac_of_hint dbg db_list local_db concl v_val h =
        end
     | Extern (p, tacast, bnds, recc, saved) ->
       let rec make_tclOR tacs =
+        (* todo: should I use Proofview.tclOR here to propagage Tac_Timeout? *)
         match tacs with
         | t1 :: [] -> t1
         | t1 :: (t2 :: _ as tl) -> Tacticals.tclOR t1 (make_tclOR tl)
@@ -600,8 +621,6 @@ let gen_trivial ?(debug=Off) lems dbnames =
 
 exception SearchBound
 
-(* todo: return different values depending on HYP, IND, ... *)
-
 let var_values gl =
   let sigma = Proofview.Goal.sigma gl in
   let hyps = Proofview.Goal.hyps gl in
@@ -627,6 +646,7 @@ let search d n db_list lems =
     make_local_hint_db env sigma false lems
   in
   let rec search d n local_db =
+    Tacticals.check_timeout ();  (* seems necessary to make timeouts reliable on WSL2/Ubuntu *)
     if Int.equal n 0 then
       let info = Exninfo.reify () in
       Proofview.tclZERO ~info SearchBound
@@ -717,8 +737,13 @@ let gen_auto ?(debug=Off) n lems dbnames =
             (counts.tries - counts.successes - counts.dups)
             tac))) !hintCounts;
       Proofview.tclUNIT ()) in
-    Tacticals.tclTHEN
-      (tclTRY_dbg d (search d n db_list lems))
+    Proofview.tclTHEN
+      (Proofview.tclORELSE
+        (tclTRY_dbg d (search d n db_list lems))
+        (fun (exn, info) ->
+          Tacticals.tclTHEN
+            stats
+            (Proofview.tclZERO ~info exn)))
       stats
   end
 

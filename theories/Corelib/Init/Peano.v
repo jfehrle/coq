@@ -56,11 +56,17 @@ Qed.
 
 Definition eq_add_S n m (H: S n = S m): n = m := f_equal pred H.
 #[global]
-Hint Immediate eq_add_S: core.
+Hint Immediate eq_add_S: core AUTO.  (* otherwise get an infinite loop *)
+
+(* why a defn above and not a theorem? *)
+(*Theorem my_eq_add_S : forall n m:nat, S n = S m -> n = m.
+timeout 10 progress info_auto 5 with nocore AUTO.
+apply eq_add_S.
+Qed.
+*)
 
 Theorem not_eq_S : forall n m:nat, n <> m -> S n <> S m.
 Proof.
-  Succeed red;info_auto 5 with nocore AUTO.
   red; auto.
 Qed.
 #[global]
@@ -150,10 +156,10 @@ Theorem plus_assoc: forall q r p: nat, p + (q + r) = p + q + r.
 auto with nocore AUTO.
 Qed.
 
-(* Print HintDb AUTO. *)
 Lemma mult_n_Sm : forall n m:nat, n * m + n = n * S m.
-(* intros.
-info_auto 1 with nocore AUTO.
+(*
+intros.
+(* timeout 10 info_auto 6 with nocore AUTO. *)
 induction n.  (* failing here *)
 - reflexivity.
 -
@@ -166,6 +172,13 @@ progress info_auto with nocore AUTO.
   reflexivity.
 *)
 Proof.
+(*   intros n m.
+  induction n as [| p H].
+  simpl.
+  auto.
+  destruct H. rewrite <- plus_n_Sm. apply eq_S.
+  pattern m at 1 3; elim m; simpl; info_auto.
+ *)
   intros n m; induction n as [| p H]; simpl; auto.
   destruct H; rewrite <- plus_n_Sm; apply eq_S.
   pattern m at 1 3; elim m; simpl; auto.
@@ -226,8 +239,20 @@ Register lt as num.nat.lt.
 Register ge as num.nat.ge.
 Register gt as num.nat.gt.
 
+Hint Resolve le_S le_n: AUTO.
 Theorem le_pred : forall n m, n <= m -> pred n <= pred m.
 Proof.
+(*
+(* induction 1. *)
+intros. induction m.
+ (* fwd ref to simple apply le_0_n. *)
+(* induction 1. *)
+2: { apply H in IHm. intro. info_auto 5 with nocore AUTO.
+
+
+Set Ltac Debug.
+induction 1 ; info_auto. destruct m; simpl; info_auto.
+*)
 induction 1 as [|m _]; auto. destruct m; simpl; auto.
 Qed.
 
