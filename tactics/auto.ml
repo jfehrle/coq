@@ -175,11 +175,10 @@ module PSHash = Hashtbl.Make(struct
       end)
 let pshash = PSHash.create 13
 
-type stats = { tries: int; successes: int; dups: int}
+type stats = { tries: int; successes: int; dups: int; goals: int; time: float }
 (* success = non-duplicate successes *)
 
-let init_stats = {tries=0; successes=0; dups=0}
-let try_time = ref 0.
+let init_stats = {tries=0; successes=0; dups=0; goals=0; time=0.}
 
 let auto_stats = ref init_stats
 
@@ -201,7 +200,7 @@ let get_time () =
 
 (** A tracing tactic for debug/info trivial/auto *)
 let tclLOG (dbg,pr,depth,trace) pp tac =
-  (* todo: need to check hashcode for non-info cases *)
+  (* TODO: check hashcode for non-info cases *)
     let newhash goals pp =
     let pp = match goals with
     | gl :: _ -> pp (Proofview.Goal.env gl) (Proofview.Goal.sigma gl);
@@ -222,7 +221,15 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
   in
   let tacstr = ref "" in
   match dbg with
-    | Off -> tac
+    | Off ->
+      Proofview.(tclIFCATCH
+        (tac >>= fun v ->
+          auto_stats := { !auto_stats with tries=(!auto_stats.tries+1); successes=(!auto_stats.successes+1) };
+          tclUNIT v)
+        tclUNIT
+        (fun (exn, info) ->
+            auto_stats := { !auto_stats with tries=(!auto_stats.tries+1) };
+            tclZERO ~info exn) )
     | Debug ->
       (* For "debug (trivial/auto)", we directly output messages *)
       let s = String.make (depth+1) '*' in
@@ -237,6 +244,7 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
           Proofview.Goal.goals >>=
           fun gl -> Monad.List.map (fun x -> x) gl >>= fun goals ->
           Feedback.msg_notice (str s ++ spc () ++ pp env sigma ++ str ". (*success*)");
+          auto_stats := { !auto_stats with tries=(!auto_stats.tries+1); successes=(!auto_stats.successes+1) };
           if from_goals <> [] then begin
             let from_goal = (Proofview.Goal.goal (List.hd from_goals)) in
             Feedback.msg_notice (str "From " ++ int (Evar.repr from_goal) ++ str " " ++
@@ -251,6 +259,7 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
              tclENV >>= fun env ->
              tclEVARMAP >>= fun sigma ->
              Feedback.msg_notice (str s ++ spc () ++ pp env sigma ++ str ". (*fail*)");
+             auto_stats := { !auto_stats with tries=(!auto_stats.tries+1) };
              tclZERO ~info exn))
     | Info ->
       let env = Global.env () in
@@ -266,7 +275,7 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
       let goals_to_ints gls =
         List.map (fun gl -> Evar.repr (Proofview.Goal.goal gl)) gls
       in
-      let start = get_time () in
+      let start = ref 0. in
       Proofview.(tclIFCATCH (
           Proofview.Goal.goals >>=
           fun gl -> Monad.List.map (fun x -> x) gl >>= fun goals ->
@@ -282,10 +291,13 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
 (*            with Not_found -> (); *)
 (*            end; *)
           concl := if goals = [] then [] else [Proofview.Goal.concl (List.hd goals)];
+          start := get_time ();
           tac >>= fun v ->
+          let delta_t = get_time () -. !start in
           Proofview.Goal.goals >>=
           fun gl ->
-            if List.length gl != 1 then PSHash.reset pshash;  (* start over *)
+            let numgoals = List.length gl in
+            if numgoals != 1 then PSHash.reset pshash;  (* start over *)
             let fst = ref true in  (* ICK *)
             let is_new = ref false in
             let hash = ref 0 in
@@ -300,21 +312,30 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
                 pp env sigma ++ Pp.spc () (* ++ Pp.int !hash *)
               in
               if !is_new then begin
-                auto_stats := { !auto_stats with successes=(!auto_stats.successes+1) };
+                auto_stats := { !auto_stats with successes=(!auto_stats.successes+1); goals=(!auto_stats.goals+numgoals);
+                  time = !auto_stats.time +. delta_t };
                 let counts = get_counts !tacstr in
-                hintCounts := HintCounts.add !tacstr { counts with successes = counts.successes+1} !hintCounts;
+                hintCounts := HintCounts.add !tacstr { counts with
+                    successes = counts.successes+1; goals = counts.goals+numgoals;
+                    time = counts.time +. delta_t }
+                    !hintCounts;
                 trace := (depth, Some pp, !from_gls, goals_to_ints goals) :: !trace;
                 tclUNIT v
               end else begin
   (*              if CList.test then Printf.eprintf "DuplicateProofState\n%!"; *)
-                auto_stats := { !auto_stats with dups=(!auto_stats.dups+1) };
+                auto_stats := { !auto_stats with dups=(!auto_stats.dups+1);
+                  time = !auto_stats.time +. delta_t };
                 let counts = get_counts !tacstr in
-                hintCounts := HintCounts.add !tacstr { counts with dups = counts.dups+1} !hintCounts;
+                hintCounts := HintCounts.add !tacstr { counts with dups = counts.dups+1;
+                time = counts.time +. delta_t } !hintCounts;
                 tclZERO DuplicateProofState
               end
       ) Proofview.tclUNIT
         (fun (exn, info) ->
-          let stop = get_time () in
+          let delta_t = get_time () -. !start in
+          auto_stats := { !auto_stats with time = !auto_stats.time +. delta_t };
+          let counts = get_counts !tacstr in
+          hintCounts := HintCounts.add !tacstr { counts with time = counts.time +. delta_t } !hintCounts;
           begin match exn with
           | DuplicateProofState -> ()
           | _ ->
@@ -330,7 +351,6 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
             end;
             ()
           end;
-          try_time := !try_time +. (stop -. start); (* system time? *)
           tclZERO ~info exn))
 
 let format_trace ?(indent=0) ?(bullets=[]) env sigma trace =
@@ -659,28 +679,6 @@ let search d n db_list lems =
         let concl = Proofview.Goal.concl gl in
         let hyps = Proofview.Goal.hyps gl in
         let v_val = var_values gl in
-(*
-        if CList.test then begin
-          let open Context in
-            List.iter (fun hyp ->
-            match hyp with
-            (* maybe if type of (type of i) = Prop then it's a hyp else a var *)
-            (* or: let t := type of n in is_ind t -- success is inductive else (?) *)
-            (* see ConstrTypeOf and Internals.is_ind. *)
-(*
-              begin match EConstr.kind sigma hyp with
-              | Ind _ -> Printf.eprintf "%s is inductive\n" (Names.Id.to_string id);
-              | _ -> ()
-              end
-*)
-            | Named.Declaration.LocalAssum ({binder_name=id}, typ) ->
-              Printf.eprintf "LocalAssum %s\n%!" (Names.Id.to_string id);
-            | Named.Declaration.LocalDef ({binder_name=id}, value, typ) ->
-              Printf.eprintf "LocalDef %s\n%!" (Nampes.Id.to_string id);
-            )
-          hyps;
-        end;
-*)
         let d' = incr_dbg d in
         let secvars = compute_secvars gl in
         let hdc = try Some (decompose_app_bound sigma concl) with Bound -> None in
@@ -713,7 +711,7 @@ let gen_auto ?(debug=Off) n lems dbnames =
   PSHash.reset pshash;
   hintCounts := HintCounts.empty;
   auto_stats := init_stats;
-  try_time := 0.;
+  let start = get_time () in
   Hints.wrap_hint_warning @@
     Proofview.Goal.enter begin fun gl ->
     let n = match n with None -> default_search_depth | Some n -> n in
@@ -724,18 +722,20 @@ let gen_auto ?(debug=Off) n lems dbnames =
     in
     let d = mk_auto_dbg debug in
     let delay f = Proofview.tclUNIT () >>= fun () -> f () in
-    let stats = delay (fun () -> if debug = Info then
-      Feedback.msg_notice (str (Printf.sprintf "%d tries %d successes %d duplicates %d fails"
-        !auto_stats.tries !auto_stats.successes !auto_stats.dups
-        (!auto_stats.tries - !auto_stats.successes - !auto_stats.dups)));
-(*      let fails = !auto_stats.tries - (!auto_stats.successes + !auto_stats.dups) in *)
-(*      if CList.test then Printf.eprintf "avg fail time (elapsed) = %f\n%!" *)
-(*        (!try_time /. (Float.of_int fails)); *)
-      HintCounts.iter (fun tac counts ->
-          Feedback.msg_notice (Pp.str (Printf.sprintf "%5d %5d %5d %5d  %s"
-            counts.tries counts.successes counts.dups
-            (counts.tries - counts.successes - counts.dups)
-            tac))) !hintCounts;
+    let stats = delay (fun () ->
+      if debug = Info then begin
+        let delta_t = get_time () -. start in
+        Feedback.msg_notice (str (Printf.sprintf "tries %d  successes %d  duplicates %d  fails %d  tac time %3.3f  total time %3.3f"
+          !auto_stats.tries !auto_stats.successes !auto_stats.dups
+          (!auto_stats.tries - !auto_stats.successes - !auto_stats.dups)
+          !auto_stats.time delta_t));
+        HintCounts.iter (fun tac counts ->
+            Feedback.msg_notice (Pp.str (Printf.sprintf "%5d %5d %5d %5d %1.2f %2.3f %s"
+              counts.tries counts.successes counts.dups
+              (counts.tries - counts.successes - counts.dups)
+              (float_of_int counts.goals /. (float_of_int counts.successes))
+              counts.time tac))) !hintCounts;
+      end;
       Proofview.tclUNIT ()) in
     Proofview.tclTHEN
       (Proofview.tclORELSE

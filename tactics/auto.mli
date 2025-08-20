@@ -58,7 +58,7 @@ val gen_trivial : ?debug:debug ->
 val fwd_intern_foreach : (Hints.foreach_info -> (Id.t * Id.t) list -> Id.t list ->
   Gentactic.glob_generic_tactic) ref
 
-type stats = { tries: int; successes: int; dups: int}
+type stats = { tries: int; successes: int; dups: int; goals: int; time: float }
 
 val auto_stats : stats ref
 
