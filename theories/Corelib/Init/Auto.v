@@ -13,8 +13,10 @@ Hint Extern 100 => progress red : AUTO.
 Hint Extern 1 => foreach HYP: rewrite <- HYP : AUTO.
 Hint Extern 1 => foreach HYP: rewrite -> HYP : AUTO.
 Hint Extern 150 => foreach IND: induction IND : AUTO.
+Hint Extern 150 => foreach HYP: induction HYP : AUTO.
 Hint Extern 150 => foreach IND: destruct IND : AUTO.
 Hint Extern 150 => foreach HYP: destruct HYP : AUTO.
 Hint Extern 150 => constructor : AUTO.  (* more-efficient alternative? *)
 Hint Extern 150 (?a = ?b) => discriminate : AUTO.
 Hint Extern 150 (?a <> ?b) => discriminate : AUTO.
+Hint Extern 150 => split : AUTO.

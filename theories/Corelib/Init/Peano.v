@@ -239,20 +239,9 @@ Register lt as num.nat.lt.
 Register ge as num.nat.ge.
 Register gt as num.nat.gt.
 
-Hint Resolve le_S le_n: AUTO.
+Hint Constructors le: AUTO.
 Theorem le_pred : forall n m, n <= m -> pred n <= pred m.
 Proof.
-(*
-(* induction 1. *)
-intros. induction m.
- (* fwd ref to simple apply le_0_n. *)
-(* induction 1. *)
-2: { apply H in IHm. intro. info_auto 5 with nocore AUTO.
-
-
-Set Ltac Debug.
-induction 1 ; info_auto. destruct m; simpl; info_auto.
-*)
 induction 1 as [|m _]; auto. destruct m; simpl; auto.
 Qed.
 

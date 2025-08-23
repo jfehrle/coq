@@ -198,6 +198,27 @@ let get_time () =
   let t = times () in
   t.tms_utime +. t.tms_stime
 
+let proof_info = Evd.Store.field "proof_info"
+
+let save_proof_info sigma info =
+  let open Evd in
+  Proofview.tclEVARMAP >>= fun sigma ->
+  let store = get_extra_data sigma in
+  let oinfo = match Store.get store proof_info with
+    | None -> []
+    | Some info -> info
+  in
+  let store = Store.set store proof_info (info :: oinfo) in
+  Proofview.Unsafe.tclEVARS (set_extra_data store sigma)
+
+let get_proof_info sigma =
+  let open Evd in
+  let store = get_extra_data sigma in
+  let info = Store.get store proof_info in
+(*  let len = match info with | None -> 0 | Some l -> List.length l in *)
+(*  Printf.eprintf "length of info = %d\n%!" len; *)
+  info
+
 (** A tracing tactic for debug/info trivial/auto *)
 let tclLOG (dbg,pr,depth,trace) pp tac =
   (* TODO: check hashcode for non-info cases *)
@@ -238,9 +259,11 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
           fun gl -> Monad.List.map (fun x -> x) gl >>= fun from_goals ->
           tclEVARMAP >>= fun sigma0 ->
           tclENV >>= fun env0 ->
+          let _ = get_proof_info sigma0 in
           tac >>= fun v ->
           tclENV >>= fun env ->
           tclEVARMAP >>= fun sigma ->
+          save_proof_info sigma "x" >>= fun () ->
           Proofview.Goal.goals >>=
           fun gl -> Monad.List.map (fun x -> x) gl >>= fun goals ->
           Feedback.msg_notice (str s ++ spc () ++ pp env sigma ++ str ". (*success*)");
@@ -277,6 +300,7 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
       in
       let start = ref 0. in
       Proofview.(tclIFCATCH (
+          Proofview.tclEVARMAP >>= fun sigma ->
           Proofview.Goal.goals >>=
           fun gl -> Monad.List.map (fun x -> x) gl >>= fun goals ->
             (* to suppress duplicate plus_comm when starting a new subgoal
@@ -291,9 +315,11 @@ let tclLOG (dbg,pr,depth,trace) pp tac =
 (*            with Not_found -> (); *)
 (*            end; *)
           concl := if goals = [] then [] else [Proofview.Goal.concl (List.hd goals)];
+          let _ = get_proof_info sigma in
           start := get_time ();
           tac >>= fun v ->
           let delta_t = get_time () -. !start in
+          save_proof_info sigma "x" >>= fun () ->
           Proofview.Goal.goals >>=
           fun gl ->
             let numgoals = List.length gl in
